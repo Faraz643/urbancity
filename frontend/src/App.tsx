@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { KeyboardControls, Text, Html, useKeyboardControls } from '@react-three/drei';
+import { KeyboardControls, Text, useKeyboardControls } from '@react-three/drei';
 import { Physics, RigidBody, CuboidCollider, CapsuleCollider, RapierRigidBody } from '@react-three/rapier';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -65,12 +65,13 @@ function City() {
 }
 function Bench({position}:{position:[number,number,number]}) { return <RigidBody type="fixed" colliders={false} position={position}><CuboidCollider args={[1.2,.7,.45]} position={[0,.7,0]}/><mesh position={[0,.7,0]}><boxGeometry args={[2.4,.25,.7]}/><meshStandardMaterial color="#805b3b"/></mesh><mesh position={[0,1.25,.25]} rotation={[0,0,0]}><boxGeometry args={[2.4,.7,.15]}/><meshStandardMaterial color="#805b3b"/></mesh></RigidBody>}
 
-function Player({onNearby}:{onNearby:(b:Billboard|null)=>void}) {
+function Player({onNearby,onMove}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void}) {
  const body = useRef<RapierRigidBody>(null!);
  const [,get] = useKeyboardControls();
  const { camera } = useThree();
  const velocity = useRef(new THREE.Vector3());
  const target = useRef(new THREE.Vector3());
+ const networkAt = useRef(0);
  useFrame((_,dt)=>{
    const k=get(); const dir=new THREE.Vector3((k.right?1:0)-(k.left?1:0),0,(k.backward?1:0)-(k.forward?1:0));
    if(dir.lengthSq()>0) dir.normalize();
@@ -85,6 +86,7 @@ function Player({onNearby}:{onNearby:(b:Billboard|null)=>void}) {
    let nearest:Billboard|null=null,dist=Infinity;
    for(const b of MAP_BILLBOARDS){const d=Math.hypot(p.x-b.position[0],p.z-b.position[2]);if(d<5&&d<dist){nearest=b;dist=d}}
    onNearby(nearest);
+   networkAt.current+=dt;if(networkAt.current>.08){networkAt.current=0;onMove({position:[p.x,p.y,p.z],rotation:Math.atan2(velocity.current.x,velocity.current.z),moving:velocity.current.lengthSq()>.1})}
  });
  return <RigidBody ref={body} colliders={false} position={[0,1.4,8]} enabledRotations={[false,false,false]} linearDamping={8} friction={0} mass={1}>
    <CapsuleCollider args={[0.75,0.42]}/>
@@ -101,23 +103,21 @@ function BillboardMesh({b,onSelect}:{b:Billboard;onSelect:(b:Billboard)=>void}) 
  </RigidBody>
 }
 
-function RemotePlayers({players}:{players:Remote[]}) {
- return <>{players.map(p=><group key={p.id} position={p.position} rotation={[0,p.rotation,0]}><mesh castShadow position={[0,1,0]}><capsuleGeometry args={[.38,1.1,5,8]}/><meshStandardMaterial color="#f59e0b"/></mesh><Text position={[0,2.1,0]} fontSize={.25} color="white" anchorX="center">{p.name}</Text></group>)}</>
-}
+function RemoteAvatar({p}:{p:Remote}) { const ref=useRef<THREE.Group>(null!); useFrame((_,dt)=>{ref.current.position.lerp(new THREE.Vector3(...p.position),1-Math.pow(.001,dt));ref.current.rotation.y=THREE.MathUtils.lerp(ref.current.rotation.y,p.rotation,Math.min(1,dt*10))}); return <group ref={ref} position={p.position}><mesh castShadow position={[0,1,0]}><capsuleGeometry args={[.38,1.1,5,8]}/><meshStandardMaterial color="#f59e0b"/></mesh><Text position={[0,2.1,0]} fontSize={.25} color="white" anchorX="center">{p.name}</Text></group> }
+function RemotePlayers({players}:{players:Remote[]}) { return <>{players.map(p=><RemoteAvatar key={p.id} p={p}/>)}</> }
 
-function World({setNearby,players,setSelected}:{setNearby:(b:Billboard|null)=>void;players:Remote[];setSelected:(b:Billboard)=>void}) {
+function World({setNearby,players,setSelected,onMove}:{setNearby:(b:Billboard|null)=>void;players:Remote[];setSelected:(b:Billboard)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void}) {
  return <Canvas shadows camera={{position:[10,9,21],fov:55}} dpr={[1,1.75]} gl={{antialias:true,powerPreference:'high-performance'}}>
-   <Suspense fallback={null}><Physics gravity={[0,-20,0]}><City/><Player onNearby={setNearby}/>{MAP_BILLBOARDS.map(b=><BillboardMesh key={b.id} b={b} onSelect={setSelected}/>)}<RemotePlayers players={players}/></Physics></Suspense>
+   <Suspense fallback={null}><Physics gravity={[0,-20,0]}><City/><Player onNearby={setNearby} onMove={onMove}/>{MAP_BILLBOARDS.map(b=><BillboardMesh key={b.id} b={b} onSelect={setSelected}/>)}<RemotePlayers players={players}/></Physics></Suspense>
  </Canvas>
 }
 
 function App(){
  const [nearby,setNearby]=useState<Billboard|null>(null),[selected,setSelected]=useState<Billboard|null>(null),[balance,setBalance]=useState(750000),[players,setPlayers]=useState<Remote[]>([]);
  const socket=useRef<Socket|null>(null);
- useEffect(()=>{const url=import.meta.env.VITE_SERVER_URL||'http://localhost:3001';const s=io(url);socket.current=s;s.on('players:list',(p:Remote[])=>setPlayers(p.filter(x=>x.id!==s.id)));s.on('player:joined',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:update',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:left',(id:string)=>setPlayers(a=>a.filter(x=>x.id!==id)));return()=>s.close()},[]);
- useEffect(()=>{const t=setInterval(()=>{ /* player networking can be fed from Player transform in production */ },100);return()=>clearInterval(t)},[]);
+ useEffect(()=>{const url=import.meta.env.VITE_SERVER_URL||'http://localhost:3001';const s=io(url);socket.current=s;s.on('players:list',(p:Remote[])=>setPlayers(p.filter(x=>x.id!==s.id)));s.on('player:joined',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:update',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:left',(id:string)=>setPlayers(a=>a.filter(x=>x.id!==id)));s.on('billboard:update',(b:{id:string;bid:number})=>{const local=MAP_BILLBOARDS.find(x=>x.id===b.id);if(local)local.bid=b.bid;setSelected(v=>v&&v.id===b.id?{...v,bid:b.bid}:v)});return()=>s.close()},[]);
  const bid=()=>{if(!selected)return;const next=selected.bid+500;if(balance<next)return alert('Not enough demo balance');setBalance(v=>v-next);selected.bid=next;socket.current?.emit('billboard:bid',{id:selected.id,amount:next});setSelected({...selected});};
- return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected}/>
+ return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)}/>
   <div className="hud top"><div><b>● ONLINE</b><span>{players.length+1}</span></div><div><b>BALANCE</b><span>₹{balance.toLocaleString()}</span></div><div><b>DISTRICT</b><span>Uptown</span></div></div>
   <div className="hud controls"><b>Controls</b><small>Move <kbd>W A S D</kbd></small><small>Arrows also work</small><small>Click a billboard / interact nearby</small></div>
   <div className="minimap"><b>MAP</b><div className="mapgrid"><i/><i/><i/><i/><i/><i/><i/></div><small>🟡 billboards • 🔵 players</small></div>
