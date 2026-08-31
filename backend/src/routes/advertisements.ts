@@ -33,7 +33,7 @@ router.get('/', async (req, res, next) => {
 router.get('/my-ads', authenticate, async (req: AuthRequest, res, next) => {
   try {
     const ads = await prisma.advertisement.findMany({
-      where: { userId: req.user.id },
+      where: { userId: req.user!.id },
       include: {
         campaigns: {
           include: { billboard: true },
@@ -63,7 +63,7 @@ router.post('/', authenticate, async (req: AuthRequest, res, next) => {
     const ad = await prisma.advertisement.create({
       data: {
         ...data,
-        userId: req.user.id,
+        userId: req.user!.id,
         status: 'PENDING', // Requires admin approval
       },
     });
@@ -87,10 +87,10 @@ router.patch('/:id', authenticate, async (req: AuthRequest, res, next) => {
     const data = schema.parse(req.body);
 
     const existing = await prisma.advertisement.findFirst({
-      where: { id: req.params.id, userId: req.user.id },
+      where: { id: req.params.id, userId: req.user!.id },
     });
 
-    if (!existing && req.user.role !== 'ADMIN') {
+    if (!existing && req.user!.role !== 'ADMIN') {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
@@ -139,7 +139,7 @@ router.post('/campaigns', authenticate, async (req: AuthRequest, res, next) => {
 
     // Verify ownership
     const ad = await prisma.advertisement.findFirst({
-      where: { id: data.advertisementId, userId: req.user.id },
+      where: { id: data.advertisementId, userId: req.user!.id },
     });
 
     if (!ad) {
@@ -153,7 +153,7 @@ router.post('/campaigns', authenticate, async (req: AuthRequest, res, next) => {
     const campaign = await prisma.advertisingCampaign.create({
       data: {
         ...data,
-        userId: req.user.id,
+        userId: req.user!.id,
         isActive: true,
       },
       include: {
