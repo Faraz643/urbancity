@@ -8,7 +8,8 @@ interface BuildingProps {
 
 export function Building({ position, size, color }: BuildingProps) {
   return (
-    <RigidBody type="fixed" colliders="cuboid">
+    <>
+      {/* The building mesh itself is intentionally not a physics collider. */}
       <mesh position={position} castShadow receiveShadow>
         <boxGeometry args={size} />
         <meshStandardMaterial color={color} roughness={0.8} metalness={0.1} />
@@ -23,6 +24,6 @@ export function Building({ position, size, color }: BuildingProps) {
           <meshStandardMaterial color="#87CEEB" emissive="#87CEEB" emissiveIntensity={0.3} roughness={0.2} />
         </mesh>
       ))}
-    </RigidBody>
+    </>
   );
 }
