@@ -147,14 +147,7 @@ function ThemedSky({timeMode}:{timeMode:TimeMode}) {
   const cloudColor=timeMode==='morning'?'#ffffff':timeMode==='evening'?'#f4b7a0':'#71829b';
   const cloudOpacity=timeMode==='morning'?0.82:timeMode==='evening'?0.6:0.18;
   return <group>
-    {timeMode!=='night' && clouds.map(([x,y,z,s],i)=>(
-      <group key={i} position={[x,y,z]}>
-        <mesh><sphereGeometry args={[s,14,10]}/><meshStandardMaterial color={cloudColor} transparent opacity={cloudOpacity} depthWrite={false}/></mesh>
-        <mesh position={[s*.65,s*.08,0]}><sphereGeometry args={[s*.68,12,9]}/><meshStandardMaterial color={cloudColor} transparent opacity={cloudOpacity} depthWrite={false}/></mesh>
-        <mesh position={[-s*.6,-s*.05,0]}><sphereGeometry args={[s*.55,12,9]}/><meshStandardMaterial color={cloudColor} transparent opacity={cloudOpacity} depthWrite={false}/></mesh>
-      </group>
-    ))}
-    {timeMode==='night' && <>
+        {timeMode==='night' && <>
       {stars.map((p,i)=><mesh key={i} position={p}><sphereGeometry args={[0.08+(i%3)*0.025,5,5]}/><meshBasicMaterial color={i%5===0?'#b8d8ff':'#ffffff'}/></mesh>)}
       <mesh position={[-28,31,-45]}><sphereGeometry args={[3.2,20,16]}/><meshBasicMaterial color="#d9e7ff"/></mesh>
     </>}
@@ -377,7 +370,7 @@ function MiniMap({players}:{players:Remote[]}) {
 }
 
 function App(){
- const [nearby,setNearby]=useState<Billboard|null>(null),[selected,setSelected]=useState<Billboard|null>(null),[balance,setBalance]=useState(750000),[players,setPlayers]=useState<Remote[]>([]),[timeMode,setTimeMode]=useState<TimeMode>('night'),[localPosition,setLocalPosition]=useState<[number,number,number]>([0,1.4,8]);
+ const [nearby,setNearby]=useState<Billboard|null>(null),[selected,setSelected]=useState<Billboard|null>(null),[balance,setBalance]=useState(750000),[players,setPlayers]=useState<Remote[]>([]),[timeMode,setTimeMode]=useState<TimeMode>('evening'),[localPosition,setLocalPosition]=useState<[number,number,number]>([0,1.4,8]);
  const socket=useRef<Socket|null>(null);
  const totalVisitors=players.length+1;
  const visitorStats=useMemo(()=>{const stats:Record<string,number>={};for(const b of MAP_BILLBOARDS)stats[b.id]=0;const all=[localPosition,...players.map(p=>p.position)];for(const pos of all){for(const b of MAP_BILLBOARDS){const radius=b.kind==='wall-ad'?6:7;if(Math.hypot(pos[0]-b.position[0],pos[2]-b.position[2])<=radius)stats[b.id]++}}return stats},[players,localPosition]);
