@@ -34,23 +34,22 @@ router.post('/register', async (req, res, next) => {
 
     const passwordHash = await bcrypt.hash(data.password, 12);
 
-    const user = await prisma.user.create({
-      data: {
-        email: data.email,
-        username: data.username,
-        passwordHash,
-        displayName: data.displayName || data.username,
-      },
-    });
-
-    // Create wallet
-    await prisma.wallet.create({
-      data: { userId: user.id, balance: 100000 }, // Starting balance: ₹1,00,000
+    const user = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email: data.email,
+          username: data.username,
+          passwordHash,
+          displayName: data.displayName || data.username,
+        },
+      });
+      await tx.wallet.create({ data: { userId: created.id, balance: 100000 } });
+      return created;
     });
 
     const token = jwt.sign(
       { userId: user.id },
-      process.env.JWT_SECRET!,
+      process.env.JWT_SECRET || 'development-only-change-me',
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
@@ -89,7 +88,7 @@ router.post('/login', async (req, res, next) => {
 
     const token = jwt.sign(
       { userId: user.id },
-      process.env.JWT_SECRET!,
+      process.env.JWT_SECRET || 'development-only-change-me',
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
