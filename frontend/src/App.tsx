@@ -296,7 +296,8 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors}:{b:Billboard;onSelec
        <mesh position={[0,0,.095]}><planeGeometry args={[w,h]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#214b14'} emissive={b.occupied?'#3b0c21':'#1c5d12'} emissiveIntensity={0.65}/></mesh>
        <Text position={[0,.2,.12]} fontSize={Math.min(h*.18,.72)} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{b.ad}</Text>
        <Text position={[0,-h*.34,.12]} fontSize={.2} color="#b8d9ff" anchorX="center">WALL #{b.id} • ₹{b.bid.toLocaleString()}</Text>
-     <Text position={[0,h/2+.62,.14]} fontSize={.34} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.025} outlineColor="#07111e">VISITORS: {nearCount}</Text>
+     <Text position={[0,h/2+.62,.14]} fontSize={.34} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.025} outlineColor="#07111e">VISITORS</Text>
+     <Text position={[0,h/2+.62,.5]} fontSize={.46} color="white" anchorX="center" anchorY="middle" outlineWidth={0.035} outlineColor="#07111e">{String(nearCount)}</Text>
        <mesh position={[0,h/2+.22,0]}><boxGeometry args={[w+.5,.08,.22]}/><meshStandardMaterial color="#49d17d" emissive="#1b6f43" emissiveIntensity={1.1}/></mesh>
      </group>
    </RigidBody>;
@@ -309,7 +310,8 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors}:{b:Billboard;onSelec
      <mesh position={[0,0,.24]}><planeGeometry args={[w-.35,h-.35]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#294c0b'} emissive={b.occupied?'#3b0c21':'#234d03'} emissiveIntensity={0.7}/></mesh>
      <Text position={[0,.2,.48]} fontSize={h*.18} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{b.ad}</Text>
      <Text position={[0,-h*.28,.48]} fontSize={.22} color="#b8d9ff" anchorX="center">#{b.id} • ₹{b.bid.toLocaleString()}</Text>
-     <Text position={[0,h/2+.62,.5]} fontSize={.34} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.025} outlineColor="#07111e">VISITORS: {nearCount}</Text>
+     <Text position={[0,h/2+.62,.5]} fontSize={.34} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.025} outlineColor="#07111e">VISITORS</Text>
+       <Text position={[0,h/2+.62,.15]} fontSize={.46} color="white" anchorX="center" anchorY="middle" outlineWidth={0.035} outlineColor="#07111e">{String(nearCount)}</Text>
    </group>
    <mesh position={[-w*.28,-h/2-2,0]}><boxGeometry args={[.25,4,.25]}/><meshStandardMaterial color="#171c25"/></mesh>
    <mesh position={[w*.28,-h/2-2,0]}><boxGeometry args={[.25,4,.25]}/><meshStandardMaterial color="#171c25"/></mesh>
