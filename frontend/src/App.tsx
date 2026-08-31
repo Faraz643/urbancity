@@ -253,7 +253,7 @@ function PlayerAvatar({moving}:{moving:boolean}) {
    actions[next]?.reset().fadeIn(.18).play();
    current.current=next;
  },[moving,actions]);
- return <group scale={0.012} rotation={[0,Math.PI,0]} position={[0,-1.18,0]}><primitive object={model}/></group>;
+ return <group scale={0.006} rotation={[0,Math.PI,0]} position={[0,-1.18,0]}><primitive object={model}/></group>;
 }
 
 function Player({onNearby,onMove,onPosition}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void;onPosition:(p:[number,number,number])=>void}) {
