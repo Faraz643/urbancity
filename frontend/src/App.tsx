@@ -1,5 +1,5 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { KeyboardControls, Text, useKeyboardControls } from '@react-three/drei';
+import { Text } from '@react-three/drei';
 import { Physics, RigidBody, CuboidCollider, CapsuleCollider, RapierRigidBody } from '@react-three/rapier';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -13,11 +13,6 @@ const MAP_BILLBOARDS: Billboard[] = [
   { id:'207', type:'Premium Road', position:[-26,4,-4], traffic:'High', bid:8200, occupied:true, ad:'URBAN FINANCE' },
   { id:'311', type:'Street', position:[22,3,16], traffic:'Medium', bid:1800, occupied:false, ad:'AVAILABLE' },
   { id:'412', type:'Street', position:[-18,3,22], traffic:'Medium', bid:2200, occupied:false, ad:'AVAILABLE' },
-];
-
-const keys = [
-  { name:'forward', keys:['KeyW','ArrowUp'] }, { name:'backward', keys:['KeyS','ArrowDown'] },
-  { name:'left', keys:['KeyA','ArrowLeft'] }, { name:'right', keys:['KeyD','ArrowRight'] },
 ];
 
 function Building({ position, size, height, color }: {position:[number,number,number];size:[number,number];height:number;color:string}) {
@@ -67,13 +62,20 @@ function Bench({position}:{position:[number,number,number]}) { return <RigidBody
 
 function Player({onNearby,onMove}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void}) {
  const body = useRef<RapierRigidBody>(null!);
- const [,get] = useKeyboardControls();
+ const pressed = useRef<Record<string, boolean>>({});
+ useEffect(()=>{
+   const down=(e:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)){pressed.current[e.code]=true;e.preventDefault()}};
+   const up=(e:KeyboardEvent)=>{pressed.current[e.code]=false};
+   window.addEventListener('keydown',down,{passive:false});
+   window.addEventListener('keyup',up);
+   return()=>{window.removeEventListener('keydown',down);window.removeEventListener('keyup',up)};
+ },[]);
  const { camera } = useThree();
  const velocity = useRef(new THREE.Vector3());
  const target = useRef(new THREE.Vector3());
  const networkAt = useRef(0);
  useFrame((_,dt)=>{
-   const k=get(); const dir=new THREE.Vector3((k.right?1:0)-(k.left?1:0),0,(k.backward?1:0)-(k.forward?1:0));
+   const k=pressed.current; const dir=new THREE.Vector3(((k.KeyD||k.ArrowRight)?1:0)-((k.KeyA||k.ArrowLeft)?1:0),0,((k.KeyS||k.ArrowDown)?1:0)-((k.KeyW||k.ArrowUp)?1:0));
    if(dir.lengthSq()>0) dir.normalize();
    const speed=7; velocity.current.lerp(dir.multiplyScalar(speed),Math.min(1,dt*12));
    body.current.setLinvel({x:velocity.current.x,y:body.current.linvel().y,z:velocity.current.z},true);
@@ -107,9 +109,7 @@ function RemoteAvatar({p}:{p:Remote}) { const ref=useRef<THREE.Group>(null!); us
 function RemotePlayers({players}:{players:Remote[]}) { return <>{players.map(p=><RemoteAvatar key={p.id} p={p}/>)}</> }
 
 function World({setNearby,players,setSelected,onMove}:{setNearby:(b:Billboard|null)=>void;players:Remote[];setSelected:(b:Billboard)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void}) {
- return (
-   <KeyboardControls map={keys}>
-     <Canvas
+ return (\n     <Canvas
        shadows
        camera={{position:[10,9,21],fov:55}}
        dpr={[1,1.5]}
@@ -124,9 +124,7 @@ function World({setNearby,players,setSelected,onMove}:{setNearby:(b:Billboard|nu
            <RemotePlayers players={players}/>
          </Physics>
        </Suspense>
-     </Canvas>
-   </KeyboardControls>
- )
+     </Canvas>\n )
 }
 
 function App(){
