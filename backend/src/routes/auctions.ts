@@ -58,6 +58,61 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
+// Place a persistent bid
+router.post('/:id/bids', authenticate, async (req: AuthRequest, res, next) => {
+  try {
+    const schema = z.object({ amount: z.number().positive() });
+    const { amount } = schema.parse(req.body);
+
+    const auction = await prisma.auction.findUnique({
+      where: { id: req.params.id },
+      include: { billboard: true },
+    });
+
+    if (!auction) return res.status(404).json({ error: 'Auction not found' });
+    if (auction.status !== 'ACTIVE' || auction.endsAt <= new Date()) {
+      return res.status(400).json({ error: 'Auction is not active' });
+    }
+
+    const current = auction.currentPrice ? Number(auction.currentPrice) : Number(auction.startPrice);
+    if (amount <= current) {
+      return res.status(400).json({ error: 'Bid must be higher than the current price', currentPrice: current });
+    }
+
+    const wallet = await prisma.wallet.findUnique({ where: { userId: req.user!.id } });
+    if (!wallet || Number(wallet.balance) < amount) {
+      return res.status(400).json({ error: 'Insufficient wallet balance' });
+    }
+
+    const bid = await prisma.$transaction(async (tx) => {
+      const created = await tx.bid.create({
+        data: {
+          auctionId: auction.id,
+          bidderId: req.user!.id,
+          billboardId: auction.billboardId,
+          amount,
+        },
+      });
+
+      await tx.auction.update({
+        where: { id: auction.id },
+        data: { currentPrice: amount },
+      });
+
+      await tx.billboard.update({
+        where: { id: auction.billboardId },
+        data: { currentBid: amount, currentBidderId: req.user!.id, isAvailable: false },
+      });
+
+      return created;
+    });
+
+    res.status(201).json({ bid, currentPrice: amount });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Create auction (admin)
 router.post('/', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
   try {
