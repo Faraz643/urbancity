@@ -92,6 +92,63 @@ const TIME_THEMES: Record<TimeMode,{bg:string;fog:string;ground:string;road:stri
  night:{bg:'#07111e',fog:'#07111e',ground:'#172233',road:'#090f1a',ambient:.5,sun:1.45,sunColor:'#dcecff',sunPos:[25,55,18]}
 };
 
+function WorldFence() {
+  const limit = 58;
+  const fenceMaterial = <meshStandardMaterial color="#243241" metalness={0.65} roughness={0.48} />;
+  const horizontal = (z:number) => (
+    <group position={[0,0,z]}>
+      <mesh position={[0,1.2,0]}><boxGeometry args={[116,0.12,0.12]} />{fenceMaterial}</mesh>
+      <mesh position={[0,2.8,0]}><boxGeometry args={[116,0.12,0.12]} />{fenceMaterial}</mesh>
+      {Array.from({length:30},(_,i)=><mesh key={i} position={[-58+i*4,1.5,0]}><boxGeometry args={[0.12,3.2,0.12]} />{fenceMaterial}</mesh>)}
+    </group>
+  );
+  const vertical = (x:number) => (
+    <group position={[x,0,0]}>
+      <mesh position={[0,1.2,0]}><boxGeometry args={[0.12,0.12,116]} />{fenceMaterial}</mesh>
+      <mesh position={[0,2.8,0]}><boxGeometry args={[0.12,0.12,116]} />{fenceMaterial}</mesh>
+      {Array.from({length:30},(_,i)=><mesh key={i} position={[0,1.5,-58+i*4]}><boxGeometry args={[0.12,3.2,0.12]} />{fenceMaterial}</mesh>)}
+    </group>
+  );
+  return <>
+    <RigidBody type="fixed" colliders={false}>
+      <CuboidCollider args={[0.35,3,60]} position={[-limit,3,0]} />
+      <CuboidCollider args={[0.35,3,60]} position={[limit,3,0]} />
+      <CuboidCollider args={[60,3,0.35]} position={[0,3,-limit]} />
+      <CuboidCollider args={[60,3,0.35]} position={[0,3,limit]} />
+    </RigidBody>
+    {horizontal(-limit)}{horizontal(limit)}{vertical(-limit)}{vertical(limit)}
+  </>;
+}
+
+function ThemedSky({timeMode}:{timeMode:TimeMode}) {
+  const clouds = [
+    [-34,31,-38,7],[-8,37,-28,9],[25,30,-34,8],[42,40,8,10],
+    [-40,35,22,8],[8,33,34,11],[-18,42,15,7]
+  ] as const;
+  const stars = useMemo(()=>Array.from({length:80},(_,i)=>{
+    const a=(i*2.399963229728653)%6.28318;
+    const r=35+(i%13)*3.4;
+    return [Math.cos(a)*r,24+(i%9)*3.8,Math.sin(a)*r] as [number,number,number];
+  }),[]);
+  const cloudColor=timeMode==='morning'?'#ffffff':timeMode==='evening'?'#f4b7a0':'#71829b';
+  const cloudOpacity=timeMode==='morning'?0.82:timeMode==='evening'?0.6:0.18;
+  return <group>
+    {timeMode!=='night' && clouds.map(([x,y,z,s],i)=>(
+      <group key={i} position={[x,y,z]}>
+        <mesh><sphereGeometry args={[s,14,10]}/><meshStandardMaterial color={cloudColor} transparent opacity={cloudOpacity} depthWrite={false}/></mesh>
+        <mesh position={[s*.65,s*.08,0]}><sphereGeometry args={[s*.68,12,9]}/><meshStandardMaterial color={cloudColor} transparent opacity={cloudOpacity} depthWrite={false}/></mesh>
+        <mesh position={[-s*.6,-s*.05,0]}><sphereGeometry args={[s*.55,12,9]}/><meshStandardMaterial color={cloudColor} transparent opacity={cloudOpacity} depthWrite={false}/></mesh>
+      </group>
+    ))}
+    {timeMode==='night' && <>
+      {stars.map((p,i)=><mesh key={i} position={p}><sphereGeometry args={[0.08+(i%3)*0.025,5,5]}/><meshBasicMaterial color={i%5===0?'#b8d8ff':'#ffffff'}/></mesh>)}
+      <mesh position={[-28,31,-45]}><sphereGeometry args={[3.2,20,16]}/><meshBasicMaterial color="#d9e7ff"/></mesh>
+    </>}
+    {timeMode==='morning' && <mesh position={[-38,28,-50]}><sphereGeometry args={[4.5,20,16]}/><meshBasicMaterial color="#fff3b0"/></mesh>}
+    {timeMode==='evening' && <mesh position={[38,16,-50]}><sphereGeometry args={[4.7,20,16]}/><meshBasicMaterial color="#ffb36b"/></mesh>}
+  </group>;
+}
+
 function City({timeMode}:{timeMode:TimeMode}) {
  // Dense boulevard layout inspired by the supplied reference: a long central avenue,
  // one major cross street, continuous sidewalks and tall street-wall buildings.
@@ -112,8 +169,10 @@ function City({timeMode}:{timeMode:TimeMode}) {
    <color attach="background" args={[theme.bg]}/>
    <fog attach="fog" args={[theme.fog,75,155]}/>
    <ambientLight intensity={theme.ambient}/><directionalLight castShadow position={theme.sunPos} intensity={theme.sun} color={theme.sunColor} shadow-mapSize={[1024,1024]}/>
-   <RigidBody type="fixed"><CuboidCollider args={[60,.2,60]} position={[0,-.2,0]}/></RigidBody>
+   <RigidBody type="fixed"><CuboidCollider args={[70,.2,70]} position={[0,-.2,0]}/></RigidBody>
+   <ThemedSky timeMode={timeMode}/>
    <mesh rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[120,120]}/><meshStandardMaterial color={theme.ground}/></mesh>
+   <WorldFence/>
 
    {/* Main avenue and intersection */}
    <mesh position={[0,.01,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[18,120]}/><meshStandardMaterial color={theme.road} roughness={.9}/></mesh>
