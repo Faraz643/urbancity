@@ -449,6 +449,16 @@ function App(){
  const totalVisitors=players.length+1;
  const visitorStats=useMemo(()=>{const stats:Record<string,number>={};for(const b of MAP_BILLBOARDS)stats[b.id]=0;const all=[localPosition,...players.map(p=>p.position)];for(const pos of all){for(const b of MAP_BILLBOARDS){const radius=b.kind==='wall-ad'?6:7;if(Math.hypot(pos[0]-b.position[0],pos[2]-b.position[2])<=radius)stats[b.id]++}}return stats},[players,localPosition]);
  useEffect(()=>{const url=import.meta.env.VITE_SERVER_URL||'http://localhost:3001';const s=io(url);socket.current=s;s.on('players:list',(p:Remote[])=>setPlayers(p.filter(x=>x.id!==s.id)));s.on('player:joined',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:update',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:left',(id:string)=>setPlayers(a=>a.filter(x=>x.id!==id)));s.on('billboard:update',(b:{id:string;bid:number})=>{const local=MAP_BILLBOARDS.find(x=>x.id===b.id);if(local)local.bid=b.bid;setSelected(v=>v&&v.id===b.id?{...v,bid:b.bid}:v)});return()=>s.close()},[]);
+ useEffect(()=>{
+   const url=(import.meta.env.VITE_SERVER_URL||'http://localhost:3001')+'/api/billboards';
+   fetch(url).then(r=>r.ok?r.json():Promise.reject()).then((rows:any[])=>{
+     for(const row of rows){
+       const local=MAP_BILLBOARDS.find(x=>x.id===row.id);
+       const bid=Number(row.currentBid??row.minBid);
+       if(local&&Number.isFinite(bid)) local.bid=bid;
+     }
+   }).catch(()=>{/* Game keeps local defaults when database is not configured yet. */});
+ },[]);
  useEffect(()=>{(window as any).__urbanInteractBillboard=(b:Billboard)=>setSelected(b);return()=>{delete (window as any).__urbanInteractBillboard;delete (window as any).__urbanNearbyBillboard}},[]);
  const bid=()=>{if(!selected)return;const next=selected.bid+500;if(balance<next)return alert('Not enough demo balance');setBalance(v=>v-next);selected.bid=next;socket.current?.emit('billboard:bid',{id:selected.id,amount:next});setSelected({...selected});};
  return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} timeMode={timeMode} visitorStats={visitorStats} onLocalPosition={setLocalPosition}/>
