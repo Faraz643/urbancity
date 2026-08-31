@@ -213,6 +213,10 @@ function Bench({position}:{position:[number,number,number]}) { return <RigidBody
 
 function GameCamera(){
  const yaw=useRef(0.55), pitch=useRef(0.45), distance=useRef(12);
+ // Smooth the Rapier player's physics position before the camera uses it.
+ // This removes tiny physics-step corrections that can look like screen shake.
+ const smoothTarget=useRef(new THREE.Vector3(0,3.1,8));
+ const smoothCamera=useRef(new THREE.Vector3(0,8,18));
  const dragging=useRef(false), last=useRef<[number,number]>([0,0]);
  useEffect(()=>{
   const down=(e:MouseEvent)=>{if(e.button===0){dragging.current=true;last.current=[e.clientX,e.clientY];document.body.style.cursor='grabbing';e.preventDefault()}};
@@ -225,11 +229,18 @@ function GameCamera(){
  },[]);
  useFrame(({camera},dt)=>{
   const p=(window as any).__urbanPlayerPosition as THREE.Vector3|undefined;if(!p)return;
-  const target=new THREE.Vector3(p.x,p.y+1.7,p.z);
+  // Ignore tiny vertical Rapier corrections on this flat city map and smooth X/Z.
+  const rawTarget=new THREE.Vector3(p.x,3.1,p.z);
+  const targetAlpha=1-Math.exp(-14*dt);
+  smoothTarget.current.lerp(rawTarget,targetAlpha);
+  const target=smoothTarget.current;
   const horizontal=Math.max(2.2,Math.cos(pitch.current)*distance.current);
   (window as any).__urbanCameraYaw=yaw.current;
   const desired=new THREE.Vector3(target.x+Math.sin(yaw.current)*horizontal,target.y+Math.sin(pitch.current)*distance.current,target.z+Math.cos(yaw.current)*horizontal);
-  camera.position.lerp(desired,1-Math.pow(.0001,dt));camera.lookAt(target);
+  const cameraAlpha=1-Math.exp(-10*dt);
+  smoothCamera.current.lerp(desired,cameraAlpha);
+  camera.position.copy(smoothCamera.current);
+  camera.lookAt(target);
  });
  return null;
 }
