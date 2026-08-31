@@ -14,7 +14,7 @@ model User {
   passwordHash    String
   displayName     String?
   avatar          String?
-  role            UserRole  @default(USER)
+  role            String    @default("USER")
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -55,46 +55,45 @@ model Wallet {
 }
 
 model Transaction {
-  id          String          @id @default(uuid())
+  id          String   @id @default(uuid())
   walletId    String
-  wallet      Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
   userId      String
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        TransactionType
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String
   amount      Decimal
   description String?
-  status      TransactionStatus @default(COMPLETED)
+  status      String   @default("COMPLETED")
   referenceId String?
-  createdAt   DateTime        @default(now())
+  createdAt   DateTime @default(now())
 
   @@map("transactions")
 }
 
 model Billboard {
-  id                String         @id @default(uuid())
+  id                String   @id @default(uuid())
   name              String
-  type              BillboardType
+  type              String
   positionX         Float
   positionY         Float
   positionZ         Float
-  rotationY         Float          @default(0)
-  width             Float          @default(4)
-  height            Float          @default(2.5)
+  rotationY         Float    @default(0)
+  width             Float    @default(4)
+  height            Float    @default(2.5)
   location          String
-  trafficRadius     Float          @default(50)
-  trafficRating     TrafficRating  @default(MEDIUM)
-  visibilityRating  VisibilityRating @default(GOOD)
-  minBid            Decimal        @default(1000)
+  trafficRadius     Float    @default(50)
+  trafficRating     String   @default("MEDIUM")
+  visibilityRating  String   @default("GOOD")
+  minBid            Decimal  @default(1000)
   currentBid        Decimal?
   currentBidderId   String?
-  isAvailable       Boolean        @default(true)
-  isActive          Boolean        @default(true)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  isAvailable       Boolean  @default(true)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   auctions          Auction[]
   bids              Bid[]
-  advertisements    Advertisement[]
   campaigns         AdvertisingCampaign[]
   trafficAnalytics  TrafficAnalytics[]
 
@@ -102,17 +101,17 @@ model Billboard {
 }
 
 model Auction {
-  id            String        @id @default(uuid())
+  id            String   @id @default(uuid())
   billboardId   String
-  billboard     Billboard     @relation(fields: [billboardId], references: [id], onDelete: Cascade)
+  billboard     Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
   startPrice    Decimal
   currentPrice  Decimal?
   winnerId      String?
-  status        AuctionStatus @default(ACTIVE)
-  startedAt     DateTime      @default(now())
+  status        String   @default("ACTIVE")
+  startedAt     DateTime @default(now())
   endsAt        DateTime
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   bids          Bid[]
 
@@ -142,7 +141,7 @@ model Advertisement {
   description String?
   imageUrl    String
   targetUrl   String?
-  status      AdStatus @default(PENDING)
+  status      String   @default("PENDING")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -152,108 +151,42 @@ model Advertisement {
 }
 
 model AdvertisingCampaign {
-  id              String    @id @default(uuid())
+  id              String        @id @default(uuid())
   userId          String
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   billboardId     String
-  billboard       Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
+  billboard       Billboard     @relation(fields: [billboardId], references: [id], onDelete: Cascade)
   advertisementId String
   advertisement   Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
   startDate       DateTime
   endDate         DateTime
-  isActive        Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  isActive        Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@map("advertising_campaigns")
 }
 
 model TrafficAnalytics {
-  id            String   @id @default(uuid())
-  billboardId   String
-  billboard     Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
-  nearbyVisitors Int     @default(0)
-  timestamp     DateTime @default(now())
+  id             String    @id @default(uuid())
+  billboardId    String
+  billboard      Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
+  nearbyVisitors Int       @default(0)
+  timestamp      DateTime  @default(now())
 
   @@map("traffic_analytics")
 }
 
 model Notification {
-  id        String           @id @default(uuid())
+  id        String   @id @default(uuid())
   userId    String
-  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      NotificationType
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
   title     String
   message   String
-  isRead    Boolean          @default(false)
-  data      String?          // JSON string for extra data
-  createdAt DateTime         @default(now())
+  isRead    Boolean  @default(false)
+  data      String?
+  createdAt DateTime @default(now())
 
   @@map("notifications")
-}
-
-enum UserRole {
-  USER
-  ADMIN
-}
-
-enum TransactionType {
-  DEPOSIT
-  WITHDRAWAL
-  BID_RESERVATION
-  BID_REFUND
-  WINNING_PAYMENT
-  AUCTION_FEE
-}
-
-enum TransactionStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  CANCELLED
-}
-
-enum BillboardType {
-  PREMIUM
-  STREET
-}
-
-enum TrafficRating {
-  VERY_LOW
-  LOW
-  MEDIUM
-  HIGH
-  VERY_HIGH
-}
-
-enum VisibilityRating {
-  POOR
-  FAIR
-  GOOD
-  EXCELLENT
-}
-
-enum AuctionStatus {
-  ACTIVE
-  ENDED
-  CANCELLED
-}
-
-enum AdStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  ACTIVE
-  EXPIRED
-}
-
-enum NotificationType {
-  OUTBID
-  AUCTION_WON
-  AUCTION_ENDED
-  BID_PLACED
-  PAYMENT_RECEIVED
-  CAMPAIGN_STARTED
-  CAMPAIGN_ENDED
-  SYSTEM
 }
