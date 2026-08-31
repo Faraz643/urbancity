@@ -26,6 +26,7 @@ model User {
   advertisements  Advertisement[]
   campaigns       AdvertisingCampaign[]
   notifications   Notification[]
+  bookings        Booking[]
 
   @@map("users")
 }
@@ -96,6 +97,7 @@ model Billboard {
   bids              Bid[]
   campaigns         AdvertisingCampaign[]
   trafficAnalytics  TrafficAnalytics[]
+  bookings          Booking[]
 
   @@map("billboards")
 }
@@ -189,4 +191,24 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@map("notifications")
+}
+
+model Booking {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billboardId String
+  billboard   Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
+  startDate   DateTime
+  endDate     DateTime
+  durationMinutes Int
+  amount      Decimal
+  companyName String
+  status      String    @default("ACTIVE")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([billboardId, status, endDate])
+  @@index([userId, createdAt])
+  @@map("bookings")
 }
