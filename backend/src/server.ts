@@ -191,6 +191,37 @@ io.on('connection', (socket) => {
   });
 });
 
+// Automatically expire completed advertising bookings and release their billboard.
+async function expireBookings() {
+  if (!databaseReady) return;
+  try {
+    const now=new Date();
+    const expired=await prisma.booking.findMany({
+      where:{status:'ACTIVE',endDate:{lte:now}},
+      select:{id:true,billboardId:true,companyName:true,endDate:true}
+    });
+    if(!expired.length)return;
+    await prisma.$transaction(async tx=>{
+      for(const booking of expired){
+        await tx.booking.update({where:{id:booking.id},data:{status:'EXPIRED'}});
+        const nextActive=await tx.booking.findFirst({where:{billboardId:booking.billboardId,status:'ACTIVE',endDate:{gt:now}}});
+        if(!nextActive){
+          await tx.billboard.update({where:{id:booking.billboardId},data:{isAvailable:true,currentBid:null,currentBidderId:null}});
+        }
+      }
+    });
+    for(const booking of expired){
+      const live=liveBillboards.get(booking.billboardId);
+      if(live){(live as any).bidder=undefined;live.bid=0;}
+      io.emit('billboard:expired',{id:booking.billboardId,companyName:booking.companyName,endedAt:booking.endDate.toISOString()});
+      io.emit('billboard:update',{...(live||{id:booking.billboardId,bid:0,history:[]}),bidder:null,available:true});
+    }
+    console.log('Expired '+expired.length+' advertising booking(s)');
+  }catch(error){console.warn('Booking expiry check failed:',error);}
+}
+
+setInterval(()=>void expireBookings(),15_000);
+
 // Persist proximity snapshots every 15 seconds without affecting gameplay.
 setInterval(async () => {
   if (!databaseReady) return;
@@ -228,6 +259,7 @@ const PORT = Number(process.env.PORT || 3001);
 
 async function start() {
   await checkDatabase();
+  await expireBookings();
   httpServer.listen(PORT, () => {
     console.log('UrbanCity server on ' + PORT);
   });
