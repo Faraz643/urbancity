@@ -2,7 +2,7 @@ import { Routes, Route } from 'react-router-dom';
 import { Suspense, lazy } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Physics } from '@react-three/rapier';
-import { Environment, Sky, KeyboardControls } from '@react-three/drei';
+import { Environment, Sky, KeyboardControls, PointerLockControls } from '@react-three/drei';
 import LoadingScreen from './components/ui/LoadingScreen';
 import HUD from './components/ui/HUD';
 import BillboardPanel from './components/ui/BillboardPanel';
@@ -42,6 +42,7 @@ function GameScene() {
             shadow-mapSize={[2048, 2048]}
             shadow-camera-left={-100} shadow-camera-right={100}
             shadow-camera-top={100} shadow-camera-bottom={-100} />
+          <PointerLockControls />
           <Physics gravity={[0, -9.81, 0]} colliders={false}>
             <CityScene />
             <Player />
