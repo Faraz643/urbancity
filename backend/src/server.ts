@@ -14,7 +14,7 @@ app.get('/health',(_req,res)=>res.json({status:'ok',online:players.size,timestam
 app.get('/api/billboards',(_req,res)=>res.json([...billboards.values()]));
 const io=new Server(httpServer,{cors:{origin:process.env.FRONTEND_URL||'http://localhost:5173',credentials:true}});
 io.on('connection',socket=>{const player:Player={id:socket.id,name:'Visitor-'+randomUUID().slice(0,4),position:[0,1,8],rotation:0,moving:false};players.set(socket.id,player);socket.emit('players:list',[...players.values()]);socket.broadcast.emit('player:joined',player);io.emit('online:count',players.size);
- socket.on('player:update',(data:Partial<Player>)=>{const p=players.get(socket.id);if(!p)return;p.position=Array.isArray(data.position)?data.position:p.position;p.rotation=typeof data.rotation==='number'?data.rotation:p.rotation;p.moving=!!data.moving;socket.broadcast.emit('player:update',p)});
+ socket.on('player:update',(data:Partial<Player>)=>{const p=players.get(socket.id);if(!p)return;p.position=Array.isArray(data.position)&&data.position.length===3?data.position as [number,number,number]:p.position;p.rotation=typeof data.rotation==='number'?data.rotation:p.rotation;p.moving=!!data.moving;socket.broadcast.emit('player:update',p)});
  socket.on('billboard:bid',(data:{id:string;amount:number})=>{const b=billboards.get(data.id);if(!b||!Number.isFinite(data.amount)||data.amount<=b.bid)return;b.bid=data.amount;b.history.push({playerId:socket.id,amount:data.amount,at:new Date().toISOString()});io.emit('billboard:update',b)});
  socket.on('disconnect',()=>{players.delete(socket.id);io.emit('player:left',socket.id);io.emit('online:count',players.size)})});
 const PORT=Number(process.env.PORT||3001);httpServer.listen(PORT,()=>console.log('UrbanCity multiplayer server on '+PORT));
