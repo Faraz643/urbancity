@@ -85,20 +85,15 @@ router.post('/:id/bids', authenticate, async (req: AuthRequest, res, next) => {
     }
 
     const bid = await prisma.$transaction(async (tx) => {
+      const fresh = await tx.auction.findUnique({ where: { id: auction.id }, select: { currentPrice: true, startPrice: true } });
+      const freshCurrent = fresh?.currentPrice ? Number(fresh.currentPrice) : Number(fresh?.startPrice ?? auction.startPrice);
+      if (amount <= freshCurrent) throw Object.assign(new Error('Bid was beaten by another visitor'), { status: 409 });
+
       const created = await tx.bid.create({
-        data: {
-          auctionId: auction.id,
-          bidderId: req.user!.id,
-          billboardId: auction.billboardId,
-          amount,
-        },
+        data: { auctionId: auction.id, bidderId: req.user!.id, billboardId: auction.billboardId, amount },
       });
 
-      await tx.auction.update({
-        where: { id: auction.id },
-        data: { currentPrice: amount },
-      });
-
+      await tx.auction.update({ where: { id: auction.id }, data: { currentPrice: amount } });
       await tx.billboard.update({
         where: { id: auction.billboardId },
         data: { currentBid: amount, currentBidderId: req.user!.id, isAvailable: false },
