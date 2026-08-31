@@ -5,7 +5,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { io, Socket } from 'socket.io-client';
 
-type Billboard = { id:string; type:'Premium Road'|'Street'; position:[number,number,number]; traffic:'High'|'Medium'; bid:number; occupied:boolean; ad:string };
+type Billboard = { id:string; type:'Premium Road'|'Street'; position:[number,number,number]; traffic:'High'|'Medium'; bid:number; occupied:boolean; ad:string; rotationY?:number };
 type Remote = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean };
 
 const MAP_BILLBOARDS: Billboard[] = [
@@ -13,6 +13,12 @@ const MAP_BILLBOARDS: Billboard[] = [
   { id:'207', type:'Premium Road', position:[0,4,22], traffic:'High', bid:8200, occupied:true, ad:'URBAN FINANCE' },
   { id:'311', type:'Street', position:[28,3,-14], traffic:'Medium', bid:1800, occupied:false, ad:'AVAILABLE' },
   { id:'412', type:'Street', position:[-28,3,4], traffic:'Medium', bid:2200, occupied:false, ad:'AVAILABLE' },
+
+  // Perimeter corner inventory: one physical billboard at each corner, facing inward.
+  { id:'501', type:'Street', position:[-53,4,-53], traffic:'Medium', bid:2400, occupied:false, ad:'CORNER NORTHWEST', rotationY:Math.PI/4 },
+  { id:'502', type:'Street', position:[53,4,-53], traffic:'Medium', bid:2400, occupied:false, ad:'CORNER NORTHEAST', rotationY:-Math.PI/4 },
+  { id:'503', type:'Street', position:[-53,4,53], traffic:'Medium', bid:2400, occupied:false, ad:'CORNER SOUTHWEST', rotationY:Math.PI*3/4 },
+  { id:'504', type:'Street', position:[53,4,53], traffic:'Medium', bid:2400, occupied:false, ad:'CORNER SOUTHEAST', rotationY:-Math.PI*3/4 },
 ];
 
 function Building({ position, size, height, color }: { position: [number, number, number]; size: [number, number]; height: number; color: string }) {
@@ -268,7 +274,7 @@ function BillboardPad({b}:{b:Billboard}) {
 
 function BillboardMesh({b,onSelect}:{b:Billboard;onSelect:(b:Billboard)=>void}) {
  const w=b.type==='Premium Road'?9:6,h=b.type==='Premium Road'?4.6:3;
- return <RigidBody type="fixed" colliders={false} position={b.position}>
+ return <RigidBody type="fixed" colliders={false} position={b.position} rotation={[0,b.rotationY ?? 0,0]}>
    <CuboidCollider args={[w/2,h/2,0.35]} />
    <group onClick={(e)=>{e.stopPropagation();onSelect(b)}}><mesh position={[0,0,0]}><boxGeometry args={[w,h,.45]}/><meshStandardMaterial color="#111827"/></mesh><mesh position={[0,0,.24]}><planeGeometry args={[w-.35,h-.35]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#294c0b'} emissive={b.occupied?'#3b0c21':'#234d03'} emissiveIntensity={0.7}/></mesh><Text position={[0,.2,.48]} fontSize={h*.18} color="white" anchorX="center">{b.ad}</Text><Text position={[0,-h*.28,.48]} fontSize={.22} color="#b8d9ff" anchorX="center">#{b.id} • ₹{b.bid.toLocaleString()}</Text></group>
    <mesh position={[-w*.28,-h/2-2,0]}><boxGeometry args={[.25,4,.25]}/><meshStandardMaterial color="#171c25"/></mesh><mesh position={[w*.28,-h/2-2,0]}><boxGeometry args={[.25,4,.25]}/><meshStandardMaterial color="#171c25"/></mesh>
