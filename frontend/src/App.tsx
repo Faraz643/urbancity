@@ -1,5 +1,5 @@
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { Canvas, useFrame, useThree, useThree as useR3FThree } from '@react-three/fiber';
+import { Text, OrbitControls } from '@react-three/drei';
 import { Physics, RigidBody, CuboidCollider, CapsuleCollider, RapierRigidBody } from '@react-three/rapier';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -60,6 +60,19 @@ function City() {
 }
 function Bench({position}:{position:[number,number,number]}) { return <RigidBody type="fixed" colliders={false} position={position}><CuboidCollider args={[1.2,.7,.45]} position={[0,.7,0]}/><mesh position={[0,.7,0]}><boxGeometry args={[2.4,.25,.7]}/><meshStandardMaterial color="#805b3b"/></mesh><mesh position={[0,1.25,.25]} rotation={[0,0,0]}><boxGeometry args={[2.4,.7,.15]}/><meshStandardMaterial color="#805b3b"/></mesh></RigidBody>}
 
+function GameCamera(){
+ const { camera } = useThree();
+ const controls = useRef<any>(null);
+ const player = useRef(new THREE.Vector3());
+ useFrame((_,dt)=>{
+   const p=(window as any).__urbanPlayerPosition as THREE.Vector3|undefined;
+   if(!p || !controls.current) return;
+   player.current.copy(p);
+   controls.current.target.lerp(new THREE.Vector3(p.x,p.y+1,p.z),1-Math.pow(0.0001,dt));
+ });
+ return <OrbitControls ref={controls} enablePan={false} enableZoom={true} minDistance={4} maxDistance={22} minPolarAngle={0.25} maxPolarAngle={Math.PI/2.05} dampingFactor={0.08} enableDamping rotateSpeed={0.65} zoomSpeed={0.8} target={[0,1,8]} />
+}
+
 function Player({onNearby,onMove}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void}) {
  const body = useRef<RapierRigidBody>(null!);
  const pressed = useRef<Record<string, boolean>>({});
@@ -82,9 +95,7 @@ function Player({onNearby,onMove}:{onNearby:(b:Billboard|null)=>void;onMove:(sta
    const p=body.current.translation();
    if(velocity.current.lengthSq()>0.1){ const angle=Math.atan2(velocity.current.x,velocity.current.z); body.current.setRotation({x:0,y:Math.sin(angle/2),z:0,w:Math.cos(angle/2)},true); }
    target.current.set(p.x,p.y,p.z);
-   const desired=new THREE.Vector3(p.x+10,p.y+9,p.z+13);
-   camera.position.lerp(desired,1-Math.pow(0.0001,dt));
-   camera.lookAt(target.current.x,target.current.y+1,target.current.z);
+   (window as any).__urbanPlayerPosition=target.current.clone();
    let nearest:Billboard|null=null,dist=Infinity;
    for(const b of MAP_BILLBOARDS){const d=Math.hypot(p.x-b.position[0],p.z-b.position[2]);if(d<5&&d<dist){nearest=b;dist=d}}
    onNearby(nearest);
@@ -118,7 +129,7 @@ function World({setNearby,players,setSelected,onMove}:{setNearby:(b:Billboard|nu
        onCreated={({gl})=>gl.setPixelRatio(Math.min(window.devicePixelRatio,1.5))}
      >
        <Suspense fallback={null}>
-         <Physics gravity={[0,-20,0]}>
+         <GameCamera/><Physics gravity={[0,-20,0]}>
            <City/>
            <Player onNearby={setNearby} onMove={onMove}/>
            {MAP_BILLBOARDS.map(b=><BillboardMesh key={b.id} b={b} onSelect={setSelected}/>)}
