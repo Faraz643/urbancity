@@ -205,7 +205,7 @@ function City({timeMode}:{timeMode:TimeMode}) {
 function Bench({position}:{position:[number,number,number]}) { return <RigidBody type="fixed" colliders={false} position={position}><CuboidCollider args={[1.2,.7,.45]} position={[0,.7,0]}/><mesh position={[0,.7,0]}><boxGeometry args={[2.4,.25,.7]}/><meshStandardMaterial color="#805b3b"/></mesh><mesh position={[0,1.25,.25]} rotation={[0,0,0]}><boxGeometry args={[2.4,.7,.15]}/><meshStandardMaterial color="#805b3b"/></mesh></RigidBody>}
 
 function GameCamera(){
- const yaw=useRef(0.55), pitch=useRef(0.45), distance=useRef(12);
+ const yaw=useRef(0.55), pitch=useRef(0.45), distance=useRef(14);
  // Smooth the Rapier player's physics position before the camera uses it.
  // This removes tiny physics-step corrections that can look like screen shake.
  const smoothTarget=useRef(new THREE.Vector3(0,3.1,8));
@@ -216,8 +216,8 @@ function GameCamera(){
   const move=(e:MouseEvent)=>{if(!dragging.current)return;yaw.current-=e.movementX*.0045;pitch.current=THREE.MathUtils.clamp(pitch.current+e.movementY*.0048,-0.18,1.32)};
   const up=(e:MouseEvent)=>{if(e.button===0){dragging.current=false;document.body.style.cursor='default'}};
   const menu=(e:MouseEvent)=>e.preventDefault();
-  const wheel=(e:WheelEvent)=>{distance.current=THREE.MathUtils.clamp(distance.current+e.deltaY*.012,4.5,20)};
-  window.addEventListener('mousedown',down);window.addEventListener('mousemove',move);window.addEventListener('mouseup',up);window.addEventListener('contextmenu',menu);window.addEventListener('wheel',wheel,{passive:true});
+  const wheel=(e:WheelEvent)=>{e.preventDefault();distance.current=THREE.MathUtils.clamp(distance.current+e.deltaY*.025,4.5,55)};
+  window.addEventListener('mousedown',down);window.addEventListener('mousemove',move);window.addEventListener('mouseup',up);window.addEventListener('contextmenu',menu);window.addEventListener('wheel',wheel,{passive:false});
   return()=>{window.removeEventListener('mousedown',down);window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',up);window.removeEventListener('contextmenu',menu);window.removeEventListener('wheel',wheel)};
  },[]);
  useFrame(({camera},dt)=>{
