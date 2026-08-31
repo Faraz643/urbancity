@@ -216,7 +216,7 @@ function GameCamera(){
   const move=(e:MouseEvent)=>{if(!dragging.current)return;yaw.current-=e.movementX*.0045;pitch.current=THREE.MathUtils.clamp(pitch.current+e.movementY*.0048,-0.18,1.32)};
   const up=(e:MouseEvent)=>{if(e.button===0){dragging.current=false;document.body.style.cursor='default'}};
   const menu=(e:MouseEvent)=>e.preventDefault();
-  const wheel=(e:WheelEvent)=>{e.preventDefault();distance.current=THREE.MathUtils.clamp(distance.current+e.deltaY*.025,4.5,55)};
+  const wheel=(e:WheelEvent)=>{e.preventDefault();distance.current=THREE.MathUtils.clamp(distance.current+e.deltaY*.035,4.5,250)};
   window.addEventListener('mousedown',down);window.addEventListener('mousemove',move);window.addEventListener('mouseup',up);window.addEventListener('contextmenu',menu);window.addEventListener('wheel',wheel,{passive:false});
   return()=>{window.removeEventListener('mousedown',down);window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',up);window.removeEventListener('contextmenu',menu);window.removeEventListener('wheel',wheel)};
  },[]);
