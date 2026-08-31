@@ -136,11 +136,12 @@ io.on('connection', (socket) => {
     socket.broadcast.emit('player:update', current);
   });
 
-  socket.on('billboard:bid', async (data: { id: string; amount: number }) => {
+  socket.on('billboard:bid', async (data: { id: string; amount: number; bidder?: { name: string; amount: number } }) => {
     const billboard = liveBillboards.get(data?.id);
     if (!billboard || !Number.isFinite(data?.amount) || data.amount <= billboard.bid) return;
 
     billboard.bid = data.amount;
+    (billboard as any).bidder = data.bidder;
     billboard.history.push({
       playerId: socket.id,
       amount: data.amount,
