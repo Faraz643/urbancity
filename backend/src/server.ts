@@ -10,6 +10,7 @@ import { prisma } from './db';
 import { authRouter } from './routes/auth';
 import { billboardRouter } from './routes/billboards';
 import { auctionRouter } from './routes/auctions';
+import { bookingRouter } from './routes/bookings';
 import { advertisementRouter } from './routes/advertisements';
 import { adminRouter } from './routes/admin';
 import { analyticsRouter } from './routes/analytics';
@@ -105,6 +106,7 @@ app.get('/api/live/billboards', (_req, res) => {
 app.use('/api/auth', jsonRateLimit(Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 60_000), Number(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || 30)), authRouter);
 app.use('/api/billboards', billboardRouter);
 app.use('/api/auctions', auctionRouter);
+app.use('/api/bookings', bookingRouter);
 app.use('/api/advertisements', advertisementRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/analytics', analyticsRouter);
