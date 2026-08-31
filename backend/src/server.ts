@@ -176,6 +176,14 @@ io.on('connection', (socket) => {
     io.emit('billboard:update', billboard);
   });
 
+  socket.on('billboard:book', (data: { id: string; amount: number; bidder: { name: string; amount: number } }) => {
+    const billboard = liveBillboards.get(data?.id);
+    if (!billboard || !Number.isFinite(data?.amount)) return;
+    billboard.bid = data.amount;
+    (billboard as any).bidder = data.bidder;
+    io.emit('billboard:update', billboard);
+  });
+
   socket.on('disconnect', () => {
     players.delete(socket.id);
     io.emit('player:left', socket.id);
