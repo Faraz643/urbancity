@@ -5,7 +5,8 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { io, Socket } from 'socket.io-client';
 
-type Billboard = { id:string; type:'Premium Road'|'Street'; position:[number,number,number]; traffic:'High'|'Medium'; bid:number; occupied:boolean; ad:string; rotationY?:number };
+type AdSlotKind = 'billboard' | 'wall-ad';
+type Billboard = { id:string; type:'Premium Road'|'Street'|'Building Wall'; position:[number,number,number]; traffic:'High'|'Medium'; bid:number; occupied:boolean; ad:string; rotationY?:number; kind?:AdSlotKind; size?:[number,number] };
 type Remote = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean };
 
 const MAP_BILLBOARDS: Billboard[] = [
@@ -19,6 +20,13 @@ const MAP_BILLBOARDS: Billboard[] = [
   { id:'502', type:'Street', position:[53,4,-53], traffic:'Medium', bid:2400, occupied:false, ad:'CORNER NORTHEAST', rotationY:-Math.PI/4 },
   { id:'503', type:'Street', position:[-53,4,53], traffic:'Medium', bid:2400, occupied:false, ad:'CORNER SOUTHWEST', rotationY:Math.PI*3/4 },
   { id:'504', type:'Street', position:[53,4,53], traffic:'Medium', bid:2400, occupied:false, ad:'CORNER SOUTHEAST', rotationY:-Math.PI*3/4 },
+
+  // Building-mounted advertising inventory. These use the exact same bid and interaction system.
+  { id:'W01', type:'Building Wall', kind:'wall-ad', position:[-20,9,-34.47], traffic:'High', bid:3200, occupied:false, ad:'ADVERTISE HERE', size:[5.8,3.4] },
+  { id:'W02', type:'Building Wall', kind:'wall-ad', position:[20,10,-24.47], traffic:'High', bid:4500, occupied:false, ad:'CITY REACH', size:[7.2,4.2] },
+  { id:'W03', type:'Building Wall', kind:'wall-ad', position:[-20,10,17.04], traffic:'High', bid:3600, occupied:false, ad:'YOUR BRAND', size:[6.2,3.8] },
+  { id:'W04', type:'Building Wall', kind:'wall-ad', position:[34,12,17.54], traffic:'Medium', bid:2800, occupied:false, ad:'AVAILABLE', size:[7.4,4.2] },
+  { id:'W05', type:'Building Wall', kind:'wall-ad', position:[-33,12,16.04], traffic:'Medium', bid:2600, occupied:false, ad:'LOCAL SPOT', size:[7.4,4.1] },
 ];
 
 function Building({ position, size, height, color }: { position: [number, number, number]; size: [number, number]; height: number; color: string }) {
@@ -265,6 +273,7 @@ function Player({onNearby,onMove}:{onNearby:(b:Billboard|null)=>void;onMove:(sta
 }
 
 function BillboardPad({b}:{b:Billboard}) {
+ if (b.kind === 'wall-ad') return null;
  const premium=b.type==='Premium Road';
  return <group position={[b.position[0],0.015,b.position[2]]}>
    <mesh rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[premium?11:8,premium?3.2:2.8]}/><meshStandardMaterial color="#303b4c"/></mesh>
@@ -273,11 +282,33 @@ function BillboardPad({b}:{b:Billboard}) {
 }
 
 function BillboardMesh({b,onSelect}:{b:Billboard;onSelect:(b:Billboard)=>void}) {
- const w=b.type==='Premium Road'?9:6,h=b.type==='Premium Road'?4.6:3;
+ const isWall=b.kind==='wall-ad';
+ const w=b.size?.[0] ?? (b.type==='Premium Road'?9:6);
+ const h=b.size?.[1] ?? (b.type==='Premium Road'?4.6:3);
+
+ if(isWall) {
+   return <RigidBody type="fixed" colliders={false} position={b.position} rotation={[0,b.rotationY ?? 0,0]}>
+     <CuboidCollider args={[w/2,h/2,0.08]} />
+     <group onClick={(e)=>{e.stopPropagation();onSelect(b)}}>
+       <mesh><boxGeometry args={[w+.35,h+.35,.16]}/><meshStandardMaterial color="#111827" metalness={0.45}/></mesh>
+       <mesh position={[0,0,.095]}><planeGeometry args={[w,h]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#214b14'} emissive={b.occupied?'#3b0c21':'#1c5d12'} emissiveIntensity={0.65}/></mesh>
+       <Text position={[0,.2,.12]} fontSize={Math.min(h*.18,.72)} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{b.ad}</Text>
+       <Text position={[0,-h*.34,.12]} fontSize={.2} color="#b8d9ff" anchorX="center">WALL #{b.id} • ₹{b.bid.toLocaleString()}</Text>
+       <mesh position={[0,h/2+.22,0]}><boxGeometry args={[w+.5,.08,.22]}/><meshStandardMaterial color="#49d17d" emissive="#1b6f43" emissiveIntensity={1.1}/></mesh>
+     </group>
+   </RigidBody>;
+ }
+
  return <RigidBody type="fixed" colliders={false} position={b.position} rotation={[0,b.rotationY ?? 0,0]}>
    <CuboidCollider args={[w/2,h/2,0.35]} />
-   <group onClick={(e)=>{e.stopPropagation();onSelect(b)}}><mesh position={[0,0,0]}><boxGeometry args={[w,h,.45]}/><meshStandardMaterial color="#111827"/></mesh><mesh position={[0,0,.24]}><planeGeometry args={[w-.35,h-.35]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#294c0b'} emissive={b.occupied?'#3b0c21':'#234d03'} emissiveIntensity={0.7}/></mesh><Text position={[0,.2,.48]} fontSize={h*.18} color="white" anchorX="center">{b.ad}</Text><Text position={[0,-h*.28,.48]} fontSize={.22} color="#b8d9ff" anchorX="center">#{b.id} • ₹{b.bid.toLocaleString()}</Text></group>
-   <mesh position={[-w*.28,-h/2-2,0]}><boxGeometry args={[.25,4,.25]}/><meshStandardMaterial color="#171c25"/></mesh><mesh position={[w*.28,-h/2-2,0]}><boxGeometry args={[.25,4,.25]}/><meshStandardMaterial color="#171c25"/></mesh>
+   <group onClick={(e)=>{e.stopPropagation();onSelect(b)}}>
+     <mesh><boxGeometry args={[w,h,.45]}/><meshStandardMaterial color="#111827"/></mesh>
+     <mesh position={[0,0,.24]}><planeGeometry args={[w-.35,h-.35]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#294c0b'} emissive={b.occupied?'#3b0c21':'#234d03'} emissiveIntensity={0.7}/></mesh>
+     <Text position={[0,.2,.48]} fontSize={h*.18} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{b.ad}</Text>
+     <Text position={[0,-h*.28,.48]} fontSize={.22} color="#b8d9ff" anchorX="center">#{b.id} • ₹{b.bid.toLocaleString()}</Text>
+   </group>
+   <mesh position={[-w*.28,-h/2-2,0]}><boxGeometry args={[.25,4,.25]}/><meshStandardMaterial color="#171c25"/></mesh>
+   <mesh position={[w*.28,-h/2-2,0]}><boxGeometry args={[.25,4,.25]}/><meshStandardMaterial color="#171c25"/></mesh>
  </RigidBody>
 }
 
@@ -337,8 +368,8 @@ function App(){
   <div className="time-switcher"><b>TIME</b>{(["morning","evening","night"] as TimeMode[]).map(m=><button key={m} className={timeMode===m?"active":""} onClick={()=>setTimeMode(m)}>{m}</button>)}</div><div className="hud controls"><b>Controls</b><small>Move <kbd>W A S D</kbd></small><small>Arrows also work</small><small><kbd>E</kbd> interact nearby • click billboard</small></div>
   <MiniMap players={players}/>
   <div className="billcount">🪧 Billboards <b>{MAP_BILLBOARDS.length}</b> total</div>
-  {nearby&&!selected&&<button className="interact" onClick={()=>setSelected(nearby)}>E • Interact with Billboard #{nearby.id}</button>}
-  {selected&&<div className="panel"><button className="close" onClick={()=>setSelected(null)}>×</button><h2>Billboard #{selected.id}</h2><p>{selected.type} Billboard</p><div className="tag">{selected.traffic} Traffic</div><div className="stat"><span>Current Bid</span><b>₹{selected.bid.toLocaleString()}</b></div><div className="stat"><span>Minimum Next Bid</span><b>₹{(selected.bid+500).toLocaleString()}</b></div><div className="stat"><span>Status</span><b>{selected.occupied?'Occupied':'Available'}</b></div><button className="bid" onClick={bid}>Place demo bid +₹500</button><small>Virtual money only. Payment integration can replace this handler later.</small></div>}
+  {nearby&&!selected&&<button className="interact" onClick={()=>setSelected(nearby)}>E • Interact with {nearby.kind==='wall-ad'?'Wall Ad':'Billboard'} #{nearby.id}</button>}
+  {selected&&<div className="panel"><button className="close" onClick={()=>setSelected(null)}>×</button><h2>{selected.kind==='wall-ad'?'Wall Ad':'Billboard'} #{selected.id}</h2><p>{selected.kind==='wall-ad'?'Building-mounted advertising slot':selected.type+' Billboard'}</p><div className="tag">{selected.traffic} Traffic</div><div className="stat"><span>Current Bid</span><b>₹{selected.bid.toLocaleString()}</b></div><div className="stat"><span>Minimum Next Bid</span><b>₹{(selected.bid+500).toLocaleString()}</b></div><div className="stat"><span>Status</span><b>{selected.occupied?'Occupied':'Available'}</b></div><button className="bid" onClick={bid}>Place demo bid +₹500</button><small>Virtual money only. Payment integration can replace this handler later.</small></div>}
  </div>
 }
 export default App;
