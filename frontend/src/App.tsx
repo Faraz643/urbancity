@@ -15,32 +15,61 @@ const MAP_BILLBOARDS: Billboard[] = [
   { id:'412', type:'Street', position:[-28,3,4], traffic:'Medium', bid:2200, occupied:false, ad:'AVAILABLE' },
 ];
 
-function Building({ position, size, height, color }: {position:[number,number,number];size:[number,number];height:number;color:string}) {
-  const cols=Math.max(2,Math.floor(size[0]/2));
-  const rows=Math.max(4,Math.floor(height/3.2));
-  const windows=Array.from({length:cols*rows},(_,i)=>{
-    const col=i%cols,row=Math.floor(i/cols);
-    return [(col-(cols-1)/2)*(size[0]/cols), 1.6+row*(height/(rows+1)), row] as [number,number,number]
-  });
-  return <RigidBody type="fixed" colliders={false} position={[position[0],height/2,position[2]]}>
-    <CuboidCollider args={[size[0]/2,height/2,size[1]/2]} />
-    <mesh castShadow receiveShadow><boxGeometry args={[size[0],height,size[1]} /><meshStandardMaterial color={color} roughness={0.78} metalness={0.16}/></mesh>
+function Building({ position, size, height, color }: { position: [number, number, number]; size: [number, number]; height: number; color: string }) {
+  const cols = Math.max(2, Math.floor(size[0] / 2));
+  const rows = Math.max(4, Math.floor(height / 3.2));
+  const windows: Array<[number, number, number, number]> = [];
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      windows.push([
+        (col - (cols - 1) / 2) * (size[0] / cols),
+        1.6 + row * (height / (rows + 1)),
+        row,
+        col
+      ]);
+    }
+  }
 
-    {/* Ground-level recessed storefront */}
-    <mesh position={[0,-height/2+2.1,size[1]/2+.025]}><boxGeometry args={[size[0]*.82,2.7,.08]}/><meshStandardMaterial color="#0a1320" metalness={.35}/></mesh>
-    <mesh position={[0,-height/2+2.25,size[1]/2+.08]}><planeGeometry args={[size[0]*.62,1.55]}/><meshStandardMaterial color="#203b54" emissive="#1d5272" emissiveIntensity={.55}/></mesh>
-    <mesh position={[0,-height/2+3.65,size[1]/2+.1]}><boxGeometry args={[size[0]*.92,.22,.12]}/><meshStandardMaterial color="#26384d" metalness={.5}/></mesh>
+  return (
+    <RigidBody type="fixed" colliders={false} position={[position[0], height / 2, position[2]]}>
+      <CuboidCollider args={[size[0] / 2, height / 2, size[1] / 2]} />
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[size[0], height, size[1]]} />
+        <meshStandardMaterial color={color} roughness={0.78} metalness={0.16} />
+      </mesh>
 
-    {/* Emissive window grid facing the boulevard */}
-    {windows.map(([x,y,row],i)=><mesh key={i} position={[x,y-height/2,size[1]/2+.035]}>
-      <planeGeometry args={[Math.max(.35,size[0]/cols*.48),Math.max(.55,height/(rows+1)*.46)]}/>
-      <meshStandardMaterial color={row%3===0?"#384a5d":"#253547"} emissive={i%4===0?"#d6c878":"#37526d"} emissiveIntensity={i%4===0?.7:.35}/>
-    </mesh>)}
+      <mesh position={[0, -height / 2 + 2.1, size[1] / 2 + 0.025]}>
+        <boxGeometry args={[size[0] * 0.82, 2.7, 0.08]} />
+        <meshStandardMaterial color="#0a1320" metalness={0.35} />
+      </mesh>
+      <mesh position={[0, -height / 2 + 2.25, size[1] / 2 + 0.08]}>
+        <planeGeometry args={[size[0] * 0.62, 1.55]} />
+        <meshStandardMaterial color="#203b54" emissive="#1d5272" emissiveIntensity={0.55} />
+      </mesh>
 
-    {/* Roof cap and mechanical penthouse */}
-    <mesh position={[0,height*.48,0]}><boxGeometry args={[size[0]*1.03,.35,size[1]*1.03]}/><meshStandardMaterial color="#111c2a" metalness={.35}/></mesh>
-    {height>32&&<mesh position={[0,height*.53,0]}><boxGeometry args={[size[0]*.32,3,size[1]*.28]}/><meshStandardMaterial color="#202d3e" roughness={.65}/></mesh>}
-  </RigidBody>;
+      {windows.map(([x, y, row, col], i) => (
+        <mesh key={i} position={[x, y - height / 2, size[1] / 2 + 0.035]}>
+          <planeGeometry args={[Math.max(0.35, (size[0] / cols) * 0.48), Math.max(0.55, (height / (rows + 1)) * 0.46)]} />
+          <meshStandardMaterial
+            color={row % 3 === 0 ? "#384a5d" : "#253547"}
+            emissive={(row + col) % 4 === 0 ? "#d6c878" : "#37526d"}
+            emissiveIntensity={(row + col) % 4 === 0 ? 0.7 : 0.35}
+          />
+        </mesh>
+      ))}
+
+      <mesh position={[0, height * 0.48, 0]}>
+        <boxGeometry args={[size[0] * 1.03, 0.35, size[1] * 1.03]} />
+        <meshStandardMaterial color="#111c2a" metalness={0.35} />
+      </mesh>
+      {height > 32 && (
+        <mesh position={[0, height * 0.53, 0]}>
+          <boxGeometry args={[size[0] * 0.32, 3, size[1] * 0.28]} />
+          <meshStandardMaterial color="#202d3e" roughness={0.65} />
+        </mesh>
+      )}
+    </RigidBody>
+  );
 }
 
 function Tree({position}:{position:[number,number,number]}) {
