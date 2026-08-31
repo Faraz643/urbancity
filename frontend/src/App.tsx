@@ -84,9 +84,18 @@ function StreetLight({position}:{position:[number,number,number]}) {
  return <group position={position}><mesh position={[0,2.4,0]}><cylinderGeometry args={[0.08,0.11,4.8,8]}/><meshStandardMaterial color="#263040"/></mesh><pointLight position={[0,4.7,0]} intensity={9} distance={14} color="#ffeab0"/><mesh position={[0,4.7,0]}><sphereGeometry args={[0.18,8,8]}/><meshStandardMaterial emissive="#ffeab0" color="#fff5c9" emissiveIntensity={2}/></mesh></group>
 }
 
-function City() {
+type TimeMode = 'morning' | 'evening' | 'night';
+
+const TIME_THEMES: Record<TimeMode,{bg:string;fog:string;ground:string;road:string;ambient:number;sun:number;sunColor:string;sunPos:[number,number,number]}>={
+ morning:{bg:'#a8cbe0',fog:'#b7d6e6',ground:'#718b79',road:'#303842',ambient:1.05,sun:2.0,sunColor:'#fff0cf',sunPos:[-35,45,25]},
+ evening:{bg:'#9b6b72',fog:'#a77a79',ground:'#52605c',road:'#252934',ambient:.72,sun:1.45,sunColor:'#ffb27a',sunPos:[35,22,-25]},
+ night:{bg:'#07111e',fog:'#07111e',ground:'#172233',road:'#090f1a',ambient:.5,sun:1.45,sunColor:'#dcecff',sunPos:[25,55,18]}
+};
+
+function City({timeMode}:{timeMode:TimeMode}) {
  // Dense boulevard layout inspired by the supplied reference: a long central avenue,
  // one major cross street, continuous sidewalks and tall street-wall buildings.
+ const theme=TIME_THEMES[timeMode];
  const buildings = useMemo(()=>[
   [-31,-43,16,13,34,'#182536'],[-20,-42,8,15,28,'#1c2a3b'],[20,-43,9,15,32,'#172436'],[32,-42,17,14,38,'#1b2839'],
   [-34,-19,18,12,36,'#1a2738'],[-20,-17,9,12,27,'#202e40'],[20,-18,10,13,31,'#19283a'],[34,-18,18,13,40,'#162334'],
@@ -100,14 +109,14 @@ function City() {
    [-25,0,-31],[25,0,-31]
  ].filter(([x,,z])=>!MAP_BILLBOARDS.some(b=>Math.hypot(x-b.position[0],z-b.position[2])<7)) as [number,number,number][],[]);
  return <group>
-   <color attach="background" args={['#07111e']}/>
-   <fog attach="fog" args={['#07111e',75,155]}/>
-   <ambientLight intensity={0.5}/><directionalLight castShadow position={[25,55,18]} intensity={1.45} shadow-mapSize={[1024,1024]}/>
+   <color attach="background" args={[theme.bg]}/>
+   <fog attach="fog" args={[theme.fog,75,155]}/>
+   <ambientLight intensity={theme.ambient}/><directionalLight castShadow position={theme.sunPos} intensity={theme.sun} color={theme.sunColor} shadow-mapSize={[1024,1024]}/>
    <RigidBody type="fixed"><CuboidCollider args={[60,.2,60]} position={[0,-.2,0]}/></RigidBody>
-   <mesh rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[120,120]}/><meshStandardMaterial color="#172233"/></mesh>
+   <mesh rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[120,120]}/><meshStandardMaterial color={theme.ground}/></mesh>
 
    {/* Main avenue and intersection */}
-   <mesh position={[0,.01,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[18,120]}/><meshStandardMaterial color="#090f1a" roughness={.9}/></mesh>
+   <mesh position={[0,.01,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[18,120]}/><meshStandardMaterial color={theme.road} roughness={.9}/></mesh>
    <mesh position={[0,.012,-29]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[120,14]}/><meshStandardMaterial color="#090f1a" roughness={.9}/></mesh>
    <mesh position={[-10,.025,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[2,120]}/><meshStandardMaterial color="#46505b"/></mesh>
    <mesh position={[10,.025,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[2,120]}/><meshStandardMaterial color="#46505b"/></mesh>
@@ -210,7 +219,7 @@ function BillboardMesh({b,onSelect}:{b:Billboard;onSelect:(b:Billboard)=>void}) 
 function RemoteAvatar({p}:{p:Remote}) { const ref=useRef<THREE.Group>(null!); useFrame((_,dt)=>{ref.current.position.lerp(new THREE.Vector3(...p.position),1-Math.pow(.001,dt));ref.current.rotation.y=THREE.MathUtils.lerp(ref.current.rotation.y,p.rotation,Math.min(1,dt*10))}); return <group ref={ref} position={p.position}><mesh castShadow position={[0,1,0]}><capsuleGeometry args={[.38,1.1,5,8]}/><meshStandardMaterial color="#f59e0b"/></mesh><Text position={[0,2.1,0]} fontSize={.25} color="white" anchorX="center">{p.name}</Text></group> }
 function RemotePlayers({players}:{players:Remote[]}) { return <>{players.map(p=><RemoteAvatar key={p.id} p={p}/>)}</> }
 
-function World({setNearby,players,setSelected,onMove}:{setNearby:(b:Billboard|null)=>void;players:Remote[];setSelected:(b:Billboard)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void}) {
+function World({setNearby,players,setSelected,onMove,timeMode}:{setNearby:(b:Billboard|null)=>void;players:Remote[];setSelected:(b:Billboard)=>void;onMove:(s:Remote)=>void;timeMode:TimeMode}):{setNearby:(b:Billboard|null)=>void;players:Remote[];setSelected:(b:Billboard)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void}) {
  return (
      <Canvas
        shadows
@@ -221,7 +230,7 @@ function World({setNearby,players,setSelected,onMove}:{setNearby:(b:Billboard|nu
      >
        <Suspense fallback={null}>
          <GameCamera/><Physics gravity={[0,-20,0]}>
-           <City/>
+           <City timeMode={timeMode}/>
            <Player onNearby={setNearby} onMove={onMove}/>
            {MAP_BILLBOARDS.map(b=><group key={b.id}><BillboardPad b={b}/><BillboardMesh b={b} onSelect={setSelected}/></group>)}
            <RemotePlayers players={players}/>
@@ -247,14 +256,14 @@ function MiniMap({players}:{players:Remote[]}) {
 }
 
 function App(){
- const [nearby,setNearby]=useState<Billboard|null>(null),[selected,setSelected]=useState<Billboard|null>(null),[balance,setBalance]=useState(750000),[players,setPlayers]=useState<Remote[]>([]);
+ const [nearby,setNearby]=useState<Billboard|null>(null),[selected,setSelected]=useState<Billboard|null>(null),[balance,setBalance]=useState(750000),[players,setPlayers]=useState<Remote[]>([]),[timeMode,setTimeMode]=useState<TimeMode>('night');
  const socket=useRef<Socket|null>(null);
  useEffect(()=>{const url=import.meta.env.VITE_SERVER_URL||'http://localhost:3001';const s=io(url);socket.current=s;s.on('players:list',(p:Remote[])=>setPlayers(p.filter(x=>x.id!==s.id)));s.on('player:joined',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:update',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:left',(id:string)=>setPlayers(a=>a.filter(x=>x.id!==id)));s.on('billboard:update',(b:{id:string;bid:number})=>{const local=MAP_BILLBOARDS.find(x=>x.id===b.id);if(local)local.bid=b.bid;setSelected(v=>v&&v.id===b.id?{...v,bid:b.bid}:v)});return()=>s.close()},[]);
  useEffect(()=>{(window as any).__urbanInteractBillboard=(b:Billboard)=>setSelected(b);return()=>{delete (window as any).__urbanInteractBillboard;delete (window as any).__urbanNearbyBillboard}},[]);
  const bid=()=>{if(!selected)return;const next=selected.bid+500;if(balance<next)return alert('Not enough demo balance');setBalance(v=>v-next);selected.bid=next;socket.current?.emit('billboard:bid',{id:selected.id,amount:next});setSelected({...selected});};
- return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)}/>
+ return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} timeMode={timeMode}/>
   <div className="hud top"><div><b>● ONLINE</b><span>{players.length+1}</span></div><div><b>BALANCE</b><span>₹{balance.toLocaleString()}</span></div><div><b>DISTRICT</b><span>Uptown</span></div></div>
-  <div className="hud controls"><b>Controls</b><small>Move <kbd>W A S D</kbd></small><small>Arrows also work</small><small><kbd>E</kbd> interact nearby • click billboard</small></div>
+  <div className="time-switcher"><b>TIME</b>{(["morning","evening","night"] as TimeMode[]).map(m=><button key={m} className={timeMode===m?"active":""} onClick={()=>setTimeMode(m)}>{m}</button>)}</div><div className="hud controls"><b>Controls</b><small>Move <kbd>W A S D</kbd></small><small>Arrows also work</small><small><kbd>E</kbd> interact nearby • click billboard</small></div>
   <MiniMap players={players}/>
   <div className="billcount">🪧 Billboards <b>{MAP_BILLBOARDS.length}</b> total</div>
   {nearby&&!selected&&<button className="interact" onClick={()=>setSelected(nearby)}>E • Interact with Billboard #{nearby.id}</button>}
