@@ -19,6 +19,7 @@
     "react-router-dom": "^6.22.1",
     "socket.io-client": "^4.7.4",
     "three": "^0.161.0",
+    "urbancity": "file:..",
     "zustand": "^4.5.1"
   },
   "devDependencies": {
