@@ -342,7 +342,7 @@ function World({ setNearby, players, setSelected, onMove, timeMode, visitorStats
          <GameCamera/><Physics gravity={[0,-20,0]}>
            <City timeMode={timeMode}/>
            <Player onNearby={setNearby} onMove={onMove} onPosition={onLocalPosition}/>
-           {MAP_BILLBOARDS.map(b=><group key={b.id}><BillboardPad b={b}/><BillboardMesh b={b} onSelect={setSelected}/></group>)}
+           {MAP_BILLBOARDS.map(b=><group key={b.id}><BillboardPad b={b}/><BillboardMesh b={b} onSelect={setSelected} nearCount={visitorStats[b.id] ?? 0} totalVisitors={players.length+1}/></group>)}
            <RemotePlayers players={players}/>
          </Physics>
        </Suspense>
