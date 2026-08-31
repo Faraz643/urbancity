@@ -64,9 +64,9 @@ function GameCamera(){
  const yaw=useRef(0.55), pitch=useRef(0.32), distance=useRef(12);
  const dragging=useRef(false), last=useRef<[number,number]>([0,0]);
  useEffect(()=>{
-  const down=(e:MouseEvent)=>{if(e.button===2){dragging.current=true;last.current=[e.clientX,e.clientY];document.body.style.cursor='grabbing';e.preventDefault()}};
-  const move=(e:MouseEvent)=>{if(!dragging.current)return;yaw.current-=e.movementX*.0045;pitch.current=THREE.MathUtils.clamp(pitch.current-e.movementY*.0035,.12,1.05)};
-  const up=(e:MouseEvent)=>{if(e.button===2){dragging.current=false;document.body.style.cursor='default'}};
+  const down=(e:MouseEvent)=>{if(e.button===0){dragging.current=true;last.current=[e.clientX,e.clientY];document.body.style.cursor='grabbing';e.preventDefault()}};
+  const move=(e:MouseEvent)=>{if(!dragging.current)return;yaw.current-=e.movementX*.0045;pitch.current=THREE.MathUtils.clamp(pitch.current+e.movementY*.0035,.12,1.05)};
+  const up=(e:MouseEvent)=>{if(e.button===0){dragging.current=false;document.body.style.cursor='default'}};
   const menu=(e:MouseEvent)=>e.preventDefault();
   const wheel=(e:WheelEvent)=>{distance.current=THREE.MathUtils.clamp(distance.current+e.deltaY*.012,4.5,20)};
   window.addEventListener('mousedown',down);window.addEventListener('mousemove',move);window.addEventListener('mouseup',up);window.addEventListener('contextmenu',menu);window.addEventListener('wheel',wheel,{passive:true});
