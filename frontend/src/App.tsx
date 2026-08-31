@@ -212,11 +212,11 @@ function City({timeMode}:{timeMode:TimeMode}) {
 function Bench({position}:{position:[number,number,number]}) { return <RigidBody type="fixed" colliders={false} position={position}><CuboidCollider args={[1.2,.7,.45]} position={[0,.7,0]}/><mesh position={[0,.7,0]}><boxGeometry args={[2.4,.25,.7]}/><meshStandardMaterial color="#805b3b"/></mesh><mesh position={[0,1.25,.25]} rotation={[0,0,0]}><boxGeometry args={[2.4,.7,.15]}/><meshStandardMaterial color="#805b3b"/></mesh></RigidBody>}
 
 function GameCamera(){
- const yaw=useRef(0.55), pitch=useRef(0.32), distance=useRef(12);
+ const yaw=useRef(0.55), pitch=useRef(0.45), distance=useRef(12);
  const dragging=useRef(false), last=useRef<[number,number]>([0,0]);
  useEffect(()=>{
   const down=(e:MouseEvent)=>{if(e.button===0){dragging.current=true;last.current=[e.clientX,e.clientY];document.body.style.cursor='grabbing';e.preventDefault()}};
-  const move=(e:MouseEvent)=>{if(!dragging.current)return;yaw.current-=e.movementX*.0045;pitch.current=THREE.MathUtils.clamp(pitch.current+e.movementY*.0035,.12,1.05)};
+  const move=(e:MouseEvent)=>{if(!dragging.current)return;yaw.current-=e.movementX*.0045;pitch.current=THREE.MathUtils.clamp(pitch.current+e.movementY*.0048,-0.18,1.32)};
   const up=(e:MouseEvent)=>{if(e.button===0){dragging.current=false;document.body.style.cursor='default'}};
   const menu=(e:MouseEvent)=>e.preventDefault();
   const wheel=(e:WheelEvent)=>{distance.current=THREE.MathUtils.clamp(distance.current+e.deltaY*.012,4.5,20)};
@@ -225,8 +225,8 @@ function GameCamera(){
  },[]);
  useFrame(({camera},dt)=>{
   const p=(window as any).__urbanPlayerPosition as THREE.Vector3|undefined;if(!p)return;
-  const target=new THREE.Vector3(p.x,p.y+1.2,p.z);
-  const horizontal=Math.cos(pitch.current)*distance.current;
+  const target=new THREE.Vector3(p.x,p.y+1.7,p.z);
+  const horizontal=Math.max(2.2,Math.cos(pitch.current)*distance.current);
   (window as any).__urbanCameraYaw=yaw.current;
   const desired=new THREE.Vector3(target.x+Math.sin(yaw.current)*horizontal,target.y+Math.sin(pitch.current)*distance.current,target.z+Math.cos(yaw.current)*horizontal);
   camera.position.lerp(desired,1-Math.pow(.0001,dt));camera.lookAt(target);
