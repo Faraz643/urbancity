@@ -1,5 +1,6 @@
 import { useMemo, useEffect, useState } from 'react';
 import { useThree } from '@react-three/fiber';
+import { RigidBody, CuboidCollider } from '@react-three/rapier';
 import { Billboard as BillboardMesh } from './Billboard';
 import { Building } from './Building';
 import { Road } from './Road';
@@ -61,6 +62,9 @@ export function CityScene() {
 
   return (
     <group>
+      <RigidBody type="fixed" colliders={false}>
+        <CuboidCollider args={[150, 0.1, 150]} position={[0, -0.2, 0]} />
+      </RigidBody>
       {cityElements}
       {billboards.map((b) => (
         <BillboardMesh key={b.id} id={b.id} position={[b.positionX, b.positionY, b.positionZ]}
