@@ -16,10 +16,30 @@ const MAP_BILLBOARDS: Billboard[] = [
 ];
 
 function Building({ position, size, height, color }: {position:[number,number,number];size:[number,number];height:number;color:string}) {
+  const cols=Math.max(2,Math.floor(size[0]/2));
+  const rows=Math.max(4,Math.floor(height/3.2));
+  const windows=Array.from({length:cols*rows},(_,i)=>{
+    const col=i%cols,row=Math.floor(i/cols);
+    return [(col-(cols-1)/2)*(size[0]/cols), 1.6+row*(height/(rows+1)), row] as [number,number,number]
+  });
   return <RigidBody type="fixed" colliders={false} position={[position[0],height/2,position[2]]}>
     <CuboidCollider args={[size[0]/2,height/2,size[1]/2]} />
-    <mesh castShadow receiveShadow><boxGeometry args={[size[0], height, size[1]]} /><meshStandardMaterial color={color} roughness={0.75} metalness={0.1}/></mesh>
-    <mesh position={[0,height*0.12,size[1]/2+0.01]}><planeGeometry args={[size[0]*0.75,height*0.5]}/><meshStandardMaterial color="#17233c" emissive="#1d3155" emissiveIntensity={0.35}/></mesh>
+    <mesh castShadow receiveShadow><boxGeometry args={[size[0],height,size[1]} /><meshStandardMaterial color={color} roughness={0.78} metalness={0.16}/></mesh>
+
+    {/* Ground-level recessed storefront */}
+    <mesh position={[0,-height/2+2.1,size[1]/2+.025]}><boxGeometry args={[size[0]*.82,2.7,.08]}/><meshStandardMaterial color="#0a1320" metalness={.35}/></mesh>
+    <mesh position={[0,-height/2+2.25,size[1]/2+.08]}><planeGeometry args={[size[0]*.62,1.55]}/><meshStandardMaterial color="#203b54" emissive="#1d5272" emissiveIntensity={.55}/></mesh>
+    <mesh position={[0,-height/2+3.65,size[1]/2+.1]}><boxGeometry args={[size[0]*.92,.22,.12]}/><meshStandardMaterial color="#26384d" metalness={.5}/></mesh>
+
+    {/* Emissive window grid facing the boulevard */}
+    {windows.map(([x,y,row],i)=><mesh key={i} position={[x,y-height/2,size[1]/2+.035]}>
+      <planeGeometry args={[Math.max(.35,size[0]/cols*.48),Math.max(.55,height/(rows+1)*.46)]}/>
+      <meshStandardMaterial color={row%3===0?"#384a5d":"#253547"} emissive={i%4===0?"#d6c878":"#37526d"} emissiveIntensity={i%4===0?.7:.35}/>
+    </mesh>)}
+
+    {/* Roof cap and mechanical penthouse */}
+    <mesh position={[0,height*.48,0]}><boxGeometry args={[size[0]*1.03,.35,size[1]*1.03]}/><meshStandardMaterial color="#111c2a" metalness={.35}/></mesh>
+    {height>32&&<mesh position={[0,height*.53,0]}><boxGeometry args={[size[0]*.32,3,size[1]*.28]}/><meshStandardMaterial color="#202d3e" roughness={.65}/></mesh>}
   </RigidBody>;
 }
 
