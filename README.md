@@ -1,78 +1,94 @@
 # UrbanCity
 
-A playable browser-based 3D advertising city prototype built with **React, React Three Fiber, Three.js, Drei, Rapier, and Socket.IO**.
+A playable browser-based 3D advertising city built with **React, React Three Fiber, Three.js, Rapier, Express, Socket.IO and Prisma**.
 
-## Implemented prototype
+## Current implementation
 
-- Stylized city grid with major roads, intersections, buildings, trees, benches and street lights
-- WASD and arrow-key movement
-- Rapier capsule player collider
-- Fixed colliders for buildings, trees, benches and physical billboards
-- Smooth third-person follow camera
-- Premium-road and street billboard categories
-- Billboard IDs, traffic ratings, bids, availability and demo advertisements
-- Nearby billboard interaction and click interaction
-- Demo virtual-money bidding
-- Socket.IO multiplayer player join/update/leave synchronization
-- Remote avatar interpolation
-- Online visitor count
-- Minimal HUD, controls card and minimap
+### Game and multiplayer
+- Procedural 3D city with roads, buildings, fences, trees and lighting
+- Custom low-poly humanoid player
+- WASD / arrow-key movement and Rapier physics
+- Third-person mouse camera and mouse-wheel zoom
+- Evening, morning and night themes
+- Physical road billboards and building-wall advertising slots
+- Nearby interaction and demo bidding
+- Realtime Socket.IO player join/update/leave synchronization
+- Remote avatar interpolation and online visitor count
+- Live nearby-visitor numbers per advertising location
 
-## Run locally
+### Backend foundation
+- Express + Socket.IO server
+- Prisma + SQLite development database
+- JWT authentication and bcrypt password hashing
+- Users and wallets
+- Persistent billboards and auctions
+- Persistent REST bidding endpoint
+- Advertisements and advertising campaigns
+- Traffic analytics snapshots
+- Admin statistics and moderation APIs
+- Helmet, CORS, JSON limits, rate limiting and centralized error handling
+- Health endpoint with database status
 
-### 1. Install dependencies
+## Local setup
 
-From the repository root:
+### 1. Install
 
     npm install
     npm --prefix frontend install
     npm --prefix backend install
 
-### 2. Start the frontend and multiplayer server
+### 2. Configure backend
+
+PowerShell:
+
+    cd backend
+    Copy-Item .env.example .env
+
+Default development database:
+
+    DATABASE_URL="file:./dev.db"
+
+### 3. Create database
+
+    npm run db:generate
+    npm run db:migrate
+    npm run db:seed
+
+The seed aligns the database with all 13 advertising locations currently present in the 3D map.
+
+### 4. Start UrbanCity
+
+From the repository root:
 
     npm run dev
 
-Open the Vite URL, normally http://localhost:5173.
-Open the site in a second browser window to test multiplayer.
+Frontend normally runs at http://localhost:5173.
+
+Backend health endpoint:
+
+    http://localhost:3001/health
+
+## API groups
+
+- `/api/auth` — registration, login, profile
+- `/api/billboards` — billboard inventory
+- `/api/auctions` — auctions and persistent bids
+- `/api/advertisements` — advertisements and campaigns
+- `/api/analytics` — traffic analytics
+- `/api/admin` — protected administration
+- `/api/live/billboards` — current Socket.IO demo bid state
 
 ## Architecture
 
-    urbancity/
-    ├── frontend/
-    │   ├── src/App.tsx          # R3F city, player, physics, billboards and HUD
-    │   └── src/index.css        # UI styling
-    ├── backend/
-    │   └── src/server.ts        # Express + Socket.IO prototype server
-    └── README.md
+The realtime game remains playable if the database is temporarily unavailable. Multiplayer movement and live demo bidding remain isolated from Prisma, while persistent REST APIs use the database.
 
-## Adding GLB road/building assets
-
-Place optimized GLB/GLTF files under:
-
-    frontend/public/assets/
-
-Then load them with Drei useGLTF in modular city components. The current prototype remains playable without external binary assets, using procedural geometry and Rapier colliders.
-
-Recommended future folders:
-
-    frontend/src/components/city/
-    frontend/src/components/player/
-    frontend/src/components/billboards/
-    frontend/src/components/multiplayer/
-    frontend/public/assets/roads/
-    frontend/public/assets/buildings/
-    frontend/public/assets/trees/
-    frontend/public/assets/characters/
+This protects the working 3D game while the persistent backend is being integrated.
 
 ## Production roadmap
 
-1. Replace procedural prototypes with optimized GLB assets and instancing.
-2. Persist users, billboards, advertisements and bids with Prisma/PostgreSQL.
-3. Add authentication.
-4. Add advertisement uploads and moderation.
-5. Replace demo wallet logic with a payment provider.
-6. Add server-authoritative validation and scaling for multiplayer.
-
-## Notes
-
-This is a local playable prototype. Demo bids and balances are intentionally not real money and are kept separate from the future payment layer.
+1. Connect frontend billboard inventory directly to database APIs.
+2. Add authenticated Socket.IO identities.
+3. Make realtime bids create authenticated persistent bid records.
+4. Add advertisement image upload/storage and moderation UI.
+5. Move from SQLite to PostgreSQL for production.
+6. Add server-authoritative multiplayer validation and scaling.
