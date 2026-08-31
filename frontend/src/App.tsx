@@ -1,5 +1,5 @@
-import { Canvas, useFrame, useThree, useThree as useR3FThree } from '@react-three/fiber';
-import { Text, OrbitControls } from '@react-three/drei';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { Text } from '@react-three/drei';
 import { Physics, RigidBody, CuboidCollider, CapsuleCollider, RapierRigidBody } from '@react-three/rapier';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -61,16 +61,26 @@ function City() {
 function Bench({position}:{position:[number,number,number]}) { return <RigidBody type="fixed" colliders={false} position={position}><CuboidCollider args={[1.2,.7,.45]} position={[0,.7,0]}/><mesh position={[0,.7,0]}><boxGeometry args={[2.4,.25,.7]}/><meshStandardMaterial color="#805b3b"/></mesh><mesh position={[0,1.25,.25]} rotation={[0,0,0]}><boxGeometry args={[2.4,.7,.15]}/><meshStandardMaterial color="#805b3b"/></mesh></RigidBody>}
 
 function GameCamera(){
- const { camera } = useThree();
- const controls = useRef<any>(null);
- const player = useRef(new THREE.Vector3());
- useFrame((_,dt)=>{
-   const p=(window as any).__urbanPlayerPosition as THREE.Vector3|undefined;
-   if(!p || !controls.current) return;
-   player.current.copy(p);
-   controls.current.target.lerp(new THREE.Vector3(p.x,p.y+1,p.z),1-Math.pow(0.0001,dt));
+ const yaw=useRef(0.55), pitch=useRef(0.32), distance=useRef(12);
+ const dragging=useRef(false), last=useRef<[number,number]>([0,0]);
+ useEffect(()=>{
+  const down=(e:MouseEvent)=>{if(e.button===2){dragging.current=true;last.current=[e.clientX,e.clientY];document.body.style.cursor='grabbing';e.preventDefault()}};
+  const move=(e:MouseEvent)=>{if(!dragging.current)return;yaw.current-=e.movementX*.0045;pitch.current=THREE.MathUtils.clamp(pitch.current-e.movementY*.0035,.12,1.05)};
+  const up=(e:MouseEvent)=>{if(e.button===2){dragging.current=false;document.body.style.cursor='default'}};
+  const menu=(e:MouseEvent)=>e.preventDefault();
+  const wheel=(e:WheelEvent)=>{distance.current=THREE.MathUtils.clamp(distance.current+e.deltaY*.012,4.5,20)};
+  window.addEventListener('mousedown',down);window.addEventListener('mousemove',move);window.addEventListener('mouseup',up);window.addEventListener('contextmenu',menu);window.addEventListener('wheel',wheel,{passive:true});
+  return()=>{window.removeEventListener('mousedown',down);window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',up);window.removeEventListener('contextmenu',menu);window.removeEventListener('wheel',wheel)};
+ },[]);
+ useFrame(({camera},dt)=>{
+  const p=(window as any).__urbanPlayerPosition as THREE.Vector3|undefined;if(!p)return;
+  const target=new THREE.Vector3(p.x,p.y+1.2,p.z);
+  const horizontal=Math.cos(pitch.current)*distance.current;
+  (window as any).__urbanCameraYaw=yaw.current;
+  const desired=new THREE.Vector3(target.x+Math.sin(yaw.current)*horizontal,target.y+Math.sin(pitch.current)*distance.current,target.z+Math.cos(yaw.current)*horizontal);
+  camera.position.lerp(desired,1-Math.pow(.0001,dt));camera.lookAt(target);
  });
- return <OrbitControls ref={controls} enablePan={false} enableZoom={true} minDistance={4} maxDistance={22} minPolarAngle={0.25} maxPolarAngle={Math.PI/2.05} dampingFactor={0.08} enableDamping rotateSpeed={0.65} zoomSpeed={0.8} target={[0,1,8]} />
+ return null;
 }
 
 function Player({onNearby,onMove}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void}) {
@@ -83,13 +93,16 @@ function Player({onNearby,onMove}:{onNearby:(b:Billboard|null)=>void;onMove:(sta
    window.addEventListener('keyup',up);
    return()=>{window.removeEventListener('keydown',down);window.removeEventListener('keyup',up)};
  },[]);
- const { camera } = useThree();
  const velocity = useRef(new THREE.Vector3());
  const target = useRef(new THREE.Vector3());
  const networkAt = useRef(0);
  useFrame((_,dt)=>{
-   const k=pressed.current; const dir=new THREE.Vector3(((k.KeyD||k.ArrowRight)?1:0)-((k.KeyA||k.ArrowLeft)?1:0),0,((k.KeyS||k.ArrowDown)?1:0)-((k.KeyW||k.ArrowUp)?1:0));
-   if(dir.lengthSq()>0) dir.normalize();
+   const k=pressed.current;
+   const inputX=((k.KeyD||k.ArrowRight)?1:0)-((k.KeyA||k.ArrowLeft)?1:0);
+   const inputZ=((k.KeyS||k.ArrowDown)?1:0)-((k.KeyW||k.ArrowUp)?1:0);
+   const dir=new THREE.Vector3(inputX,0,inputZ);
+   const yaw=(window as any).__urbanCameraYaw ?? 0;
+   if(dir.lengthSq()>0){dir.normalize();dir.applyAxisAngle(new THREE.Vector3(0,1,0),yaw);}
    const speed=7; velocity.current.lerp(dir.multiplyScalar(speed),Math.min(1,dt*12));
    body.current.setLinvel({x:velocity.current.x,y:body.current.linvel().y,z:velocity.current.z},true);
    const p=body.current.translation();
