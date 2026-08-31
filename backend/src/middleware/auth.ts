@@ -14,7 +14,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'development-only-change-me') as any;
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: { id: true, email: true, username: true, role: true, displayName: true },
