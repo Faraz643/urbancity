@@ -23,7 +23,7 @@ const keys = [
 function Building({ position, size, height, color }: {position:[number,number,number];size:[number,number];height:number;color:string}) {
   return <RigidBody type="fixed" colliders={false} position={[position[0],height/2,position[2]]}>
     <CuboidCollider args={[size[0]/2,height/2,size[1]/2]} />
-    <mesh castShadow receiveShadow><boxGeometry args={[size[0],height,size[1]} /><meshStandardMaterial color={color} roughness={0.75} metalness={0.1}/></mesh>
+    <mesh castShadow receiveShadow><boxGeometry args={[size[0], height, size[1]]} /><meshStandardMaterial color={color} roughness={0.75} metalness={0.1}/></mesh>
     <mesh position={[0,height*0.12,size[1]/2+0.01]}><planeGeometry args={[size[0]*0.75,height*0.5]}/><meshStandardMaterial color="#17233c" emissive="#1d3155" emissiveIntensity={0.35}/></mesh>
   </RigidBody>;
 }
@@ -88,7 +88,7 @@ function Player({onNearby,onMove}:{onNearby:(b:Billboard|null)=>void;onMove:(sta
    onNearby(nearest);
    networkAt.current+=dt;if(networkAt.current>.08){networkAt.current=0;onMove({position:[p.x,p.y,p.z],rotation:Math.atan2(velocity.current.x,velocity.current.z),moving:velocity.current.lengthSq()>.1})}
  });
- return <RigidBody ref={body} colliders={false} position={[0,1.4,8]} enabledRotations={[false,false,false]} linearDamping={8} friction={0} mass={1}>
+ return <RigidBody ref={body} colliders={false} position={[0,1.4,8]} enabledRotations={[false,true,false]} linearDamping={8} friction={0} mass={1}>
    <CapsuleCollider args={[0.75,0.42]}/>
    <group position={[0,-1.05,0]}><mesh castShadow><capsuleGeometry args={[0.42,1.2,6,10]}/><meshStandardMaterial color="#18a7d8"/></mesh><mesh position={[0,1.05,0.02]}><sphereGeometry args={[0.43,12,12]}/><meshStandardMaterial color="#f2c9a5"/></mesh><Text position={[0,2.05,0]} fontSize={0.28} color="white" anchorX="center">You</Text></group>
  </RigidBody>
@@ -107,9 +107,26 @@ function RemoteAvatar({p}:{p:Remote}) { const ref=useRef<THREE.Group>(null!); us
 function RemotePlayers({players}:{players:Remote[]}) { return <>{players.map(p=><RemoteAvatar key={p.id} p={p}/>)}</> }
 
 function World({setNearby,players,setSelected,onMove}:{setNearby:(b:Billboard|null)=>void;players:Remote[];setSelected:(b:Billboard)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void}) {
- return <Canvas shadows camera={{position:[10,9,21],fov:55}} dpr={[1,1.75]} gl={{antialias:true,powerPreference:'high-performance'}}>
-   <Suspense fallback={null}><Physics gravity={[0,-20,0]}><City/><Player onNearby={setNearby} onMove={onMove}/>{MAP_BILLBOARDS.map(b=><BillboardMesh key={b.id} b={b} onSelect={setSelected}/>)}<RemotePlayers players={players}/></Physics></Suspense>
- </Canvas>
+ return (
+   <KeyboardControls map={keys}>
+     <Canvas
+       shadows
+       camera={{position:[10,9,21],fov:55}}
+       dpr={[1,1.5]}
+       gl={{antialias:true,powerPreference:'high-performance'}}
+       onCreated={({gl})=>gl.setPixelRatio(Math.min(window.devicePixelRatio,1.5))}
+     >
+       <Suspense fallback={null}>
+         <Physics gravity={[0,-20,0]}>
+           <City/>
+           <Player onNearby={setNearby} onMove={onMove}/>
+           {MAP_BILLBOARDS.map(b=><BillboardMesh key={b.id} b={b} onSelect={setSelected}/>)}
+           <RemotePlayers players={players}/>
+         </Physics>
+       </Suspense>
+     </Canvas>
+   </KeyboardControls>
+ )
 }
 
 function App(){
