@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { io, Socket } from 'socket.io-client';
 
 type AdSlotKind = 'billboard' | 'wall-ad';
+type BidderInfo = {name:string;amount:number};
 type Billboard = { id:string; type:'Premium Road'|'Street'|'Building Wall'; position:[number,number,number]; traffic:'High'|'Medium'; bid:number; occupied:boolean; ad:string; rotationY?:number; kind?:AdSlotKind; size?:[number,number] };
 type Remote = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean };
 
@@ -360,7 +361,7 @@ function BillboardPad({b}:{b:Billboard}) {
  </group>
 }
 
-function BillboardMesh({b,onSelect,nearCount,totalVisitors}:{b:Billboard;onSelect:(b:Billboard)=>void;nearCount:number;totalVisitors:number}) {
+function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;onSelect:(b:Billboard)=>void;nearCount:number;totalVisitors:number;bidder?:BidderInfo}) {
 
  const isWall=b.kind==='wall-ad';
  const w=b.size?.[0] ?? (b.type==='Premium Road'?9:6);
@@ -372,8 +373,8 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors}:{b:Billboard;onSelec
      <group onClick={(e)=>{e.stopPropagation();onSelect(b)}}>
        <mesh><boxGeometry args={[w+.35,h+.35,.16]}/><meshStandardMaterial color="#111827" metalness={0.45}/></mesh>
        <mesh position={[0,0,.095]}><planeGeometry args={[w,h]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#214b14'} emissive={b.occupied?'#3b0c21':'#1c5d12'} emissiveIntensity={0.65}/></mesh>
-       <Text position={[0,.2,.12]} fontSize={Math.min(h*.18,.72)} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{b.ad}</Text>
-       <Text position={[0,-h*.34,.12]} fontSize={.2} color="#b8d9ff" anchorX="center">WALL #{b.id} • ₹{b.bid.toLocaleString()}</Text>
+       <Text position={[0,.2,.12]} fontSize={Math.min(h*.18,.72)} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{bidder?('NOW BIDDING • '+bidder.name.toUpperCase()):b.ad}</Text>
+       <Text position={[0,-h*.34,.12]} fontSize={.2} color="#b8d9ff" anchorX="center">{bidder?bidder.name+' bid ₹'+bidder.amount.toLocaleString():'WALL #'+b.id+' • ₹'+b.bid.toLocaleString()}</Text>
      <Text position={[0,h/2+1.02,.15]} fontSize={.58} color="white" anchorX="center" anchorY="middle" outlineWidth={0.04} outlineColor="#07111e">{String(nearCount)}</Text>
      <Text position={[0,h/2+.62,.15]} fontSize={.22} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.018} outlineColor="#07111e">visitors</Text>
        <mesh position={[0,h/2+.22,0]}><boxGeometry args={[w+.5,.08,.22]}/><meshStandardMaterial color="#49d17d" emissive="#1b6f43" emissiveIntensity={1.1}/></mesh>
@@ -387,7 +388,7 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors}:{b:Billboard;onSelec
      <mesh><boxGeometry args={[w,h,.45]}/><meshStandardMaterial color="#111827"/></mesh>
      <mesh position={[0,0,.24]}><planeGeometry args={[w-.35,h-.35]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#294c0b'} emissive={b.occupied?'#3b0c21':'#234d03'} emissiveIntensity={0.7}/></mesh>
      <Text position={[0,.2,.48]} fontSize={h*.18} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{b.ad}</Text>
-     <Text position={[0,-h*.28,.48]} fontSize={.22} color="#b8d9ff" anchorX="center">#{b.id} • ₹{b.bid.toLocaleString()}</Text>
+     <Text position={[0,-h*.28,.48]} fontSize={.22} color="#b8d9ff" anchorX="center">{bidder?bidder.name+' bid ₹'+bidder.amount.toLocaleString():'#'+b.id+' • ₹'+b.bid.toLocaleString()}</Text>
      <Text position={[0,h/2+1.02,.5]} fontSize={.58} color="white" anchorX="center" anchorY="middle" outlineWidth={0.04} outlineColor="#07111e">{String(nearCount)}</Text>
      <Text position={[0,h/2+.62,.5]} fontSize={.22} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.018} outlineColor="#07111e">visitors</Text>
    </group>
@@ -399,7 +400,7 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors}:{b:Billboard;onSelec
 function RemoteAvatar({p}:{p:Remote}) { const ref=useRef<THREE.Group>(null!); useFrame((_,dt)=>{ref.current.position.lerp(new THREE.Vector3(...p.position),1-Math.pow(.001,dt));ref.current.rotation.y=THREE.MathUtils.lerp(ref.current.rotation.y,p.rotation,Math.min(1,dt*10))}); return <group ref={ref} position={p.position}><mesh castShadow position={[0,1,0]}><capsuleGeometry args={[.38,1.1,5,8]}/><meshStandardMaterial color="#f59e0b"/></mesh><Text position={[0,2.1,0]} fontSize={.25} color="white" anchorX="center">{p.name}</Text></group> }
 function RemotePlayers({players}:{players:Remote[]}) { return <>{players.map(p=><RemoteAvatar key={p.id} p={p}/>)}</> }
 
-function World({ setNearby, players, setSelected, onMove, timeMode, visitorStats, onLocalPosition }: {
+function World({ setNearby, players, setSelected, onMove, timeMode, visitorStats, onLocalPosition, bidders }: {
   setNearby: (b: Billboard | null) => void;
   players: Remote[];
   setSelected: (b: Billboard) => void;
@@ -407,6 +408,7 @@ function World({ setNearby, players, setSelected, onMove, timeMode, visitorStats
   timeMode: TimeMode;
   visitorStats: Record<string, number>;
   onLocalPosition: (p: [number, number, number]) => void;
+  bidders: Record<string,BidderInfo>;
 }) {
  return (
      <Canvas
@@ -420,7 +422,7 @@ function World({ setNearby, players, setSelected, onMove, timeMode, visitorStats
          <GameCamera/><Physics gravity={[0,-20,0]}>
            <City timeMode={timeMode}/>
            <Player onNearby={setNearby} onMove={onMove} onPosition={onLocalPosition}/>
-           {MAP_BILLBOARDS.map(b=><group key={b.id}><BillboardPad b={b}/><BillboardMesh b={b} onSelect={setSelected} nearCount={visitorStats[b.id] ?? 0} totalVisitors={players.length+1}/></group>)}
+           {MAP_BILLBOARDS.map(b=><group key={b.id}><BillboardPad b={b}/><BillboardMesh b={b} onSelect={setSelected} nearCount={visitorStats[b.id] ?? 0} totalVisitors={players.length+1} bidder={bidders[b.id]}/></group>)}
            <RemotePlayers players={players}/>
          </Physics>
        </Suspense>
@@ -450,6 +452,7 @@ function App(){
  const [nearby,setNearby]=useState<Billboard|null>(null),[selected,setSelected]=useState<Billboard|null>(null),[balance,setBalance]=useState(750000),[players,setPlayers]=useState<Remote[]>([]),[timeMode,setTimeMode]=useState<TimeMode>('evening'),[localPosition,setLocalPosition]=useState<[number,number,number]>([0,1.4,8]);
  const [user,setUser]=useState<AuthUser|null>(null),[authOpen,setAuthOpen]=useState(false),[authMode,setAuthMode]=useState<'login'|'register'>('login'),[authEmail,setAuthEmail]=useState(''),[authPassword,setAuthPassword]=useState(''),[authUsername,setAuthUsername]=useState(''),[authError,setAuthError]=useState(''),[authBusy,setAuthBusy]=useState(false);
  const socket=useRef<Socket|null>(null);
+ const [bidders,setBidders]=useState<Record<string,BidderInfo>>({});
  const authInputRef=useRef<HTMLInputElement|null>(null);
  const totalVisitors=players.length+1;
  const visitorStats=useMemo(()=>{const stats:Record<string,number>={};for(const b of MAP_BILLBOARDS)stats[b.id]=0;const all=[localPosition,...players.map(p=>p.position)];for(const pos of all){for(const b of MAP_BILLBOARDS){const radius=b.kind==='wall-ad'?6:7;if(Math.hypot(pos[0]-b.position[0],pos[2]-b.position[2])<=radius)stats[b.id]++}}return stats},[players,localPosition]);
@@ -468,21 +471,21 @@ function App(){
    return()=>window.removeEventListener('keydown',blockGameKeys,true);
  },[authOpen]);
  useEffect(()=>{if(authOpen)requestAnimationFrame(()=>authInputRef.current?.focus());},[authOpen,authMode]);
- useEffect(()=>{const s=io(api);socket.current=s;s.on('players:list',(p:Remote[])=>setPlayers(p.filter(x=>x.id!==s.id)));s.on('player:joined',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:update',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:left',(id:string)=>setPlayers(a=>a.filter(x=>x.id!==id)));s.on('billboard:update',(b:{id:string;bid:number})=>{const local=MAP_BILLBOARDS.find(x=>x.id===b.id);if(local)local.bid=b.bid;setSelected(v=>v&&v.id===b.id?{...v,bid:b.bid}:v)});return()=>s.close()},[]);
+ useEffect(()=>{const s=io(api);socket.current=s;s.on('players:list',(p:Remote[])=>setPlayers(p.filter(x=>x.id!==s.id)));s.on('player:joined',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:update',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:left',(id:string)=>setPlayers(a=>a.filter(x=>x.id!==id)));s.on('billboard:update',(b:any)=>{const local=MAP_BILLBOARDS.find(x=>x.id===b.id);if(local)local.bid=b.bid; if(b.bidder)setBidders(v=>({...v,[b.id]:b.bidder}));setSelected(v=>v&&v.id===b.id?{...v,bid:b.bid}:v)});return()=>s.close()},[]);
  useEffect(()=>{fetch(api+'/api/billboards').then(r=>r.ok?r.json():Promise.reject()).then((rows:any[])=>{for(const row of rows){const local=MAP_BILLBOARDS.find(x=>x.id===row.id);const bid=Number(row.currentBid??row.minBid);if(local&&Number.isFinite(bid))local.bid=bid;}}).catch(()=>{});},[]);
  useEffect(()=>{(window as any).__urbanInteractBillboard=(b:Billboard)=>setSelected(b);return()=>{delete (window as any).__urbanInteractBillboard;delete (window as any).__urbanNearbyBillboard}},[]);
 
  const submitAuth=async()=>{setAuthError('');setAuthBusy(true);try{const body=authMode==='login'?{email:authEmail,password:authPassword}:{email:authEmail,password:authPassword,username:authUsername,displayName:authUsername};const r=await fetch(api+'/api/auth/'+(authMode==='login'?'login':'register'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw new Error(data.error||'Authentication failed');localStorage.setItem('urbancity_token',data.token);await loadMe();setAuthOpen(false);setAuthPassword('');}catch(e:any){setAuthError(e.message||'Authentication failed');}finally{setAuthBusy(false);}};
  const logout=()=>{localStorage.removeItem('urbancity_token');setUser(null);setBalance(750000);};
- const bid=async()=>{if(!selected)return;if(!user){setAuthOpen(true);setAuthError('Login or register to place a real bid.');return;}try{const ar=await fetch(api+'/api/auctions/billboard/'+selected.id+'/active');const auction=await ar.json();if(!ar.ok)throw new Error(auction.error||'Auction unavailable');const next=Math.max(selected.bid+500,Number(auction.currentPrice||0)+500);const r=await fetch(api+'/api/auctions/'+auction.id+'/bids',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({amount:next})});const data=await r.json();if(!r.ok)throw new Error(data.error||'Bid failed');selected.bid=next;setSelected({...selected});socket.current?.emit('billboard:bid',{id:selected.id,amount:next});await loadMe();}catch(e:any){alert(e.message||'Could not place bid');}};
+ const bid=async()=>{if(!selected)return;if(!user){setAuthOpen(true);setAuthError('Login or register to place a real bid.');return;}try{const ar=await fetch(api+'/api/auctions/billboard/'+selected.id+'/active');const auction=await ar.json();if(!ar.ok)throw new Error(auction.error||'Auction unavailable');const next=Math.max(selected.bid+500,Number(auction.currentPrice||0)+500);const r=await fetch(api+'/api/auctions/'+auction.id+'/bids',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({amount:next})});const data=await r.json();if(!r.ok)throw new Error(data.error||'Bid failed');selected.bid=next;const bidder={name:data.bidder?.displayName||data.bidder?.username||user.displayName||user.username,amount:next};setBidders(v=>({...v,[selected.id]:bidder}));setSelected({...selected});socket.current?.emit('billboard:bid',{id:selected.id,amount:next,bidder});await loadMe();}catch(e:any){alert(e.message||'Could not place bid');}};
 
- return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} timeMode={timeMode} visitorStats={visitorStats} onLocalPosition={setLocalPosition}/>
+ return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} timeMode={timeMode} visitorStats={visitorStats} onLocalPosition={setLocalPosition} bidders={bidders}/>
   <div className="hud top"><div><b>● ONLINE</b><span>{totalVisitors}</span></div><div><b>BALANCE</b><span>{user?'₹'+balance.toLocaleString():'GUEST'}</span></div><div><b>DISTRICT</b><span>Uptown</span></div></div>
   <button onClick={()=>user?logout():setAuthOpen(true)} style={{position:'fixed',top:18,right:18,zIndex:20,border:'1px solid #6d7b91',background:'#111a28',color:'#fff',borderRadius:8,padding:'10px 14px',fontWeight:700,cursor:'pointer'}}>{user?'Logout '+user.username:'Login / Register'}</button>
   <div className="time-switcher"><b>TIME</b>{(["morning","evening","night"] as TimeMode[]).map(m=><button key={m} className={timeMode===m?"active":""} onClick={()=>setTimeMode(m)}>{m}</button>)}</div><div className="hud controls"><b>Controls</b><small>Move <kbd>W A S D</kbd></small><small>Arrows also work</small><small><kbd>E</kbd> interact nearby • click billboard</small></div>
   <MiniMap players={players}/><div className="billcount">🪧 Billboards <b>{MAP_BILLBOARDS.length}</b> total</div>
   {nearby&&!selected&&<button className="interact" onClick={()=>setSelected(nearby)}>E • Interact with {nearby.kind==='wall-ad'?'Wall Ad':'Billboard'} #{nearby.id}</button>}
-  {selected&&<div className="panel"><button className="close" onClick={()=>setSelected(null)}>×</button><h2>{selected.kind==='wall-ad'?'Wall Ad':'Billboard'} #{selected.id}</h2><p>{selected.kind==='wall-ad'?'Building-mounted advertising slot':selected.type+' Billboard'}</p><div className="tag">{selected.traffic} Traffic</div><div className="stat"><span>Current Bid</span><b>₹{selected.bid.toLocaleString()}</b></div><div className="stat"><span>Minimum Next Bid</span><b>₹{(selected.bid+500).toLocaleString()}</b></div><div className="stat"><span>Status</span><b>{selected.occupied?'Occupied':'Available'}</b></div><div className="stat"><span>Visitors Near This Ad</span><b>{visitorStats[selected.id]||0}</b></div><button className="bid" onClick={bid}>{user?'Place Real Bid +₹500':'Login to Place Bid'}</button><small>{user?'Your bid is saved to the UrbanCity database.':'Guests can explore freely. Login is required for persistent bidding.'}</small></div>}
+  {selected&&<div className="panel"><button className="close" onClick={()=>setSelected(null)}>×</button><h2>{selected.kind==='wall-ad'?'Wall Ad':'Billboard'} #{selected.id}</h2><p>{selected.kind==='wall-ad'?'Building-mounted advertising slot':selected.type+' Billboard'}</p><div className="tag">{selected.traffic} Traffic</div><div className="stat"><span>Current Highest Bidder</span><b>{bidders[selected.id]?.name||'No bidder yet'}</b></div><div className="stat"><span>Current Bid</span><b>₹{selected.bid.toLocaleString()}</b></div><div className="stat"><span>Minimum Next Bid</span><b>₹{(selected.bid+500).toLocaleString()}</b></div><div className="stat"><span>Status</span><b>{selected.occupied?'Occupied':'Available'}</b></div><div className="stat"><span>Visitors Near This Ad</span><b>{visitorStats[selected.id]||0}</b></div><button className="bid" onClick={bid}>{user?'Place Real Bid +₹500':'Login to Place Bid'}</button><small>{user?'Your bid is saved to the UrbanCity database.':'Guests can explore freely. Login is required for persistent bidding.'}</small></div>}
   {authOpen&&<div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={{position:'fixed',inset:0,zIndex:100,background:'rgba(3,7,14,.78)',display:'grid',placeItems:'center',backdropFilter:'blur(8px)',pointerEvents:'auto'}}><div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={{width:360,maxWidth:'90vw',background:'#111a28',border:'1px solid #4c5d74',borderRadius:16,padding:24,color:'#fff',boxShadow:'0 20px 70px #000'}}><button onClick={()=>setAuthOpen(false)} style={{float:'right',background:'transparent',border:0,color:'#fff',fontSize:22,cursor:'pointer'}}>×</button><h2 style={{marginTop:0}}>UrbanCity Account</h2><p style={{color:'#aeb9c8'}}>{authMode==='login'?'Login to bid on real advertising inventory.':'Create an account and receive ₹100,000 virtual auction balance.'}</p>{authMode==='register'&&<input ref={authInputRef} onPointerDown={e=>e.stopPropagation()} onMouseDown={e=>e.stopPropagation()} value={authUsername} onChange={e=>setAuthUsername(e.target.value)} placeholder="Username" style={{width:'100%',boxSizing:'border-box',padding:12,margin:'6px 0',borderRadius:8,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/>}<input ref={authMode==='login'?authInputRef:undefined} onPointerDown={e=>e.stopPropagation()} onMouseDown={e=>e.stopPropagation()} value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="Email" type="email" style={{width:'100%',boxSizing:'border-box',padding:12,margin:'6px 0',borderRadius:8,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input onPointerDown={e=>e.stopPropagation()} onMouseDown={e=>e.stopPropagation()} value={authPassword} onChange={e=>setAuthPassword(e.target.value)} placeholder="Password" type="password" style={{width:'100%',boxSizing:'border-box',padding:12,margin:'6px 0',borderRadius:8,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/>{authError&&<p style={{color:'#ff8f8f'}}>{authError}</p>}<button onClick={submitAuth} disabled={authBusy} style={{width:'100%',padding:12,marginTop:10,border:0,borderRadius:8,background:'#e5b75b',fontWeight:800,cursor:'pointer'}}>{authBusy?'Please wait...':authMode==='login'?'Login':'Create Account'}</button><button onClick={()=>{setAuthMode(authMode==='login'?'register':'login');setAuthError('')}} style={{width:'100%',padding:10,marginTop:8,border:'1px solid #51627b',borderRadius:8,background:'transparent',color:'#dbe5f3',cursor:'pointer'}}>{authMode==='login'?'Need an account? Register':'Already have an account? Login'}</button></div></div>}
  </div>
 }
