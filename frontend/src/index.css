@@ -1,40 +1,4 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@layer base {
-  body {
-    @apply bg-gray-900 text-white font-sans antialiased;
-    overflow: hidden;
-    touch-action: none;
-  }
-
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255,255,255,0.2) transparent;
-  }
-}
-
-@layer components {
-  .glass-panel {
-    @apply bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl;
-  }
-
-  .btn-primary {
-    @apply bg-primary-500 hover:bg-primary-600 text-white font-semibold px-6 py-2.5 rounded-xl transition-all duration-200 shadow-lg shadow-primary-500/25;
-  }
-
-  .btn-secondary {
-    @apply bg-white/10 hover:bg-white/20 text-white font-medium px-4 py-2 rounded-xl transition-all duration-200 border border-white/10;
-  }
-
-  .input-field {
-    @apply w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500/50 transition-all;
-  }
-}
-
-@layer utilities {
-  .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-primary-400 to-accent-400;
-  }
-}
+*{box-sizing:border-box}html,body,#root,.app{width:100%;height:100%;margin:0;overflow:hidden;background:#07111e;font-family:Inter,system-ui,sans-serif;color:#eaf2ff}.app canvas{display:block}.hud{position:fixed;background:rgba(7,16,29,.82);backdrop-filter:blur(12px);border:1px solid rgba(102,203,255,.22);border-radius:10px;color:#dbeafe;box-shadow:0 8px 28px rgba(0,0,0,.25)}.top{top:16px;left:16px;display:flex;gap:0;padding:10px}.top>div{padding:0 14px;border-right:1px solid rgba(255,255,255,.12);min-width:90px}.top>div:last-child{border:0}.top b{display:block;font-size:10px;letter-spacing:1px;color:#8ea2b9}.top span{display:block;font-weight:700;margin-top:4px}.controls{right:16px;top:16px;padding:12px 14px;display:flex;flex-direction:column;gap:7px;font-size:12px}.controls b{color:#7dd3fc}.controls small{color:#9eb2c8}kbd{padding:2px 5px;background:#1d2b3d;border-radius:4px;color:white}.minimap{position:fixed;left:16px;bottom:16px;width:170px;height:145px;padding:12px;background:rgba(7,16,29,.86);border:1px solid rgba(102,203,255,.22);border-radius:10px;font-size:11px}.mapgrid{height:90px;margin:8px 0;border:1px solid #334155;background:repeating-linear-gradient(0deg,transparent 0 17px,#273548 18px),repeating-linear-gradient(90deg,transparent 0 17px,#273548 18px);position:relative}.mapgrid i{position:absolute;width:5px;height:5px;border-radius:50%;background:#f4c542}.mapgrid i:nth-child(1){left:20%;top:20%}.mapgrid i:nth-child(2){left:65%;top:30%}.mapgrid i:nth-child(3){left:40%;top:65%;background:#38bdf8}.mapgrid i:nth-child(4){left:80%;top:75%}.mapgrid i:nth-child(5){left:15%;top:78%;background:#f472b6}.mapgrid i:nth-child(6){left:55%;top:50%;background:#38bdf8}.mapgrid i:nth-child(7){left:32%;top:42%}.billcount{position:fixed;right:18px;bottom:18px;padding:10px 15px;border:1px solid rgba(102,203,255,.25);border-radius:10px;background:rgba(7,16,29,.82);font-size:12px;color:#a9bdd2}.interact{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#d9f99d;color:#17220a;border:0;border-radius:10px;padding:12px 18px;font-weight:800;cursor:pointer;box-shadow:0 8px 28px #0008}.panel{position:fixed;right:18px;top:90px;width:330px;padding:22px;background:rgba(8,18,33,.94);border:1px solid rgba(125,211,252,.32);border-radius:16px;box-shadow:0 20px 70px #000a}.panel h2{margin:0 0 4px}.panel p{margin:0 0 12px;color:#a9bdd2}.tag{display:inline-block;background:#173a52;color:#7dd3fc;border-radius:99px;padding:5px 9px;font-size:12px;margin-bottom:14px}.stat{display:flex;justify-content:space-between;padding:11px 0;border-top:1px solid rgba(255,255,255,.08);font-size:14px}.stat span{color:#9eb2c8}.bid{width:100%;margin:12px 0 8px;padding:12px;background:#38bdf8;color:#042033;border:0;border-radius:10px;font-weight:800;cursor:pointer}.panel small{color:#72849a}.close{position:absolute;right:12px;top:8px;border:0;background:transparent;color:#9eb2c8;font-size:24px;cursor:pointer}
