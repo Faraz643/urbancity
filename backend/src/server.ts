@@ -26,12 +26,23 @@ app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 
-app.use('/api', rateLimit({
-  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
-  max: Number(process.env.RATE_LIMIT_MAX_REQUESTS || 100),
+// Development-friendly API limits. Authentication is protected separately so normal
+// gameplay, billboard reads and wallet refreshes cannot lock a local player out.
+const jsonRateLimit = (windowMs:number, max:number) => rateLimit({
+  windowMs,
+  max,
   standardHeaders: true,
   legacyHeaders: false,
-}));
+  handler: (_req,res) => res.status(429).json({
+    error: 'Too many requests. Please wait a moment and try again.',
+    code: 'RATE_LIMITED',
+    retryAfterSeconds: Math.ceil(windowMs / 1000),
+  }),
+});
+app.use('/api', jsonRateLimit(
+  Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000),
+  Number(process.env.RATE_LIMIT_MAX_REQUESTS || 1000),
+));
 
 type Player = {
   id: string;
@@ -90,8 +101,8 @@ app.get('/api/live/billboards', (_req, res) => {
   res.json([...liveBillboards.values()]);
 });
 
-// Database-backed APIs.
-app.use('/api/auth', authRouter);
+// Authentication gets its own limiter; this prevents repeated login attempts while keeping gameplay APIs responsive.
+app.use('/api/auth', jsonRateLimit(Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 60_000), Number(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || 30)), authRouter);
 app.use('/api/billboards', billboardRouter);
 app.use('/api/auctions', auctionRouter);
 app.use('/api/advertisements', advertisementRouter);
