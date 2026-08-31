@@ -36,30 +36,48 @@ function StreetLight({position}:{position:[number,number,number]}) {
 }
 
 function City() {
+ // Dense boulevard layout inspired by the supplied reference: a long central avenue,
+ // one major cross street, continuous sidewalks and tall street-wall buildings.
  const buildings = useMemo(()=>[
-  [-38,-25,12,10,24,'#273651'],[-20,-25,9,12,19,'#304560'],[20,-25,12,9,25,'#23334b'],[38,-24,10,12,20,'#33415c'],
-  [-38,18,10,11,21,'#334155'],[-20,20,12,10,18,'#263852'],[18,22,11,11,23,'#35455f'],[38,19,9,12,17,'#26334a'],
-  [-40,-2,8,8,14,'#394963'],[40,0,9,9,17,'#303e55']
+  [-31,-43,16,13,34,'#182536'],[-20,-42,8,15,28,'#1c2a3b'],[20,-43,9,15,32,'#172436'],[32,-42,17,14,38,'#1b2839'],
+  [-34,-19,18,12,36,'#1a2738'],[-20,-17,9,12,27,'#202e40'],[20,-18,10,13,31,'#19283a'],[34,-18,18,13,40,'#162334'],
+  [-33,9,17,14,42,'#182536'],[-20,11,9,12,30,'#202e40'],[20,10,10,12,34,'#1b293a'],[34,11,18,13,44,'#172436'],
+  [-34,39,18,14,39,'#1a2738'],[-20,40,9,14,29,'#202e40'],[20,39,10,14,35,'#182536'],[34,40,18,14,41,'#172436'],
+  [-49,-29,12,10,24,'#26364a'],[49,-29,12,10,25,'#233247']
  ] as const,[]);
- const treePos = useMemo(()=>Array.from({length:18},(_,i)=>[-34+(i%6)*13,0, -7+Math.floor(i/6)*13] as [number,number,number])
-   // Keep sight lines and interaction areas around advertising inventory clear.
-   .filter(([x,,z])=>!MAP_BILLBOARDS.some(b=>Math.hypot(x-b.position[0],z-b.position[2])<7)),[]);
+ const treePos = useMemo(()=>[
+   [-14,0,-45],[-14,0,-5],[-14,0,18],[-14,0,45],
+   [14,0,-45],[14,0,-5],[14,0,18],[14,0,45],
+   [-25,0,-31],[25,0,-31]
+ ].filter(([x,,z])=>!MAP_BILLBOARDS.some(b=>Math.hypot(x-b.position[0],z-b.position[2])<7)) as [number,number,number][],[]);
  return <group>
    <color attach="background" args={['#07111e']}/>
-   <fog attach="fog" args={['#07111e',55,125]}/>
-   <ambientLight intensity={0.55}/><directionalLight castShadow position={[20,45,20]} intensity={1.5} shadow-mapSize={[1024,1024]}/>
-   <RigidBody type="fixed"><CuboidCollider args={[60,0.2,60]} position={[0,-0.2,0]}/></RigidBody>
-   <mesh rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[120,120]}/><meshStandardMaterial color="#263145"/></mesh>
-   <mesh position={[0,0.01,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[120,14]}/><meshStandardMaterial color="#0d1626"/></mesh>
-   <mesh position={[0,0.02,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[14,120]}/><meshStandardMaterial color="#0d1626"/></mesh>
-   {[-44,-28,-12,12,28,44].map(x=><mesh key={'lane'+x} position={[x,0.04,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[0.22,120]}/><meshStandardMaterial color="#c5ba67" emissive="#6f6533"/></mesh>)}
-   {[-44,-28,-12,12,28,44].map(z=><mesh key={'cross'+z} position={[0,0.045,z]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[120,0.22]}/><meshStandardMaterial color="#c5ba67"/></mesh>)}
-   {buildings.map(([x,z,w,d,h,c],i)=><Building key={i} position={[x,0,z]} size={[w,d]} height={h} color={c}/>)}
+   <fog attach="fog" args={['#07111e',75,155]}/>
+   <ambientLight intensity={0.5}/><directionalLight castShadow position={[25,55,18]} intensity={1.45} shadow-mapSize={[1024,1024]}/>
+   <RigidBody type="fixed"><CuboidCollider args={[60,.2,60]} position={[0,-.2,0]}/></RigidBody>
+   <mesh rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[120,120]}/><meshStandardMaterial color="#172233"/></mesh>
+
+   {/* Main avenue and intersection */}
+   <mesh position={[0,.01,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[18,120]}/><meshStandardMaterial color="#090f1a" roughness={.9}/></mesh>
+   <mesh position={[0,.012,-29]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[120,14]}/><meshStandardMaterial color="#090f1a" roughness={.9}/></mesh>
+   <mesh position={[-10,.025,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[2,120]}/><meshStandardMaterial color="#46505b"/></mesh>
+   <mesh position={[10,.025,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[2,120]}/><meshStandardMaterial color="#46505b"/></mesh>
+
+   {/* Long boulevard lane markings */}
+   {[-4.5,4.5].map((x,i)=>Array.from({length:12},(_,j)=><mesh key={i+'-'+j} position={[x,.045,-52+j*9]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[.18,4.2]}/><meshStandardMaterial color="#d7c95e" emissive="#655c27"/></mesh>))}
+   <mesh position={[0,.05,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[.12,120]}/><meshStandardMaterial color="#9d9348"/></mesh>
+   <mesh position={[0,.05,-36]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[120,.18]}/><meshStandardMaterial color="#d7c95e"/></mesh>
+
+   {/* Crosswalk at the main intersection */}
+   {Array.from({length:7},(_,i)=><mesh key={'cw'+i} position={[-6+i*2,.06,-21.7]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[1.15,4]}/><meshStandardMaterial color="#d6d9d6"/></mesh>)}
+
+   {buildings.map(([x,z,w,d,h,col],i)=><Building key={i} position={[x,0,z]} size={[w,d]} height={h} color={col}/>)}
    {treePos.map((p,i)=><Tree key={i} position={p}/>)}
-   {Array.from({length:16},(_,i)=><StreetLight key={i} position={[-48+(i%8)*14,0,i<8?-8:8]}/>)}
-   <Bench position={[7,0,18]}/><Bench position={[-8,0,-17]}/>
+   {Array.from({length:12},(_,i)=><StreetLight key={i} position={[i%2?-12:12,0,-48+Math.floor(i/2)*18]}/>)}
+   <Bench position={[-13,0,26]}/><Bench position={[13,0,-8]}/>
  </group>
 }
+
 function Bench({position}:{position:[number,number,number]}) { return <RigidBody type="fixed" colliders={false} position={position}><CuboidCollider args={[1.2,.7,.45]} position={[0,.7,0]}/><mesh position={[0,.7,0]}><boxGeometry args={[2.4,.25,.7]}/><meshStandardMaterial color="#805b3b"/></mesh><mesh position={[0,1.25,.25]} rotation={[0,0,0]}><boxGeometry args={[2.4,.7,.15]}/><meshStandardMaterial color="#805b3b"/></mesh></RigidBody>}
 
 function GameCamera(){
