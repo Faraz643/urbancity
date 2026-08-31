@@ -1,190 +1,78 @@
-# AdCity - 3D Multiplayer Advertising City
+# UrbanCity
 
-A complete, production-ready 3D multiplayer advertising city built with React Three Fiber, Three.js, Rapier physics, Socket.IO, Node.js, and Prisma.
+A playable browser-based 3D advertising city prototype built with **React, React Three Fiber, Three.js, Drei, Rapier, and Socket.IO**.
 
-## Features
+## Implemented prototype
 
-- 🏙️ Large explorable 3D city with procedural generation
-- 👥 Real-time multiplayer with WebSocket synchronization
-- 📺 Physical 3D billboards with live advertisements
-- 💰 Complete bidding, auction, and wallet system
-- 🔐 JWT authentication with role-based access control
-- 📊 Admin dashboard with analytics
-- 📱 Mobile touch controls support
-- ⚡ Optimized rendering with efficient updates
+- Stylized city grid with major roads, intersections, buildings, trees, benches and street lights
+- WASD and arrow-key movement
+- Rapier capsule player collider
+- Fixed colliders for buildings, trees, benches and physical billboards
+- Smooth third-person follow camera
+- Premium-road and street billboard categories
+- Billboard IDs, traffic ratings, bids, availability and demo advertisements
+- Nearby billboard interaction and click interaction
+- Demo virtual-money bidding
+- Socket.IO multiplayer player join/update/leave synchronization
+- Remote avatar interpolation
+- Online visitor count
+- Minimal HUD, controls card and minimap
 
-## Technology Stack
+## Run locally
 
-### Frontend
-- React 18 + TypeScript
-- React Three Fiber + Three.js
-- @react-three/drei + @react-three/rapier (physics)
-- Zustand (state management)
-- Tailwind CSS
-- Socket.IO Client
-- Vite
+### 1. Install dependencies
 
-### Backend
-- Node.js + Express + TypeScript
-- Prisma ORM + SQLite
-- Socket.IO (WebSocket server)
-- JWT Authentication
-- bcryptjs (password hashing)
-- Helmet + CORS + Rate Limiting
+From the repository root:
 
-## Quick Start
+    npm install
+    npm --prefix frontend install
+    npm --prefix backend install
 
-### 1. Install Dependencies
+### 2. Start the frontend and multiplayer server
 
-```bash
-# Root dependencies
-npm install
+    npm run dev
 
-# Backend dependencies
-cd backend && npm install
+Open the Vite URL, normally http://localhost:5173.
+Open the site in a second browser window to test multiplayer.
 
-# Frontend dependencies
-cd ../frontend && npm install
-```
+## Architecture
 
-### 2. Configure Environment
+    urbancity/
+    ├── frontend/
+    │   ├── src/App.tsx          # R3F city, player, physics, billboards and HUD
+    │   └── src/index.css        # UI styling
+    ├── backend/
+    │   └── src/server.ts        # Express + Socket.IO prototype server
+    └── README.md
 
-```bash
-cd backend
-cp .env.example .env
-```
+## Adding GLB road/building assets
 
-Edit `.env` with your configuration (database URL, JWT secret, etc.)
+Place optimized GLB/GLTF files under:
 
-### 3. Setup Database
+    frontend/public/assets/
 
-```bash
-cd backend
-npx prisma migrate dev
-npm run db:seed
-```
+Then load them with Drei useGLTF in modular city components. The current prototype remains playable without external binary assets, using procedural geometry and Rapier colliders.
 
-### 4. Start Development
+Recommended future folders:
 
-From the root directory:
+    frontend/src/components/city/
+    frontend/src/components/player/
+    frontend/src/components/billboards/
+    frontend/src/components/multiplayer/
+    frontend/public/assets/roads/
+    frontend/public/assets/buildings/
+    frontend/public/assets/trees/
+    frontend/public/assets/characters/
 
-```bash
-npm run dev
-```
+## Production roadmap
 
-This starts both backend (port 3001) and frontend (port 5173) concurrently.
+1. Replace procedural prototypes with optimized GLB assets and instancing.
+2. Persist users, billboards, advertisements and bids with Prisma/PostgreSQL.
+3. Add authentication.
+4. Add advertisement uploads and moderation.
+5. Replace demo wallet logic with a payment provider.
+6. Add server-authoritative validation and scaling for multiplayer.
 
-### 5. Access the Application
+## Notes
 
-- Open http://localhost:5173 in your browser
-- Default admin credentials: `admin@adcity.com` / `admin123`
-- Default demo credentials: `demo@adcity.com` / `demo123`
-
-## Project Structure
-
-```
-ad-city/
-├── backend/
-│   ├── src/
-│   │   ├── server.ts              # Entry point
-│   │   ├── routes/                # API routes
-│   │   ├── middleware/            # Auth, error handling
-│   │   ├── websocket/             # Socket.IO server
-│   │   └── utils/                 # Seed data
-│   ├── prisma/
-│   │   └── schema.prisma          # Database schema
-│   ├── .env.example               # Environment template
-│   └── package.json
-├── frontend/
-│   ├── src/
-│   │   ├── main.tsx               # Entry point
-│   │   ├── App.tsx                # Main app
-│   │   ├── components/
-│   │   │   ├── city/              # 3D city components
-│   │   │   ├── player/            # Player character
-│   │   │   ├── multiplayer/       # Other players
-│   │   │   └── ui/                # UI overlays
-│   │   ├── stores/                # Zustand stores
-│   │   ├── types/                 # TypeScript types
-│   │   └── utils/                 # API, socket helpers
-│   ├── index.html
-│   └── package.json
-└── package.json
-```
-
-## Core Features
-
-### 3D City
-- Procedurally generated modern city with roads, buildings, trees, street furniture
-- Bright sunny daytime environment with realistic shadows
-- Physics-based collision detection using Rapier
-- Third-person camera with smooth follow
-
-### Multiplayer
-- Real-time player synchronization via WebSockets
-- Interest management (only nearby players receive updates)
-- Anonymous visitors automatically spawn with temporary IDs
-- Live online visitor count
-
-### Billboard System
-- Physical 3D billboards throughout the city
-- Two tiers: Premium (main roads) and Street (side streets)
-- Live nearby visitor traffic calculation
-- Dynamic advertisement display on winning billboards
-
-### Bidding & Auctions
-- Real-time bidding system with server-side validation
-- Automatic bid increment rules (5% minimum)
-- Bid reservation and refund handling
-- Outbid notifications
-- Auction winner determination
-
-### Wallet & Transactions
-- Secure wallet system with transaction history
-- Deposit simulation (payment provider integration ready)
-- Bid reservations, refunds, and winning payments
-- Complete audit trail
-
-### Authentication
-- JWT-based secure authentication
-- Password hashing with bcrypt
-- Role-based access control (User/Admin)
-- Anonymous visitor support
-
-### Admin Dashboard
-- Complete admin interface at `/admin`
-- User management
-- Billboard management (create, edit, delete)
-- Advertisement moderation (approve/reject)
-- Transaction monitoring
-- Real-time visitor analytics
-
-## Environment Variables
-
-See `backend/.env.example` for all required variables:
-
-- `DATABASE_URL` - SQLite database path
-- `JWT_SECRET` - JWT signing secret
-- `PORT` - Backend server port
-- `FRONTEND_URL` - CORS allowed origin
-- `RATE_LIMIT_*` - Rate limiting configuration
-
-## Deployment
-
-### Backend
-```bash
-cd backend
-npm run build
-npm start
-```
-
-### Frontend
-```bash
-cd frontend
-npm run build
-# Serve dist/ folder with any static file server
-```
-
-## License
-
-MIT
+This is a local playable prototype. Demo bids and balances are intentionally not real money and are kept separate from the future payment layer.
