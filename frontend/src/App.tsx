@@ -282,7 +282,7 @@ function BillboardPad({b}:{b:Billboard}) {
 }
 
 function BillboardMesh({b,onSelect,nearCount,totalVisitors}:{b:Billboard;onSelect:(b:Billboard)=>void;nearCount:number;totalVisitors:number}) {
- const share=totalVisitors>0?Math.round((nearCount/totalVisitors)*100):0;
+
  const isWall=b.kind==='wall-ad';
  const w=b.size?.[0] ?? (b.type==='Premium Road'?9:6);
  const h=b.size?.[1] ?? (b.type==='Premium Road'?4.6:3);
@@ -295,8 +295,7 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors}:{b:Billboard;onSelec
        <mesh position={[0,0,.095]}><planeGeometry args={[w,h]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#214b14'} emissive={b.occupied?'#3b0c21':'#1c5d12'} emissiveIntensity={0.65}/></mesh>
        <Text position={[0,.2,.12]} fontSize={Math.min(h*.18,.72)} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{b.ad}</Text>
        <Text position={[0,-h*.34,.12]} fontSize={.2} color="#b8d9ff" anchorX="center">WALL #{b.id} • ₹{b.bid.toLocaleString()}</Text>
-     <Text position={[0,-h*.43,.48]} fontSize={.19} color="#8ff0b3" anchorX="center">👥 {nearCount}/{totalVisitors} • {share}%</Text>
-       <Text position={[0,-h*.47,.12]} fontSize={.18} color="#8ff0b3" anchorX="center">👥 {nearCount}/{totalVisitors} nearby • {share}%</Text>
+     <Text position={[0,h/2+.62,.14]} fontSize={.32} color="#8ff0b3" anchorX="center">👥 {nearCount}</Text>
        <mesh position={[0,h/2+.22,0]}><boxGeometry args={[w+.5,.08,.22]}/><meshStandardMaterial color="#49d17d" emissive="#1b6f43" emissiveIntensity={1.1}/></mesh>
      </group>
    </RigidBody>;
@@ -375,7 +374,7 @@ function App(){
   <MiniMap players={players}/>
   <div className="billcount">🪧 Billboards <b>{MAP_BILLBOARDS.length}</b> total</div>
   {nearby&&!selected&&<button className="interact" onClick={()=>setSelected(nearby)}>E • Interact with {nearby.kind==='wall-ad'?'Wall Ad':'Billboard'} #{nearby.id}</button>}
-  {selected&&<div className="panel"><button className="close" onClick={()=>setSelected(null)}>×</button><h2>{selected.kind==='wall-ad'?'Wall Ad':'Billboard'} #{selected.id}</h2><p>{selected.kind==='wall-ad'?'Building-mounted advertising slot':selected.type+' Billboard'}</p><div className="tag">{selected.traffic} Traffic</div><div className="stat"><span>Current Bid</span><b>₹{selected.bid.toLocaleString()}</b></div><div className="stat"><span>Minimum Next Bid</span><b>₹{(selected.bid+500).toLocaleString()}</b></div><div className="stat"><span>Status</span><b>{selected.occupied?'Occupied':'Available'}</b></div><div className="stat"><span>Visitors Near This Ad</span><b>{visitorStats[selected.id]||0} / {totalVisitors}</b></div><div className="stat"><span>Visitor Share</span><b>{totalVisitors?Math.round(((visitorStats[selected.id]||0)/totalVisitors)*100):0}%</b></div><button className="bid" onClick={bid}>Place demo bid +₹500</button><small>Virtual money only. Payment integration can replace this handler later.</small></div>}
+  {selected&&<div className="panel"><button className="close" onClick={()=>setSelected(null)}>×</button><h2>{selected.kind==='wall-ad'?'Wall Ad':'Billboard'} #{selected.id}</h2><p>{selected.kind==='wall-ad'?'Building-mounted advertising slot':selected.type+' Billboard'}</p><div className="tag">{selected.traffic} Traffic</div><div className="stat"><span>Current Bid</span><b>₹{selected.bid.toLocaleString()}</b></div><div className="stat"><span>Minimum Next Bid</span><b>₹{(selected.bid+500).toLocaleString()}</b></div><div className="stat"><span>Status</span><b>{selected.occupied?'Occupied':'Available'}</b></div><div className="stat"><span>Visitors Near This Ad</span><b>{visitorStats[selected.id]||0}</b></div><button className="bid" onClick={bid}>Place demo bid +₹500</button><small>Virtual money only. Payment integration can replace this handler later.</small></div>}
  </div>
 }
 export default App;
