@@ -109,7 +109,8 @@ function RemoteAvatar({p}:{p:Remote}) { const ref=useRef<THREE.Group>(null!); us
 function RemotePlayers({players}:{players:Remote[]}) { return <>{players.map(p=><RemoteAvatar key={p.id} p={p}/>)}</> }
 
 function World({setNearby,players,setSelected,onMove}:{setNearby:(b:Billboard|null)=>void;players:Remote[];setSelected:(b:Billboard)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void}) {
- return (\n     <Canvas
+ return (
+     <Canvas
        shadows
        camera={{position:[10,9,21],fov:55}}
        dpr={[1,1.5]}
@@ -124,7 +125,8 @@ function World({setNearby,players,setSelected,onMove}:{setNearby:(b:Billboard|nu
            <RemotePlayers players={players}/>
          </Physics>
        </Suspense>
-     </Canvas>\n )
+     </Canvas>
+ )
 }
 
 function App(){
