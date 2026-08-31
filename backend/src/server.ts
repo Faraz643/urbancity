@@ -1,77 +1,20 @@
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
-import { PrismaClient } from '@prisma/client';
-import { setupWebSocket } from './websocket/socket';
-import { authRouter } from './routes/auth';
-import { billboardRouter } from './routes/billboards';
-import { auctionRouter } from './routes/auctions';
-import { bidRouter } from './routes/bids';
-import { walletRouter } from './routes/wallet';
-import { advertisementRouter } from './routes/advertisements';
-import { adminRouter } from './routes/admin';
-import { analyticsRouter } from './routes/analytics';
-import { notificationRouter } from './routes/notifications';
-import { errorHandler } from './middleware/errorHandler';
-
+import { Server } from 'socket.io';
+import { randomUUID } from 'crypto';
 dotenv.config();
-
-export const prisma = new PrismaClient();
-
-const app = express();
-const httpServer = createServer(app);
-
-// Security middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-}));
-
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true,
-}));
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
-  message: { error: 'Too many requests, please try again later.' },
-});
-app.use(limiter);
-
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// API routes
-app.use('/api/auth', authRouter);
-app.use('/api/billboards', billboardRouter);
-app.use('/api/auctions', auctionRouter);
-app.use('/api/bids', bidRouter);
-app.use('/api/wallet', walletRouter);
-app.use('/api/advertisements', advertisementRouter);
-app.use('/api/admin', adminRouter);
-app.use('/api/analytics', analyticsRouter);
-app.use('/api/notifications', notificationRouter);
-
-// Error handling
-app.use(errorHandler);
-
-// Setup WebSocket
-setupWebSocket(httpServer);
-
-const PORT = process.env.PORT || 3001;
-
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📡 WebSocket server active`);
-});
-
-export { app, httpServer };
+const app=express(); const httpServer=createServer(app);
+app.use(cors({origin:process.env.FRONTEND_URL||'http://localhost:5173',credentials:true}));app.use(express.json());
+type Player={id:string;name:string;position:[number,number,number];rotation:number;moving:boolean};
+type Billboard={id:string;bid:number;history:{playerId:string;amount:number;at:string}[]};
+const players=new Map<string,Player>(); const billboards=new Map<string,Billboard>([['102',{id:'102',bid:5000,history:[]}],['207',{id:'207',bid:8200,history:[]}],['311',{id:'311',bid:1800,history:[]}],['412',{id:'412',bid:2200,history:[]}]]);
+app.get('/health',(_req,res)=>res.json({status:'ok',online:players.size,timestamp:new Date().toISOString()}));
+app.get('/api/billboards',(_req,res)=>res.json([...billboards.values()]));
+const io=new Server(httpServer,{cors:{origin:process.env.FRONTEND_URL||'http://localhost:5173',credentials:true}});
+io.on('connection',socket=>{const player:Player={id:socket.id,name:'Visitor-'+randomUUID().slice(0,4),position:[0,1,8],rotation:0,moving:false};players.set(socket.id,player);socket.emit('players:list',[...players.values()]);socket.broadcast.emit('player:joined',player);io.emit('online:count',players.size);
+ socket.on('player:update',(data:Partial<Player>)=>{const p=players.get(socket.id);if(!p)return;p.position=Array.isArray(data.position)?data.position:p.position;p.rotation=typeof data.rotation==='number'?data.rotation:p.rotation;p.moving=!!data.moving;socket.broadcast.emit('player:update',p)});
+ socket.on('billboard:bid',(data:{id:string;amount:number})=>{const b=billboards.get(data.id);if(!b||!Number.isFinite(data.amount)||data.amount<=b.bid)return;b.bid=data.amount;b.history.push({playerId:socket.id,amount:data.amount,at:new Date().toISOString()});io.emit('billboard:update',b)});
+ socket.on('disconnect',()=>{players.delete(socket.id);io.emit('player:left',socket.id);io.emit('online:count',players.size)})});
+const PORT=Number(process.env.PORT||3001);httpServer.listen(PORT,()=>console.log('UrbanCity multiplayer server on '+PORT));
