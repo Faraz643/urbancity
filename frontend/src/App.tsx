@@ -153,6 +153,21 @@ function World({setNearby,players,setSelected,onMove}:{setNearby:(b:Billboard|nu
  )
 }
 
+function MiniMap({players}:{players:Remote[]}) {
+ const [me,setMe]=useState<[number,number,number]>([0,0,8]);
+ const [yaw,setYaw]=useState(0);
+ useEffect(()=>{let id=0;const tick=()=>{const p=(window as any).__urbanPlayerPosition as THREE.Vector3|undefined;if(p)setMe([p.x,p.y,p.z]);setYaw((window as any).__urbanCameraYaw??0);id=requestAnimationFrame(tick)};id=requestAnimationFrame(tick);return()=>cancelAnimationFrame(id)},[]);
+ const toPct=(x:number,z:number)=>({left:`${Math.max(3,Math.min(97,(x+60)/120*100))}%`,top:`${Math.max(3,Math.min(97,(z+60)/120*100))}%`});
+ return <div className="minimap"><div className="maptitle"><b>LIVE MAP</b><span>● LIVE</span></div><div className="mapgrid">
+   <div className="map-road vertical"/><div className="map-road horizontal"/>
+   {[-44,-28,-12,12,28,44].map((v,i)=><div key={'rv'+i} className="minor-road v" style={{left:`${(v+60)/120*100}%`}}/>)}
+   {[-44,-28,-12,12,28,44].map((v,i)=><div key={'rh'+i} className="minor-road h" style={{top:`${(v+60)/120*100}%`}}/>)}
+   {MAP_BILLBOARDS.map(b=><i key={b.id} className="map-billboard" title={`Billboard #${b.id}`} style={toPct(b.position[0],b.position[2])}/>)}
+   {players.map(p=><i key={p.id} className="map-player" style={toPct(p.position[0],p.position[2])}/>)}
+   <i className="map-me" style={{...toPct(me[0],me[2]),transform:`translate(-50%,-50%) rotate(${yaw}rad)`}}/>
+ </div><small>🟡 billboards &nbsp; 🔵 players &nbsp; 🟢 you</small></div>
+}
+
 function App(){
  const [nearby,setNearby]=useState<Billboard|null>(null),[selected,setSelected]=useState<Billboard|null>(null),[balance,setBalance]=useState(750000),[players,setPlayers]=useState<Remote[]>([]);
  const socket=useRef<Socket|null>(null);
@@ -161,7 +176,7 @@ function App(){
  return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)}/>
   <div className="hud top"><div><b>● ONLINE</b><span>{players.length+1}</span></div><div><b>BALANCE</b><span>₹{balance.toLocaleString()}</span></div><div><b>DISTRICT</b><span>Uptown</span></div></div>
   <div className="hud controls"><b>Controls</b><small>Move <kbd>W A S D</kbd></small><small>Arrows also work</small><small>Click a billboard / interact nearby</small></div>
-  <div className="minimap"><b>MAP</b><div className="mapgrid"><i/><i/><i/><i/><i/><i/><i/></div><small>🟡 billboards • 🔵 players</small></div>
+  <MiniMap players={players}/>
   <div className="billcount">🪧 Billboards <b>{MAP_BILLBOARDS.length}</b> total</div>
   {nearby&&!selected&&<button className="interact" onClick={()=>setSelected(nearby)}>E • Interact with Billboard #{nearby.id}</button>}
   {selected&&<div className="panel"><button className="close" onClick={()=>setSelected(null)}>×</button><h2>Billboard #{selected.id}</h2><p>{selected.type} Billboard</p><div className="tag">{selected.traffic} Traffic</div><div className="stat"><span>Current Bid</span><b>₹{selected.bid.toLocaleString()}</b></div><div className="stat"><span>Minimum Next Bid</span><b>₹{(selected.bid+500).toLocaleString()}</b></div><div className="stat"><span>Status</span><b>{selected.occupied?'Occupied':'Available'}</b></div><button className="bid" onClick={bid}>Place demo bid +₹500</button><small>Virtual money only. Payment integration can replace this handler later.</small></div>}
