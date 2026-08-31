@@ -34,6 +34,31 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// Get or lazily create the active auction for a map billboard.
+router.get('/billboard/:billboardId/active', async (req, res, next) => {
+  try {
+    let auction = await prisma.auction.findFirst({
+      where: { billboardId: req.params.billboardId, status: 'ACTIVE', endsAt: { gt: new Date() } },
+      orderBy: { endsAt: 'asc' },
+      include: { billboard: true, _count: { select: { bids: true } } },
+    });
+    if (!auction) {
+      const billboard = await prisma.billboard.findUnique({ where: { id: req.params.billboardId } });
+      if (!billboard) return res.status(404).json({ error: 'Billboard not found' });
+      auction = await prisma.auction.create({
+        data: {
+          billboardId: billboard.id,
+          startPrice: billboard.currentBid ?? billboard.minBid,
+          currentPrice: billboard.currentBid ?? billboard.minBid,
+          endsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+        include: { billboard: true, _count: { select: { bids: true } } },
+      });
+    }
+    res.json(auction);
+  } catch (error) { next(error); }
+});
+
 // Get single auction
 router.get('/:id', async (req, res, next) => {
   try {
