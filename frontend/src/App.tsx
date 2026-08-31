@@ -243,14 +243,9 @@ function PlayerAvatar({moving}:{moving:boolean}) {
  const walking=useFBX('/models/player/Walking.fbx');
  const sprint=useFBX('/models/player/sprint.fbx');
  const model=useMemo(()=>idle.clone(true),[idle]);
- // Normalize arbitrary FBX/Mixamo units so every avatar fits the Rapier player collider.
- const avatarMetrics=useMemo(()=>{
-   model.updateMatrixWorld(true);
-   const box=new THREE.Box3().setFromObject(model);
-   const size=box.getSize(new THREE.Vector3());
-   const scale=size.y>0 ? 1.72/size.y : 0.003;
-   return {scale, minY:box.min.y};
- },[model]);
+ // Mixamo FBX files use inconsistent units. Keep a deliberately small, stable world scale
+ // that matches this city's Rapier capsule (about human height).
+ const AVATAR_SCALE=0.0008;
  const { actions }=useAnimations([...(idle.animations||[]),...(walking.animations||[]),...(sprint.animations||[])],model);
  const current=useRef('');
  useEffect(()=>{
@@ -261,7 +256,7 @@ function PlayerAvatar({moving}:{moving:boolean}) {
    actions[next]?.reset().fadeIn(.18).play();
    current.current=next;
  },[moving,actions]);
- return <group scale={avatarMetrics.scale} rotation={[0,Math.PI,0]} position={[0,-1.18-avatarMetrics.minY*avatarMetrics.scale,0]}><primitive object={model}/></group>;
+ return <group scale={AVATAR_SCALE} rotation={[0,Math.PI,0]} position={[0,-1.18,0]}><primitive object={model}/></group>;
 }
 
 function Player({onNearby,onMove,onPosition}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void;onPosition:(p:[number,number,number])=>void}) {
