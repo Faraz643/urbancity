@@ -1,18 +1,1 @@
-{
-  "name": "ad-city",
-  "version": "1.0.0",
-  "description": "3D Multiplayer Advertising City - Complete full-stack application",
-  "private": true,
-  "scripts": {
-    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "cd backend && npm run dev",
-    "dev:frontend": "cd frontend && npm run dev",
-    "build": "cd frontend && npm run build",
-    "db:setup": "cd backend && npx prisma migrate dev && npm run db:seed",
-    "db:generate": "cd backend && npx prisma generate",
-    "start": "cd backend && npm start"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  }
-}
+{"name":"urbancity","version":"1.0.0","private":true,"scripts":{"dev":"concurrently \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"","dev:backend":"npm --prefix backend run dev","dev:frontend":"npm --prefix frontend run dev","build":"npm --prefix frontend run build","start":"npm --prefix backend start"},"devDependencies":{"concurrently":"^8.2.2"}}
