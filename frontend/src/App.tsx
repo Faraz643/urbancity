@@ -1,5 +1,5 @@
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Text, useFBX, useAnimations } from '@react-three/drei';
+import { Text } from '@react-three/drei';
 import { Physics, RigidBody, CuboidCollider, CapsuleCollider, RapierRigidBody } from '@react-three/rapier';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -239,24 +239,75 @@ function GameCamera(){
 }
 
 function PlayerAvatar({moving}:{moving:boolean}) {
- const idle=useFBX('/models/player/idle.fbx');
- const walking=useFBX('/models/player/Walking.fbx');
- const sprint=useFBX('/models/player/sprint.fbx');
- const model=useMemo(()=>idle.clone(true),[idle]);
- // Mixamo FBX files use inconsistent units. Keep a deliberately small, stable world scale
- // that matches this city's Rapier capsule (about human height).
- const AVATAR_SCALE=0.0008;
- const { actions }=useAnimations([...(idle.animations||[]),...(walking.animations||[]),...(sprint.animations||[])],model);
- const current=useRef('');
- useEffect(()=>{
-   const next=moving ? (actions['mixamo.com'] ? 'mixamo.com' : Object.keys(actions).find((k,i)=>i===1) || Object.keys(actions)[0]) : Object.keys(actions)[0];
-   if(!next || current.current===next) return;
-   const previous=current.current;
-   if(previous) actions[previous]?.fadeOut(.18);
-   actions[next]?.reset().fadeIn(.18).play();
-   current.current=next;
- },[moving,actions]);
- return <group scale={AVATAR_SCALE} rotation={[0,Math.PI,0]} position={[0,-1.18,0]}><primitive object={model}/></group>;
+ const body=useRef<THREE.Group>(null!);
+ const leftArm=useRef<THREE.Group>(null!);
+ const rightArm=useRef<THREE.Group>(null!);
+ const leftLeg=useRef<THREE.Group>(null!);
+ const rightLeg=useRef<THREE.Group>(null!);
+ const t=useRef(0);
+
+ useFrame((_,dt)=>{
+   t.current+=dt*(moving?8:2.2);
+   const swing=moving?Math.sin(t.current)*0.62:0;
+   const bob=moving?Math.abs(Math.sin(t.current))*0.035:Math.sin(t.current)*0.012;
+   if(body.current) body.current.position.y=bob;
+   if(leftArm.current) leftArm.current.rotation.x=swing;
+   if(rightArm.current) rightArm.current.rotation.x=-swing;
+   if(leftLeg.current) leftLeg.current.rotation.x=-swing;
+   if(rightLeg.current) rightLeg.current.rotation.x=swing;
+ });
+
+ return <group position={[0,-1.12,0]}>
+   <group ref={body}>
+     {/* torso */}
+     <mesh position={[0,1.02,0]} castShadow>
+       <capsuleGeometry args={[0.36,0.62,6,12]}/>
+       <meshStandardMaterial color="#1184ad" roughness={0.62}/>
+     </mesh>
+
+     {/* head: intentionally simple oval face */}
+     <mesh position={[0,1.82,0]} scale={[0.78,1.08,0.82]} castShadow>
+       <sphereGeometry args={[0.38,20,16]}/>
+       <meshStandardMaterial color="#e4b98d" roughness={0.72}/>
+     </mesh>
+     <mesh position={[-0.13,1.84,0.29]} scale={[0.045,0.065,0.025]}>
+       <sphereGeometry args={[1,10,8]}/><meshStandardMaterial color="#1a2430"/>
+     </mesh>
+     <mesh position={[0.13,1.84,0.29]} scale={[0.045,0.065,0.025]}>
+       <sphereGeometry args={[1,10,8]}/><meshStandardMaterial color="#1a2430"/>
+     </mesh>
+
+     {/* arms pivot from shoulders */}
+     <group ref={leftArm} position={[-0.43,1.33,0]}>
+       <mesh position={[0,-0.32,0]} castShadow>
+         <capsuleGeometry args={[0.105,0.45,6,10]}/><meshStandardMaterial color="#e4b98d"/>
+       </mesh>
+     </group>
+     <group ref={rightArm} position={[0.43,1.33,0]}>
+       <mesh position={[0,-0.32,0]} castShadow>
+         <capsuleGeometry args={[0.105,0.45,6,10]}/><meshStandardMaterial color="#e4b98d"/>
+       </mesh>
+     </group>
+
+     {/* legs */}
+     <group ref={leftLeg} position={[-0.17,0.72,0]}>
+       <mesh position={[0,-0.38,0]} castShadow>
+         <capsuleGeometry args={[0.14,0.5,6,10]}/><meshStandardMaterial color="#27364d"/>
+       </mesh>
+       <mesh position={[0,-0.72,0.07]} scale={[1,0.55,1.3]} castShadow>
+         <sphereGeometry args={[0.16,12,8]}/><meshStandardMaterial color="#141b27"/>
+       </mesh>
+     </group>
+     <group ref={rightLeg} position={[0.17,0.72,0]}>
+       <mesh position={[0,-0.38,0]} castShadow>
+         <capsuleGeometry args={[0.14,0.5,6,10]}/><meshStandardMaterial color="#27364d"/>
+       </mesh>
+       <mesh position={[0,-0.72,0.07]} scale={[1,0.55,1.3]} castShadow>
+         <sphereGeometry args={[0.16,12,8]}/><meshStandardMaterial color="#141b27"/>
+       </mesh>
+     </group>
+   </group>
+ </group>;
 }
 
 function Player({onNearby,onMove,onPosition}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void;onPosition:(p:[number,number,number])=>void}) {
