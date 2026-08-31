@@ -281,7 +281,8 @@ function BillboardPad({b}:{b:Billboard}) {
  </group>
 }
 
-function BillboardMesh({b,onSelect}:{b:Billboard;onSelect:(b:Billboard)=>void}) {
+function BillboardMesh({b,onSelect,nearCount,totalVisitors}:{b:Billboard;onSelect:(b:Billboard)=>void;nearCount:number;totalVisitors:number}) {
+ const share=totalVisitors>0?Math.round((nearCount/totalVisitors)*100):0;
  const isWall=b.kind==='wall-ad';
  const w=b.size?.[0] ?? (b.type==='Premium Road'?9:6);
  const h=b.size?.[1] ?? (b.type==='Premium Road'?4.6:3);
@@ -294,6 +295,8 @@ function BillboardMesh({b,onSelect}:{b:Billboard;onSelect:(b:Billboard)=>void}) 
        <mesh position={[0,0,.095]}><planeGeometry args={[w,h]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#214b14'} emissive={b.occupied?'#3b0c21':'#1c5d12'} emissiveIntensity={0.65}/></mesh>
        <Text position={[0,.2,.12]} fontSize={Math.min(h*.18,.72)} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{b.ad}</Text>
        <Text position={[0,-h*.34,.12]} fontSize={.2} color="#b8d9ff" anchorX="center">WALL #{b.id} • ₹{b.bid.toLocaleString()}</Text>
+     <Text position={[0,-h*.43,.48]} fontSize={.19} color="#8ff0b3" anchorX="center">👥 {nearCount}/{totalVisitors} • {share}%</Text>
+       <Text position={[0,-h*.47,.12]} fontSize={.18} color="#8ff0b3" anchorX="center">👥 {nearCount}/{totalVisitors} nearby • {share}%</Text>
        <mesh position={[0,h/2+.22,0]}><boxGeometry args={[w+.5,.08,.22]}/><meshStandardMaterial color="#49d17d" emissive="#1b6f43" emissiveIntensity={1.1}/></mesh>
      </group>
    </RigidBody>;
@@ -315,12 +318,7 @@ function BillboardMesh({b,onSelect}:{b:Billboard;onSelect:(b:Billboard)=>void}) 
 function RemoteAvatar({p}:{p:Remote}) { const ref=useRef<THREE.Group>(null!); useFrame((_,dt)=>{ref.current.position.lerp(new THREE.Vector3(...p.position),1-Math.pow(.001,dt));ref.current.rotation.y=THREE.MathUtils.lerp(ref.current.rotation.y,p.rotation,Math.min(1,dt*10))}); return <group ref={ref} position={p.position}><mesh castShadow position={[0,1,0]}><capsuleGeometry args={[.38,1.1,5,8]}/><meshStandardMaterial color="#f59e0b"/></mesh><Text position={[0,2.1,0]} fontSize={.25} color="white" anchorX="center">{p.name}</Text></group> }
 function RemotePlayers({players}:{players:Remote[]}) { return <>{players.map(p=><RemoteAvatar key={p.id} p={p}/>)}</> }
 
-function World({ setNearby, players, setSelected, onMove, timeMode }: {
-  setNearby: (b: Billboard | null) => void;
-  players: Remote[];
-  setSelected: (b: Billboard) => void;
-  onMove: (state: { position: [number, number, number]; rotation: number; moving: boolean }) => void;
-  timeMode: TimeMode;
+function World({ setNearby, players, setSelected, onMove, timeMode, visitorStats }: { setNearby: (b: Billboard | null) => void; players: Remote[]; setSelected: (b: Billboard) => void; onMove: (state: { position: [number, number, number]; rotation: number; moving: boolean }) => void; timeMode: TimeMode; visitorStats: Record<string,number>; } {
 }) {
  return (
      <Canvas
@@ -360,16 +358,18 @@ function MiniMap({players}:{players:Remote[]}) {
 function App(){
  const [nearby,setNearby]=useState<Billboard|null>(null),[selected,setSelected]=useState<Billboard|null>(null),[balance,setBalance]=useState(750000),[players,setPlayers]=useState<Remote[]>([]),[timeMode,setTimeMode]=useState<TimeMode>('night');
  const socket=useRef<Socket|null>(null);
+ const totalVisitors=players.length+1;
+ const visitorStats=useMemo(()=>{const stats:Record<string,number>={};for(const b of MAP_BILLBOARDS)stats[b.id]=0;const all=[...(players.map(p=>p.position))];const me=(window as any).__urbanPlayerPosition as THREE.Vector3|undefined;if(me)all.push([me.x,me.y,me.z]);else all.push([0,0,8]);for(const pos of all){for(const b of MAP_BILLBOARDS){if(Math.hypot(pos[0]-b.position[0],pos[2]-b.position[2])<5)stats[b.id]++}}return stats},[players]);
  useEffect(()=>{const url=import.meta.env.VITE_SERVER_URL||'http://localhost:3001';const s=io(url);socket.current=s;s.on('players:list',(p:Remote[])=>setPlayers(p.filter(x=>x.id!==s.id)));s.on('player:joined',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:update',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:left',(id:string)=>setPlayers(a=>a.filter(x=>x.id!==id)));s.on('billboard:update',(b:{id:string;bid:number})=>{const local=MAP_BILLBOARDS.find(x=>x.id===b.id);if(local)local.bid=b.bid;setSelected(v=>v&&v.id===b.id?{...v,bid:b.bid}:v)});return()=>s.close()},[]);
  useEffect(()=>{(window as any).__urbanInteractBillboard=(b:Billboard)=>setSelected(b);return()=>{delete (window as any).__urbanInteractBillboard;delete (window as any).__urbanNearbyBillboard}},[]);
  const bid=()=>{if(!selected)return;const next=selected.bid+500;if(balance<next)return alert('Not enough demo balance');setBalance(v=>v-next);selected.bid=next;socket.current?.emit('billboard:bid',{id:selected.id,amount:next});setSelected({...selected});};
- return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} timeMode={timeMode}/>
+ return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} timeMode={timeMode} visitorStats={visitorStats}/>
   <div className="hud top"><div><b>● ONLINE</b><span>{players.length+1}</span></div><div><b>BALANCE</b><span>₹{balance.toLocaleString()}</span></div><div><b>DISTRICT</b><span>Uptown</span></div></div>
   <div className="time-switcher"><b>TIME</b>{(["morning","evening","night"] as TimeMode[]).map(m=><button key={m} className={timeMode===m?"active":""} onClick={()=>setTimeMode(m)}>{m}</button>)}</div><div className="hud controls"><b>Controls</b><small>Move <kbd>W A S D</kbd></small><small>Arrows also work</small><small><kbd>E</kbd> interact nearby • click billboard</small></div>
   <MiniMap players={players}/>
   <div className="billcount">🪧 Billboards <b>{MAP_BILLBOARDS.length}</b> total</div>
   {nearby&&!selected&&<button className="interact" onClick={()=>setSelected(nearby)}>E • Interact with {nearby.kind==='wall-ad'?'Wall Ad':'Billboard'} #{nearby.id}</button>}
-  {selected&&<div className="panel"><button className="close" onClick={()=>setSelected(null)}>×</button><h2>{selected.kind==='wall-ad'?'Wall Ad':'Billboard'} #{selected.id}</h2><p>{selected.kind==='wall-ad'?'Building-mounted advertising slot':selected.type+' Billboard'}</p><div className="tag">{selected.traffic} Traffic</div><div className="stat"><span>Current Bid</span><b>₹{selected.bid.toLocaleString()}</b></div><div className="stat"><span>Minimum Next Bid</span><b>₹{(selected.bid+500).toLocaleString()}</b></div><div className="stat"><span>Status</span><b>{selected.occupied?'Occupied':'Available'}</b></div><button className="bid" onClick={bid}>Place demo bid +₹500</button><small>Virtual money only. Payment integration can replace this handler later.</small></div>}
+  {selected&&<div className="panel"><button className="close" onClick={()=>setSelected(null)}>×</button><h2>{selected.kind==='wall-ad'?'Wall Ad':'Billboard'} #{selected.id}</h2><p>{selected.kind==='wall-ad'?'Building-mounted advertising slot':selected.type+' Billboard'}</p><div className="tag">{selected.traffic} Traffic</div><div className="stat"><span>Current Bid</span><b>₹{selected.bid.toLocaleString()}</b></div><div className="stat"><span>Minimum Next Bid</span><b>₹{(selected.bid+500).toLocaleString()}</b></div><div className="stat"><span>Status</span><b>{selected.occupied?'Occupied':'Available'}</b></div><div className="stat"><span>Visitors Near This Ad</span><b>{visitorStats[selected.id]||0} / {totalVisitors}</b></div><div className="stat"><span>Visitor Share</span><b>{totalVisitors?Math.round(((visitorStats[selected.id]||0)/totalVisitors)*100):0}%</b></div><button className="bid" onClick={bid}>Place demo bid +₹500</button><small>Virtual money only. Payment integration can replace this handler later.</small></div>}
  </div>
 }
 export default App;
