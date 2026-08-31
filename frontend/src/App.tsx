@@ -296,7 +296,7 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors}:{b:Billboard;onSelec
        <mesh position={[0,0,.095]}><planeGeometry args={[w,h]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#214b14'} emissive={b.occupied?'#3b0c21':'#1c5d12'} emissiveIntensity={0.65}/></mesh>
        <Text position={[0,.2,.12]} fontSize={Math.min(h*.18,.72)} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{b.ad}</Text>
        <Text position={[0,-h*.34,.12]} fontSize={.2} color="#b8d9ff" anchorX="center">WALL #{b.id} • ₹{b.bid.toLocaleString()}</Text>
-     <Text position={[0,h/2+.62,.14]} fontSize={.34} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.025} outlineColor="#07111e">👥 {nearCount}</Text>
+     <Text position={[0,h/2+.62,.14]} fontSize={.34} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.025} outlineColor="#07111e">VISITORS: {nearCount}</Text>
        <mesh position={[0,h/2+.22,0]}><boxGeometry args={[w+.5,.08,.22]}/><meshStandardMaterial color="#49d17d" emissive="#1b6f43" emissiveIntensity={1.1}/></mesh>
      </group>
    </RigidBody>;
