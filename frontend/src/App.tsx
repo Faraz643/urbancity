@@ -187,10 +187,12 @@ function App(){
  const bid=()=>{if(!selected)return;const next=selected.bid+500;if(balance<next)return alert('Not enough demo balance');setBalance(v=>v-next);selected.bid=next;socket.current?.emit('billboard:bid',{id:selected.id,amount:next});setSelected({...selected});};
  return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)}/>
   <div className="hud top"><div><b>● ONLINE</b><span>{players.length+1}</span></div><div><b>BALANCE</b><span>₹{balance.toLocaleString()}</span></div><div><b>DISTRICT</b><span>Uptown</span></div></div>
-  <div className="hud controls"><b>Controls</b><small>Move <kbd>W A S D</kbd></small><small>Arrows also work</small><small><kbd>E</kbd> interact nearby • click billboard</small></div>
+  <div className="hud controls"><b>Controls</b><small><span>Move</span> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></small><small><span>Look</span> <kbd>🖱</kbd></small><small><span>Interact</span> <kbd>E</kbd></small></div>
+  <div className="notice accessibility"><button>✓</button><div><strong>Billboards are always accessible</strong><p>Billboards are automatically placed in visible and accessible locations.</p><p>You will never find a billboard hidden behind buildings.</p></div><i>×</i></div>
+  <div className="notice toast"><span>✓</span><strong>All billboards are placed in<br/>visible and accessible locations</strong></div>
   <MiniMap players={players}/>
-  <div className="billcount">🪧 Billboards <b>{MAP_BILLBOARDS.length}</b> total</div>
-  {nearby&&!selected&&<button className="interact" onClick={()=>setSelected(nearby)}>E • Interact with Billboard #{nearby.id}</button>}
+  <div className="rightstack"><div className="billcount">🪧 <span>Billboards <b>{MAP_BILLBOARDS.length}</b> total</span></div><div className="safe"><b>♢</b><span>All billboards are visible<br/>and accessible</span></div></div>
+  {nearby&&!selected&&<button className="interact" onClick={()=>setSelected(nearby)}><kbd>E</kbd><span>Press <b>E</b> to interact with billboard</span></button>}
   {selected&&<div className="panel"><button className="close" onClick={()=>setSelected(null)}>×</button><h2>Billboard #{selected.id}</h2><p>{selected.type} Billboard</p><div className="tag">{selected.traffic} Traffic</div><div className="stat"><span>Current Bid</span><b>₹{selected.bid.toLocaleString()}</b></div><div className="stat"><span>Minimum Next Bid</span><b>₹{(selected.bid+500).toLocaleString()}</b></div><div className="stat"><span>Status</span><b>{selected.occupied?'Occupied':'Available'}</b></div><button className="bid" onClick={bid}>Place demo bid +₹500</button><small>Virtual money only. Payment integration can replace this handler later.</small></div>}
  </div>
 }
