@@ -137,7 +137,7 @@ router.post('/', authenticate, requireAdmin, async (req: AuthRequest, res, next)
   try {
     const schema = z.object({
       name: z.string().min(1),
-      type: z.enum(['PREMIUM', 'STREET']),
+      type: z.enum(['PREMIUM', 'STREET', 'WALL']),
       positionX: z.number(),
       positionY: z.number(),
       positionZ: z.number(),
@@ -171,7 +171,7 @@ router.patch('/:id', authenticate, requireAdmin, async (req: AuthRequest, res, n
   try {
     const schema = z.object({
       name: z.string().min(1).optional(),
-      type: z.enum(['PREMIUM', 'STREET']).optional(),
+      type: z.enum(['PREMIUM', 'STREET', 'WALL']).optional(),
       positionX: z.number().optional(),
       positionY: z.number().optional(),
       positionZ: z.number().optional(),
