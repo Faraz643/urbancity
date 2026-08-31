@@ -1,4 +1,4 @@
-import { RigidBody } from '@react-three/rapier';
+import { RigidBody, CylinderCollider } from '@react-three/rapier';
 
 interface TreeProps {
   position: [number, number, number];
@@ -8,7 +8,8 @@ interface TreeProps {
 export function Tree({ position, scale = 1 }: TreeProps) {
   return (
     <group position={position} scale={scale}>
-      <RigidBody type="fixed" colliders="cylinder">
+      <RigidBody type="fixed" colliders={false}>
+        <CylinderCollider args={[1.5, 0.3]} position={[0, 1.5, 0]} />
         <mesh position={[0, 1.5, 0]} castShadow>
           <cylinderGeometry args={[0.2, 0.3, 3, 8]} />
           <meshStandardMaterial color="#8B4513" roughness={0.9} />
