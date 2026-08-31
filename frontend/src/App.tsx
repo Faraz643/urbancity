@@ -1,5 +1,5 @@
 import { Canvas, useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { Text, useFBX, useAnimations } from '@react-three/drei';
 import { Physics, RigidBody, CuboidCollider, CapsuleCollider, RapierRigidBody } from '@react-three/rapier';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -238,6 +238,24 @@ function GameCamera(){
  return null;
 }
 
+function PlayerAvatar({moving}:{moving:boolean}) {
+ const idle=useFBX('/models/player/idle.fbx');
+ const walking=useFBX('/models/player/Walking.fbx');
+ const sprint=useFBX('/models/player/sprint.fbx');
+ const model=useMemo(()=>idle.clone(true),[idle]);
+ const { actions }=useAnimations([...(idle.animations||[]),...(walking.animations||[]),...(sprint.animations||[])],model);
+ const current=useRef('');
+ useEffect(()=>{
+   const next=moving ? (actions['mixamo.com'] ? 'mixamo.com' : Object.keys(actions).find((k,i)=>i===1) || Object.keys(actions)[0]) : Object.keys(actions)[0];
+   if(!next || current.current===next) return;
+   const previous=current.current;
+   if(previous) actions[previous]?.fadeOut(.18);
+   actions[next]?.reset().fadeIn(.18).play();
+   current.current=next;
+ },[moving,actions]);
+ return <group scale={0.012} rotation={[0,Math.PI,0]} position={[0,-1.18,0]}><primitive object={model}/></group>;
+}
+
 function Player({onNearby,onMove,onPosition}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void;onPosition:(p:[number,number,number])=>void}) {
  const body = useRef<RapierRigidBody>(null!);
  const pressed = useRef<Record<string, boolean>>({});
@@ -258,7 +276,8 @@ function Player({onNearby,onMove,onPosition}:{onNearby:(b:Billboard|null)=>void;
    const dir=new THREE.Vector3(inputX,0,inputZ);
    const yaw=(window as any).__urbanCameraYaw ?? 0;
    if(dir.lengthSq()>0){dir.normalize();dir.applyAxisAngle(new THREE.Vector3(0,1,0),yaw);}
-   const speed=7; velocity.current.lerp(dir.multiplyScalar(speed),Math.min(1,dt*12));
+   const sprint=!!k.ShiftLeft||!!k.ShiftRight;
+   const speed=sprint?11:7; velocity.current.lerp(dir.multiplyScalar(speed),Math.min(1,dt*12));
    body.current.setLinvel({x:velocity.current.x,y:body.current.linvel().y,z:velocity.current.z},true);
    const p=body.current.translation();
    if(velocity.current.lengthSq()>0.1){ const angle=Math.atan2(velocity.current.x,velocity.current.z); body.current.setRotation({x:0,y:Math.sin(angle/2),z:0,w:Math.cos(angle/2)},true); }
@@ -273,7 +292,8 @@ function Player({onNearby,onMove,onPosition}:{onNearby:(b:Billboard|null)=>void;
  });
  return <RigidBody ref={body} colliders={false} position={[0,1.4,8]} enabledRotations={[false,true,false]} linearDamping={8} friction={0} mass={1}>
    <CapsuleCollider args={[0.75,0.42]}/>
-   <group position={[0,-1.05,0]}><mesh castShadow><capsuleGeometry args={[0.42,1.2,6,10]}/><meshStandardMaterial color="#18a7d8"/></mesh><mesh position={[0,1.05,0.02]}><sphereGeometry args={[0.43,12,12]}/><meshStandardMaterial color="#f2c9a5"/></mesh><Text position={[0,2.05,0]} fontSize={0.28} color="white" anchorX="center">You</Text></group>
+   <PlayerAvatar moving={velocity.current.lengthSq()>.1}/>
+   <Text position={[0,1.85,0]} fontSize={0.28} color="white" anchorX="center">You</Text>
  </RigidBody>
 }
 
