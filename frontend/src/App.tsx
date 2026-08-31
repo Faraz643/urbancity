@@ -10,9 +10,9 @@ type Remote = { id:string; name:string; position:[number,number,number]; rotatio
 
 const MAP_BILLBOARDS: Billboard[] = [
   { id:'102', type:'Premium Road', position:[0,4,-22], traffic:'High', bid:5000, occupied:false, ad:'ZEST • meal delivery' },
-  { id:'207', type:'Premium Road', position:[-26,4,-4], traffic:'High', bid:8200, occupied:true, ad:'URBAN FINANCE' },
-  { id:'311', type:'Street', position:[22,3,16], traffic:'Medium', bid:1800, occupied:false, ad:'AVAILABLE' },
-  { id:'412', type:'Street', position:[-18,3,22], traffic:'Medium', bid:2200, occupied:false, ad:'AVAILABLE' },
+  { id:'207', type:'Premium Road', position:[0,4,22], traffic:'High', bid:8200, occupied:true, ad:'URBAN FINANCE' },
+  { id:'311', type:'Street', position:[28,3,-14], traffic:'Medium', bid:1800, occupied:false, ad:'AVAILABLE' },
+  { id:'412', type:'Street', position:[-28,3,4], traffic:'Medium', bid:2200, occupied:false, ad:'AVAILABLE' },
 ];
 
 function Building({ position, size, height, color }: {position:[number,number,number];size:[number,number];height:number;color:string}) {
@@ -41,7 +41,9 @@ function City() {
   [-38,18,10,11,21,'#334155'],[-20,20,12,10,18,'#263852'],[18,22,11,11,23,'#35455f'],[38,19,9,12,17,'#26334a'],
   [-40,-2,8,8,14,'#394963'],[40,0,9,9,17,'#303e55']
  ] as const,[]);
- const treePos = useMemo(()=>Array.from({length:18},(_,i)=>[-34+(i%6)*13,0, -7+Math.floor(i/6)*13] as [number,number,number]),[]);
+ const treePos = useMemo(()=>Array.from({length:18},(_,i)=>[-34+(i%6)*13,0, -7+Math.floor(i/6)*13] as [number,number,number])
+   // Keep sight lines and interaction areas around advertising inventory clear.
+   .filter(([x,,z])=>!MAP_BILLBOARDS.some(b=>Math.hypot(x-b.position[0],z-b.position[2])<7)),[]);
  return <group>
    <color attach="background" args={['#07111e']}/>
    <fog attach="fog" args={['#07111e',55,125]}/>
@@ -121,6 +123,14 @@ function Player({onNearby,onMove}:{onNearby:(b:Billboard|null)=>void;onMove:(sta
  </RigidBody>
 }
 
+function BillboardPad({b}:{b:Billboard}) {
+ const premium=b.type==='Premium Road';
+ return <group position={[b.position[0],0.015,b.position[2]]}>
+   <mesh rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[premium?11:8,premium?3.2:2.8]}/><meshStandardMaterial color="#303b4c"/></mesh>
+   <mesh position={[0,.012,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[premium?10.2:7.2,.12]}/><meshStandardMaterial color="#e0bf52" emissive="#6f6533"/></mesh>
+ </group>
+}
+
 function BillboardMesh({b,onSelect}:{b:Billboard;onSelect:(b:Billboard)=>void}) {
  const w=b.type==='Premium Road'?9:6,h=b.type==='Premium Road'?4.6:3;
  return <RigidBody type="fixed" colliders={false} position={b.position}>
@@ -146,7 +156,7 @@ function World({setNearby,players,setSelected,onMove}:{setNearby:(b:Billboard|nu
          <GameCamera/><Physics gravity={[0,-20,0]}>
            <City/>
            <Player onNearby={setNearby} onMove={onMove}/>
-           {MAP_BILLBOARDS.map(b=><BillboardMesh key={b.id} b={b} onSelect={setSelected}/>)}
+           {MAP_BILLBOARDS.map(b=><group key={b.id}><BillboardPad b={b}/><BillboardMesh b={b} onSelect={setSelected}/></group>)}
            <RemotePlayers players={players}/>
          </Physics>
        </Suspense>
