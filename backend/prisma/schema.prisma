@@ -1,0 +1,259 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique
+  username        String    @unique
+  passwordHash    String
+  displayName     String?
+  avatar          String?
+  role            UserRole  @default(USER)
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  sessions        Session[]
+  bids            Bid[]
+  wallet          Wallet?
+  transactions    Transaction[]
+  advertisements  Advertisement[]
+  campaigns       AdvertisingCampaign[]
+  notifications   Notification[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("sessions")
+}
+
+model Wallet {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance   Decimal  @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transactions Transaction[]
+
+  @@map("wallets")
+}
+
+model Transaction {
+  id          String          @id @default(uuid())
+  walletId    String
+  wallet      Wallet          @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        TransactionType
+  amount      Decimal
+  description String?
+  status      TransactionStatus @default(COMPLETED)
+  referenceId String?
+  createdAt   DateTime        @default(now())
+
+  @@map("transactions")
+}
+
+model Billboard {
+  id                String         @id @default(uuid())
+  name              String
+  type              BillboardType
+  positionX         Float
+  positionY         Float
+  positionZ         Float
+  rotationY         Float          @default(0)
+  width             Float          @default(4)
+  height            Float          @default(2.5)
+  location          String
+  trafficRadius     Float          @default(50)
+  trafficRating     TrafficRating  @default(MEDIUM)
+  visibilityRating  VisibilityRating @default(GOOD)
+  minBid            Decimal        @default(1000)
+  currentBid        Decimal?
+  currentBidderId   String?
+  isAvailable       Boolean        @default(true)
+  isActive          Boolean        @default(true)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  auctions          Auction[]
+  bids              Bid[]
+  advertisements    Advertisement[]
+  campaigns         AdvertisingCampaign[]
+  trafficAnalytics  TrafficAnalytics[]
+
+  @@map("billboards")
+}
+
+model Auction {
+  id            String        @id @default(uuid())
+  billboardId   String
+  billboard     Billboard     @relation(fields: [billboardId], references: [id], onDelete: Cascade)
+  startPrice    Decimal
+  currentPrice  Decimal?
+  winnerId      String?
+  status        AuctionStatus @default(ACTIVE)
+  startedAt     DateTime      @default(now())
+  endsAt        DateTime
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  bids          Bid[]
+
+  @@map("auctions")
+}
+
+model Bid {
+  id          String    @id @default(uuid())
+  auctionId   String
+  auction     Auction   @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  bidderId    String
+  bidder      User      @relation(fields: [bidderId], references: [id], onDelete: Cascade)
+  billboardId String
+  billboard   Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
+  amount      Decimal
+  isWinning   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@map("bids")
+}
+
+model Advertisement {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  imageUrl    String
+  targetUrl   String?
+  status      AdStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  campaigns   AdvertisingCampaign[]
+
+  @@map("advertisements")
+}
+
+model AdvertisingCampaign {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billboardId     String
+  billboard       Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
+  advertisementId String
+  advertisement   Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
+  startDate       DateTime
+  endDate         DateTime
+  isActive        Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("advertising_campaigns")
+}
+
+model TrafficAnalytics {
+  id            String   @id @default(uuid())
+  billboardId   String
+  billboard     Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
+  nearbyVisitors Int     @default(0)
+  timestamp     DateTime @default(now())
+
+  @@map("traffic_analytics")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  data      String?          // JSON string for extra data
+  createdAt DateTime         @default(now())
+
+  @@map("notifications")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  BID_RESERVATION
+  BID_REFUND
+  WINNING_PAYMENT
+  AUCTION_FEE
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum BillboardType {
+  PREMIUM
+  STREET
+}
+
+enum TrafficRating {
+  VERY_LOW
+  LOW
+  MEDIUM
+  HIGH
+  VERY_HIGH
+}
+
+enum VisibilityRating {
+  POOR
+  FAIR
+  GOOD
+  EXCELLENT
+}
+
+enum AuctionStatus {
+  ACTIVE
+  ENDED
+  CANCELLED
+}
+
+enum AdStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ACTIVE
+  EXPIRED
+}
+
+enum NotificationType {
+  OUTBID
+  AUCTION_WON
+  AUCTION_ENDED
+  BID_PLACED
+  PAYMENT_RECEIVED
+  CAMPAIGN_STARTED
+  CAMPAIGN_ENDED
+  SYSTEM
+}
