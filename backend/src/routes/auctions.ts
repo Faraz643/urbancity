@@ -83,54 +83,39 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-// Place a persistent bid
+// Place a bid and immediately reserve virtual wallet funds.
 router.post('/:id/bids', authenticate, async (req: AuthRequest, res, next) => {
   try {
-    const schema = z.object({ amount: z.number().positive() });
-    const { amount } = schema.parse(req.body);
+    const schema=z.object({amount:z.number().positive()}); const {amount}=schema.parse(req.body);
+    const auction=await prisma.auction.findUnique({where:{id:req.params.id},include:{billboard:true}});
+    if(!auction)return res.status(404).json({error:'Auction not found'});
+    if(auction.status!=='ACTIVE'||auction.endsAt<=new Date())return res.status(400).json({error:'Auction is not active'});
 
-    const auction = await prisma.auction.findUnique({
-      where: { id: req.params.id },
-      include: { billboard: true },
+    const result=await prisma.$transaction(async tx=>{
+      const fresh=await tx.auction.findUnique({where:{id:auction.id},include:{bids:{where:{isWinning:true},take:1,include:{bidder:true}}}});
+      const current=Number(fresh?.currentPrice??fresh?.startPrice??auction.startPrice);
+      if(amount<=current)throw Object.assign(new Error('Bid was beaten by another visitor'),{status:409});
+
+      const wallet=await tx.wallet.findUnique({where:{userId:req.user!.id}});
+      if(!wallet||Number(wallet.balance)<amount)throw Object.assign(new Error('Insufficient wallet balance'),{status:400});
+
+      // Refund the previous current bidder's reserved virtual funds.
+      const previous=await tx.bid.findFirst({where:{auctionId:auction.id,isWinning:true},orderBy:{amount:'desc'}});
+      if(previous){
+        await tx.wallet.update({where:{userId:previous.bidderId},data:{balance:{increment:previous.amount}}});
+        await tx.transaction.create({data:{walletId:(await tx.wallet.findUnique({where:{userId:previous.bidderId}}))!.id,userId:previous.bidderId,type:'BID_RELEASE',amount:previous.amount,description:'Virtual funds released after being outbid',referenceId:auction.id}});
+        await tx.bid.update({where:{id:previous.id},data:{isWinning:false}});
+      }
+
+      await tx.wallet.update({where:{id:wallet.id},data:{balance:{decrement:amount}}});
+      await tx.transaction.create({data:{walletId:wallet.id,userId:req.user!.id,type:'BID_RESERVE',amount,description:'Virtual funds reserved for current highest bid',referenceId:auction.id}});
+      const bid=await tx.bid.create({data:{auctionId:auction.id,bidderId:req.user!.id,billboardId:auction.billboardId,amount,isWinning:true}});
+      await tx.auction.update({where:{id:auction.id},data:{currentPrice:amount,winnerId:req.user!.id}});
+      await tx.billboard.update({where:{id:auction.billboardId},data:{currentBid:amount,currentBidderId:req.user!.id,isAvailable:false}});
+      return {bid,bidder:{username:req.user!.username,displayName:req.user!.displayName},balance:Number(wallet.balance)-amount};
     });
-
-    if (!auction) return res.status(404).json({ error: 'Auction not found' });
-    if (auction.status !== 'ACTIVE' || auction.endsAt <= new Date()) {
-      return res.status(400).json({ error: 'Auction is not active' });
-    }
-
-    const current = auction.currentPrice ? Number(auction.currentPrice) : Number(auction.startPrice);
-    if (amount <= current) {
-      return res.status(400).json({ error: 'Bid must be higher than the current price', currentPrice: current });
-    }
-
-    const wallet = await prisma.wallet.findUnique({ where: { userId: req.user!.id } });
-    if (!wallet || Number(wallet.balance) < amount) {
-      return res.status(400).json({ error: 'Insufficient wallet balance' });
-    }
-
-    const bid = await prisma.$transaction(async (tx) => {
-      const fresh = await tx.auction.findUnique({ where: { id: auction.id }, select: { currentPrice: true, startPrice: true } });
-      const freshCurrent = fresh?.currentPrice ? Number(fresh.currentPrice) : Number(fresh?.startPrice ?? auction.startPrice);
-      if (amount <= freshCurrent) throw Object.assign(new Error('Bid was beaten by another visitor'), { status: 409 });
-
-      const created = await tx.bid.create({
-        data: { auctionId: auction.id, bidderId: req.user!.id, billboardId: auction.billboardId, amount },
-      });
-
-      await tx.auction.update({ where: { id: auction.id }, data: { currentPrice: amount } });
-      await tx.billboard.update({
-        where: { id: auction.billboardId },
-        data: { currentBid: amount, currentBidderId: req.user!.id, isAvailable: false },
-      });
-
-      return created;
-    });
-
-    res.status(201).json({ bid, currentPrice: amount });
-  } catch (error) {
-    next(error);
-  }
+    res.status(201).json({currentPrice:amount,...result});
+  }catch(error){next(error);}
 });
 
 // Create auction (admin)
