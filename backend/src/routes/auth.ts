@@ -112,7 +112,7 @@ router.post('/login', async (req, res, next) => {
 router.get('/me', authenticate, async (req: AuthRequest, res, next) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
+      where: { id: req.user!.id },
       include: {
         wallet: true,
         _count: {
@@ -157,7 +157,7 @@ router.patch('/profile', authenticate, async (req: AuthRequest, res, next) => {
     const data = schema.parse(req.body);
 
     const user = await prisma.user.update({
-      where: { id: req.user.id },
+      where: { id: req.user!.id },
       data,
     });
 
