@@ -319,14 +319,14 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors}:{b:Billboard;onSelec
 function RemoteAvatar({p}:{p:Remote}) { const ref=useRef<THREE.Group>(null!); useFrame((_,dt)=>{ref.current.position.lerp(new THREE.Vector3(...p.position),1-Math.pow(.001,dt));ref.current.rotation.y=THREE.MathUtils.lerp(ref.current.rotation.y,p.rotation,Math.min(1,dt*10))}); return <group ref={ref} position={p.position}><mesh castShadow position={[0,1,0]}><capsuleGeometry args={[.38,1.1,5,8]}/><meshStandardMaterial color="#f59e0b"/></mesh><Text position={[0,2.1,0]} fontSize={.25} color="white" anchorX="center">{p.name}</Text></group> }
 function RemotePlayers({players}:{players:Remote[]}) { return <>{players.map(p=><RemoteAvatar key={p.id} p={p}/>)}</> }
 
-function World({ setNearby, players, setSelected, onMove, timeMode, visitorStats, onLocalPosition }: { {
+function World({ setNearby, players, setSelected, onMove, timeMode, visitorStats, onLocalPosition }: {
   setNearby: (b: Billboard | null) => void;
   players: Remote[];
   setSelected: (b: Billboard) => void;
   onMove: (state: { position: [number, number, number]; rotation: number; moving: boolean }) => void;
   timeMode: TimeMode;
   visitorStats: Record<string, number>;
-  onLocalPosition: (p:[number,number,number])=>void;
+  onLocalPosition: (p: [number, number, number]) => void;
 }) {
  return (
      <Canvas
