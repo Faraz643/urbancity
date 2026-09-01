@@ -47,8 +47,8 @@ router.get('/leaderboard', async (_req,res,next)=>{
 router.get('/billboard/:billboardId',async(req,res,next)=>{
  try{
   const now=new Date();
-  const active=await prisma.booking.findFirst({where:{billboardId:req.params.billboardId,status:'ACTIVE',endDate:{gt:now}},orderBy:{endDate:'desc'},include:{user:{select:{username:true,displayName:true}}}});
-  res.json({active});
+  const active=await prisma.booking.findFirst({where:{billboardId:req.params.billboardId,status:'ACTIVE',endDate:{gt:now}},orderBy:{endDate:'desc'},include:{user:{select:{username:true,displayName:true,websiteUrl:true}}}});
+  res.json({active:active?{...active,user:active.user,siteUrl:active.user.websiteUrl}:null});
  }catch(e){next(e)}
 });
 
