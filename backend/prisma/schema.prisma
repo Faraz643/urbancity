@@ -150,6 +150,7 @@ model Advertisement {
   updatedAt   DateTime @updatedAt
 
   campaigns   AdvertisingCampaign[]
+  bookings    Booking[]
 
   @@map("advertisements")
 }
@@ -206,6 +207,8 @@ model Booking {
   durationMinutes Int
   amount      Decimal
   companyName String
+  advertisementId String?
+  advertisement Advertisement? @relation(fields: [advertisementId], references: [id], onDelete: SetNull)
   status      String    @default("ACTIVE")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
