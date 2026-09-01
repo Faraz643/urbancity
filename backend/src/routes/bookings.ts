@@ -49,7 +49,7 @@ router.get('/active',async(_req,res,next)=>{
   const now=new Date();
   const rows=await prisma.booking.findMany({where:{status:'ACTIVE',endDate:{gt:now}},orderBy:{endDate:'desc'},include:{user:{select:{username:true,displayName:true,websiteUrl:true}},advertisement:true}});
   const active:Record<string,any>={};
-  for(const row of rows){if(!active[row.billboardId]) active[row.billboardId]={...row,siteUrl:row.user.websiteUrl,imageUrl:row.advertisement?.status==='APPROVED'?row.advertisement.imageUrl:null,description:row.advertisement?.status==='APPROVED'?row.advertisement.description||row.description:row.description||null,targetUrl:row.advertisement?.status==='APPROVED'?row.advertisement.targetUrl||row.user.websiteUrl:row.user.websiteUrl};}
+  for(const row of rows){if(!active[row.billboardId]) active[row.billboardId]={...row,siteUrl:row.user.websiteUrl,imageUrl:row.advertisement?.status==='DISABLED'?null:row.advertisement?.imageUrl||null,description:row.advertisement?.status==='DISABLED'?row.description||null:row.advertisement?.description||row.description||null,targetUrl:row.advertisement?.status==='DISABLED'?row.user.websiteUrl:row.advertisement?.targetUrl||row.user.websiteUrl};}
   res.json(active);
  }catch(e){next(e)}
 });
@@ -58,7 +58,7 @@ router.get('/billboard/:billboardId',async(req,res,next)=>{
  try{
   const now=new Date();
   const active=await prisma.booking.findFirst({where:{billboardId:req.params.billboardId,status:'ACTIVE',endDate:{gt:now}},orderBy:{endDate:'desc'},include:{user:{select:{username:true,displayName:true,websiteUrl:true}},advertisement:true}});
-  res.json({active:active?{...active,user:active.user,siteUrl:active.user.websiteUrl,imageUrl:active.advertisement?.status==='APPROVED'?active.advertisement.imageUrl:null,description:active.advertisement?.status==='APPROVED'?active.advertisement.description||active.description:active.description||null,targetUrl:active.advertisement?.status==='APPROVED'?active.advertisement.targetUrl||active.user.websiteUrl:active.user.websiteUrl}:null});
+  res.json({active:active?{...active,user:active.user,siteUrl:active.user.websiteUrl,imageUrl:active.advertisement?.status==='DISABLED'?null:active.advertisement?.imageUrl||null,description:active.advertisement?.status==='DISABLED'?active.description||null:active.advertisement?.description||active.description||null,targetUrl:active.advertisement?.status==='DISABLED'?active.user.websiteUrl:active.advertisement?.targetUrl||active.user.websiteUrl}:null});
  }catch(e){next(e)}
 });
 
