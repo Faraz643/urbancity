@@ -14,6 +14,7 @@ import { bookingRouter } from './routes/bookings';
 import { advertisementRouter } from './routes/advertisements';
 import { adminRouter } from './routes/admin';
 import { analyticsRouter } from './routes/analytics';
+import { paymentRouter } from './routes/payments';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -25,7 +26,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 app.disable('x-powered-by');
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({ origin: FRONTEND_URL, credentials: true }));
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '2mb', verify: (req:any,_res,buf) => { req.rawBody=buf.toString('utf8'); } }));
 app.use('/uploads',express.static('uploads'));
 
 // Development-friendly API limits. Authentication is protected separately so normal
@@ -109,6 +110,7 @@ app.use('/api/bookings', bookingRouter);
 app.use('/api/advertisements', advertisementRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/payments', paymentRouter);
 
 const io = new Server(httpServer, {
   cors: { origin: FRONTEND_URL, credentials: true },
