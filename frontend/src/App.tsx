@@ -382,7 +382,6 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;
  const isVertical=b.kind==='vertical-ad';
  const w=b.size?.[0] ?? (b.type==='Premium Road'?9:6);
  const h=b.size?.[1] ?? (isVertical?7.2:(b.type==='Premium Road'?4.6:3.4));
- const h=b.size?.[1] ?? (b.type==='Premium Road'?4.6:3);
 
  if(isWall || isVertical) {
    return <RigidBody type="fixed" colliders={false} position={b.position} rotation={[0,b.rotationY ?? 0,0]}>
