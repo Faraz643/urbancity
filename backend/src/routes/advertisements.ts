@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { z } from 'zod';
 import { prisma } from '../db';
-import { authenticate, requireActiveUser, requireAdmin, AuthRequest } from '../middleware/auth';
+import { authenticate, requireActiveUser, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 const uploadDir=path.resolve(process.cwd(),'uploads','advertisements');
@@ -115,25 +115,7 @@ router.patch('/:id', authenticate, requireActiveUser, async (req: AuthRequest, r
   }
 });
 
-// Approve/reject advertisement (admin)
-router.patch('/:id/status', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
-  try {
-    const schema = z.object({
-      status: z.enum(['APPROVED', 'REJECTED']),
-    });
-
-    const data = schema.parse(req.body);
-
-    const ad = await prisma.advertisement.update({
-      where: { id: req.params.id },
-      data: { status: data.status },
-    });
-
-    res.json(ad);
-  } catch (error) {
-    next(error);
-  }
-});
+// Advertisement moderation is centralized under /api/admin/advertisements.
 
 // Create advertising campaign
 router.post('/campaigns', authenticate, requireActiveUser, async (req: AuthRequest, res, next) => {
