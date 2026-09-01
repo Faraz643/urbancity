@@ -5,19 +5,19 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { io, Socket } from 'socket.io-client';
 
-type AdSlotKind = 'billboard' | 'wall-ad';
+type AdSlotKind = 'billboard' | 'wall-ad' | 'vertical-ad';
 type BidderInfo = {name:string;amount:number;siteUrl?:string;imageUrl?:string};
 type Billboard = { id:string; type:'Premium Road'|'Street'|'Building Wall'; position:[number,number,number]; traffic:'High'|'Medium'; bid:number; occupied:boolean; ad:string; rotationY?:number; kind?:AdSlotKind; size?:[number,number] };
 type Remote = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean };
 
 const MAP_BILLBOARDS: Billboard[] = [
   { id:'102', type:'Premium Road', position:[0,4,-22], traffic:'High', bid:5000, occupied:false, ad:'ZEST • meal delivery' },
-  { id:'207', type:'Premium Road', position:[0,4,22], traffic:'High', bid:8200, occupied:true, ad:'URBAN FINANCE' },
+  { id:'207', type:'Premium Road', position:[0,4,22], rotationY:Math.PI, traffic:'High', bid:8200, occupied:true, ad:'URBAN FINANCE' },
   // Portrait inventory flanking the two premium main boards. Each is independently bookable.
-  { id:'102-L', type:'Vertical', kind:'vertical-ad', position:[-7.2,5.2,-22], traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,7.2] },
-  { id:'102-R', type:'Vertical', kind:'vertical-ad', position:[7.2,5.2,-22], traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,7.2] },
-  { id:'207-L', type:'Vertical', kind:'vertical-ad', position:[-7.2,5.2,22], rotationY:Math.PI, traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,7.2] },
-  { id:'207-R', type:'Vertical', kind:'vertical-ad', position:[7.2,5.2,22], rotationY:Math.PI, traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,7.2] },
+  { id:'102-L', type:'Vertical', kind:'vertical-ad', position:[-6.4,4,-22], traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,4.6] },
+  { id:'102-R', type:'Vertical', kind:'vertical-ad', position:[6.4,4,-22], traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,4.6] },
+  { id:'207-L', type:'Vertical', kind:'vertical-ad', position:[-6.4,4,22], rotationY:Math.PI, traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,4.6] },
+  { id:'207-R', type:'Vertical', kind:'vertical-ad', position:[6.4,4,22], rotationY:Math.PI, traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,4.6] },
   { id:'311', type:'Street', position:[28,3,-14], traffic:'Medium', bid:1800, occupied:false, ad:'AVAILABLE' },
   { id:'412', type:'Street', position:[-28,3,4], traffic:'Medium', bid:2200, occupied:false, ad:'AVAILABLE' },
 
@@ -381,7 +381,7 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;
  const isWall=b.kind==='wall-ad';
  const isVertical=b.kind==='vertical-ad';
  const w=b.size?.[0] ?? (b.type==='Premium Road'?9:6);
- const h=b.size?.[1] ?? (isVertical?7.2:(b.type==='Premium Road'?4.6:3.4));
+ const h=b.size?.[1] ?? (isVertical?4.6:(b.type==='Premium Road'?4.6:3.4));
 
  if(isWall || isVertical) {
    return <RigidBody type="fixed" colliders={false} position={b.position} rotation={[0,b.rotationY ?? 0,0]}>
@@ -395,6 +395,8 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;
      <Text position={[0,h/2+.62,.15]} fontSize={.22} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.018} outlineColor="#07111e">visitors</Text>
        <mesh position={[0,h/2+.22,0]}><boxGeometry args={[w+.5,.08,.22]}/><meshStandardMaterial color="#49d17d" emissive="#1b6f43" emissiveIntensity={1.1}/></mesh>
      </group>
+     {isVertical && <mesh position={[0,-h/2-2,0]}><boxGeometry args={[.3,4,.3]}/><meshStandardMaterial color="#171c25"/></mesh>}
+   </RigidBody>
    </RigidBody>;
  }
 
