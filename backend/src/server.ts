@@ -43,7 +43,7 @@ const jsonRateLimit = (windowMs:number, max:number) => rateLimit({
 });
 app.use('/api', jsonRateLimit(
   Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000),
-  Number(process.env.RATE_LIMIT_MAX_REQUESTS || 1000),
+  Number(process.env.RATE_LIMIT_MAX_REQUESTS || 5000),
 ));
 
 type Player = {
@@ -104,7 +104,7 @@ app.get('/api/live/billboards', (_req, res) => {
 });
 
 // Authentication gets its own limiter; this prevents repeated login attempts while keeping gameplay APIs responsive.
-app.use('/api/auth', jsonRateLimit(Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 60_000), Number(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || 30)), authRouter);
+app.use('/api/auth', jsonRateLimit(Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 60_000), Number(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || 60)), authRouter);
 app.use('/api/billboards', billboardRouter);
 app.use('/api/auctions', auctionRouter);
 app.use('/api/bookings', bookingRouter);
