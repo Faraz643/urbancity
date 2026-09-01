@@ -103,6 +103,8 @@ router.post('/login', async (req, res, next) => {
         username: user.username,
         displayName: user.displayName,
         role: user.role,
+        websiteUrl: user.websiteUrl,
+        avatar: user.avatar,
       },
     });
   } catch (error) {
