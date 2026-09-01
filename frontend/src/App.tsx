@@ -453,7 +453,7 @@ function App(){
  const [user,setUser]=useState<AuthUser|null>(null),[authOpen,setAuthOpen]=useState(false),[authMode,setAuthMode]=useState<'login'|'register'>('login'),[authEmail,setAuthEmail]=useState(''),[authPassword,setAuthPassword]=useState(''),[authUsername,setAuthUsername]=useState(''),[authError,setAuthError]=useState(''),[authBusy,setAuthBusy]=useState(false);
  const socket=useRef<Socket|null>(null);
  const [bidders,setBidders]=useState<Record<string,BidderInfo>>({});
- const formatUsd=(value:number)=>'
+ const formatUsd=(value:number)=>'$'+Number(value||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
  const visitorStats=useMemo(()=>{const stats:Record<string,number>={};for(const b of MAP_BILLBOARDS)stats[b.id]=0;const all=[localPosition,...players.map(p=>p.position)];for(const pos of all){for(const b of MAP_BILLBOARDS){const radius=b.kind==='wall-ad'?6:7;if(Math.hypot(pos[0]-b.position[0],pos[2]-b.position[2])<=radius)stats[b.id]++}}return stats},[players,localPosition]);
 
  const authHeaders=()=>{const token=localStorage.getItem('urbancity_token');return token?{Authorization:'Bearer '+token}:{}}; 
