@@ -494,7 +494,7 @@ function App(){
 
  return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} timeMode={timeMode} visitorStats={visitorStats} onLocalPosition={setLocalPosition} bidders={bidders}/>
   <div className="hud top"><div><b>● ONLINE</b><span>{totalVisitors}</span></div></div>
-  <button className="account-button" onClick={()=>user?logout():setAuthOpen(true)}>{user?'Logout':'Login'}</button>
+  <button className="account-button" onClick={()=>user?logout():setAuthOpen(true)}>{user?<><span className="account-name">{user.displayName||user.username}</span><span className="account-action">Logout</span></>:'Login'}</button>
   <div className="time-switcher">{(["morning","evening","night"] as TimeMode[]).map(m=><button key={m} className={timeMode===m?"active":""} onClick={()=>setTimeMode(m)}>{m}</button>)}</div>
   <div className="hud controls"><b>Controls</b><small><kbd>W A S D</kbd> move</small><small><kbd>E</kbd> interact</small></div>
   <button className="leaderboard-button" onClick={()=>{setHistoryOpen(true);loadLeaderboard()}}>Leaderboard</button>
