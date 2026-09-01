@@ -24,17 +24,20 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       return res.status(401).json({ error: 'User not found' });
     }
 
-    // Check the database on every protected request so suspension takes effect
-    // immediately, even when the user still has a valid JWT.
-    if (!user.isActive) {
-      return res.status(403).json({ error: 'Your account has been suspended. Please contact an administrator.' });
-    }
-
     req.user = user;
     next();
   } catch (error) {
     return res.status(401).json({ error: 'Invalid token' });
   }
+};
+
+// Use after authenticate on operations that change data or spend platform funds.
+// Suspended users remain able to authenticate and use read-only account features.
+export const requireActiveUser = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (!req.user?.isActive) {
+    return res.status(403).json({ error: 'Your account is suspended. You can browse UrbanCity, but booking and editing are disabled.' });
+  }
+  next();
 };
 
 export const requireAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
