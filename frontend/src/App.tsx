@@ -361,7 +361,7 @@ function BillboardPad({b}:{b:Billboard}) {
  </group>
 }
 
-function AdCreative({url,w,h}:{url:string;w:number;h:number}) { const texture=useMemo(()=>new THREE.TextureLoader().load(url),[url]); useEffect(()=>()=>texture.dispose(),[texture]); return <mesh position={[0,0,.125]}><planeGeometry args={[w,h]}/><meshBasicMaterial map={texture} toneMapped={false}/></mesh> }
+function AdCreative({url,w,h,z=.125}:{url:string;w:number;h:number;z?:number}) { const texture=useMemo(()=>new THREE.TextureLoader().load(url),[url]); useEffect(()=>()=>texture.dispose(),[texture]); return <mesh position={[0,0,z]} renderOrder={2}><planeGeometry args={[w,h]}/><meshBasicMaterial map={texture} toneMapped={false} side={THREE.DoubleSide}/></mesh> }
 
 function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;onSelect:(b:Billboard)=>void;nearCount:number;totalVisitors:number;bidder?:BidderInfo}) {
 
@@ -388,7 +388,7 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;
    <CuboidCollider args={[w/2,h/2,0.35]} />
    <group onClick={(e)=>{e.stopPropagation();onSelect(b)}}>
      <mesh><boxGeometry args={[w,h,.45]}/><meshStandardMaterial color="#111827"/></mesh>
-     {bidder?.imageUrl?<AdCreative url={bidder.imageUrl} w={w-.35} h={h-.35}/>:<mesh position={[0,0,.24]}><planeGeometry args={[w-.35,h-.35]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#294c0b'} emissive={b.occupied?'#3b0c21':'#234d03'} emissiveIntensity={0.7}/></mesh>}
+     {bidder?.imageUrl?<AdCreative url={bidder.imageUrl} w={w-.35} h={h-.35} z={.231}/>:<mesh position={[0,0,.24]}><planeGeometry args={[w-.35,h-.35]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#294c0b'} emissive={b.occupied?'#3b0c21':'#234d03'} emissiveIntensity={0.7}/></mesh>}
      <Text position={[0,.2,.48]} fontSize={h*.18} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{bidder?bidder.name.toUpperCase():b.ad}</Text>
      <Text position={[0,-h*.28,.48]} fontSize={.22} color="#b8d9ff" anchorX="center">{bidder ? bidder.name : '#'+b.id}</Text>
      <Text position={[0,h/2+1.02,.5]} fontSize={.58} color="white" anchorX="center" anchorY="middle" outlineWidth={0.04} outlineColor="#07111e">{String(nearCount)}</Text>
