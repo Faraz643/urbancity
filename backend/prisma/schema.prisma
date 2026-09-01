@@ -14,6 +14,8 @@ model User {
   passwordHash    String
   displayName     String?
   avatar          String?
+  websiteUrl      String?
+  companyDescription String?
   role            String    @default("USER")
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
