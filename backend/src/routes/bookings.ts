@@ -48,7 +48,7 @@ router.get('/billboard/:billboardId',async(req,res,next)=>{
  try{
   const now=new Date();
   const active=await prisma.booking.findFirst({where:{billboardId:req.params.billboardId,status:'ACTIVE',endDate:{gt:now}},orderBy:{endDate:'desc'},include:{user:{select:{username:true,displayName:true,websiteUrl:true}},advertisement:true}});
-  res.json({active:active?{...active,user:active.user,siteUrl:active.user.websiteUrl}:null});
+  res.json({active:active?{...active,user:active.user,siteUrl:active.user.websiteUrl,imageUrl:active.advertisement?.imageUrl||null,description:active.advertisement?.description||active.advertisement?.title||null,targetUrl:active.advertisement?.targetUrl||active.user.websiteUrl}:null});
  }catch(e){next(e)}
 });
 
