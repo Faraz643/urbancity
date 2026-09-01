@@ -362,16 +362,13 @@ function BillboardPad({b}:{b:Billboard}) {
 }
 
 function AdCreative({url,w,h,z=.125}:{url:string;w:number;h:number;z?:number}) {
- const [aspect,setAspect]=useState<number|null>(null);
- useEffect(()=>{let alive=true;const loader=new THREE.TextureLoader();loader.load(url,(t)=>{if(!alive)return;t.colorSpace=THREE.SRGBColorSpace;t.generateMipmaps=true;t.minFilter=THREE.LinearMipmapLinearFilter;t.magFilter=THREE.LinearFilter;setAspect(t.image?.width&&t.image?.height?t.image.width/t.image.height:1);t.dispose();},undefined,()=>alive&&setAspect(1));return()=>{alive=false;setAspect(null)}},[url]);
- if(!aspect)return null;
+ const [creative,setCreative]=useState<{texture:THREE.Texture;aspect:number}|null>(null);
+ useEffect(()=>{let alive=true;const loader=new THREE.TextureLoader();loader.load(url,(texture)=>{texture.colorSpace=THREE.SRGBColorSpace;texture.generateMipmaps=true;texture.minFilter=THREE.LinearMipmapLinearFilter;texture.magFilter=THREE.LinearFilter;if(alive){const image:any=texture.image;setCreative({texture,aspect:image?.width&&image?.height?image.width/image.height:1})}else texture.dispose();},undefined,()=>alive&&setCreative(null));return()=>{alive=false;setCreative(prev=>{if(prev){prev.texture.dispose()}return null})}},[url]);
+ if(!creative)return <mesh position={[0,0,z]}><planeGeometry args={[w,h]}/><meshBasicMaterial color="#0b1018" toneMapped={false}/></mesh>;
  const boardAspect=w/h;
- const imageW=aspect>=boardAspect?w:h*aspect;
- const imageH=aspect>=boardAspect?w/aspect:h;
- return <group position={[0,0,z]} renderOrder={2}>
-   <mesh><planeGeometry args={[w,h]}/><meshBasicMaterial color="#0b1018" toneMapped={false} side={THREE.DoubleSide}/></mesh>
-   <mesh position={[0,0,.002]}><planeGeometry args={[imageW,imageH]}/><meshBasicMaterial map={useLoader(THREE.TextureLoader,url)} toneMapped={false} side={THREE.DoubleSide}/></mesh>
- </group>
+ const imageW=creative.aspect>=boardAspect?w:h*creative.aspect;
+ const imageH=creative.aspect>=boardAspect?w/creative.aspect:h;
+ return <group position={[0,0,z]}><mesh><planeGeometry args={[w,h]}/><meshBasicMaterial color="#0b1018" toneMapped={false} side={THREE.DoubleSide}/></mesh><mesh position={[0,0,.002]}><planeGeometry args={[imageW,imageH]}/><meshBasicMaterial map={creative.texture} toneMapped={false} side={THREE.DoubleSide}/></mesh></group>
 }
 
 function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;onSelect:(b:Billboard)=>void;nearCount:number;totalVisitors:number;bidder?:BidderInfo}) {
