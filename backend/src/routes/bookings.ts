@@ -27,19 +27,19 @@ router.get('/history', async (_req,res,next)=>{
 router.get('/leaderboard', async (_req,res,next)=>{
  try{
   const rows=await prisma.booking.findMany({
-   select:{companyName:true,amount:true,durationMinutes:true,user:{select:{username:true,displayName:true,avatar:true}}}
+   select:{companyName:true,amount:true,durationMinutes:true,user:{select:{username:true,displayName:true,avatar:true,websiteUrl:true}}}
   });
-  const grouped=new Map<string,{name:string;username:string;logo:string|null;totalPayment:number;totalMinutes:number}>();
+  const grouped=new Map<string,{name:string;username:string;logo:string|null;siteUrl:string|null;totalPayment:number;totalMinutes:number}>();
   for(const row of rows){
    const key=row.companyName+'::'+row.user.username;
-   const current=grouped.get(key)||{name:row.companyName,username:row.user.username,logo:row.user.avatar,totalPayment:0,totalMinutes:0};
+   const current=grouped.get(key)||{name:row.companyName,username:row.user.username,logo:row.user.avatar,siteUrl:row.user.websiteUrl,totalPayment:0,totalMinutes:0};
    current.totalPayment+=Number(row.amount);
    current.totalMinutes+=row.durationMinutes;
    grouped.set(key,current);
   }
   const leaderboard=[...grouped.values()]
    .sort((a,b)=>b.totalPayment-a.totalPayment||b.totalMinutes-a.totalMinutes)
-   .map((entry,index)=>({...entry,rank:index+1,siteUrl:'/company/'+encodeURIComponent(entry.username)}));
+   .map((entry,index)=>({...entry,rank:index+1,siteUrl:entry.siteUrl}));
   res.json(leaderboard);
  }catch(e){next(e)}
 });
@@ -66,7 +66,7 @@ router.post('/',authenticate,async(req:AuthRequest,res,next)=>{
    const wallet=await tx.wallet.findUnique({where:{userId:req.user!.id}});
    if(!wallet||Number(wallet.balance)<amount)throw Object.assign(new Error('Insufficient wallet balance'),{status:400});
    const endDate=new Date(now.getTime()+data.durationMinutes*60*1000);
-   const booking=await tx.booking.create({data:{userId:req.user!.id,billboardId:data.billboardId,startDate:now,endDate,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username}});
+   const booking=await tx.booking.create({data:{userId:req.user!.id,billboardId:data.billboardId,startDate:now,endDate,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username},include:{user:{select:{username:true,displayName:true,websiteUrl:true,avatar:true}}}});
    await tx.wallet.update({where:{id:wallet.id},data:{balance:{decrement:amount}}});
    await tx.transaction.create({data:{walletId:wallet.id,userId:req.user!.id,type:'AD_SPACE_PURCHASE',amount,description:'Fixed-price advertising booking',referenceId:booking.id}});
    await tx.billboard.update({where:{id:data.billboardId},data:{isAvailable:false,currentBid:amount,currentBidderId:req.user!.id}});
