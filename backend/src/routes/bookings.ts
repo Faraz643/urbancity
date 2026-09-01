@@ -22,6 +22,27 @@ router.get('/history', async (_req,res,next)=>{
  }catch(e){next(e)}
 });
 
+
+router.get('/leaderboard', async (_req,res,next)=>{
+ try{
+  const rows=await prisma.booking.findMany({
+   select:{companyName:true,amount:true,durationMinutes:true,user:{select:{username:true,displayName:true,avatar:true}}}
+  });
+  const grouped=new Map<string,{name:string;username:string;logo:string|null;totalPayment:number;totalMinutes:number}>();
+  for(const row of rows){
+   const key=row.companyName+'::'+row.user.username;
+   const current=grouped.get(key)||{name:row.companyName,username:row.user.username,logo:row.user.avatar,totalPayment:0,totalMinutes:0};
+   current.totalPayment+=Number(row.amount);
+   current.totalMinutes+=row.durationMinutes;
+   grouped.set(key,current);
+  }
+  const leaderboard=[...grouped.values()]
+   .sort((a,b)=>b.totalPayment-a.totalPayment||b.totalMinutes-a.totalMinutes)
+   .map((entry,index)=>({...entry,rank:index+1,siteUrl:'/company/'+encodeURIComponent(entry.username)}));
+  res.json(leaderboard);
+ }catch(e){next(e)}
+});
+
 router.get('/billboard/:billboardId',async(req,res,next)=>{
  try{
   const now=new Date();
