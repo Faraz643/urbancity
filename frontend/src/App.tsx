@@ -213,11 +213,11 @@ function GameCamera(){
  const smoothCamera=useRef(new THREE.Vector3(0,8,18));
  const dragging=useRef(false), last=useRef<[number,number]>([0,0]);
  useEffect(()=>{
-  const down=(e:MouseEvent)=>{if(e.button===0){dragging.current=true;last.current=[e.clientX,e.clientY];document.body.style.cursor='grabbing';e.preventDefault()}};
+  const down=(e:MouseEvent)=>{if((window as any).__urbanModalOpen)return;if(e.button===0){dragging.current=true;last.current=[e.clientX,e.clientY];document.body.style.cursor='grabbing';e.preventDefault()}};
   const move=(e:MouseEvent)=>{if(!dragging.current)return;yaw.current-=e.movementX*.0045;pitch.current=THREE.MathUtils.clamp(pitch.current+e.movementY*.0048,-0.18,1.32)};
   const up=(e:MouseEvent)=>{if(e.button===0){dragging.current=false;document.body.style.cursor='default'}};
   const menu=(e:MouseEvent)=>e.preventDefault();
-  const wheel=(e:WheelEvent)=>{e.preventDefault();distance.current=THREE.MathUtils.clamp(distance.current+e.deltaY*.035,4.5,250)};
+  const wheel=(e:WheelEvent)=>{if((window as any).__urbanModalOpen)return;e.preventDefault();distance.current=THREE.MathUtils.clamp(distance.current+e.deltaY*.035,4.5,250)};
   window.addEventListener('mousedown',down);window.addEventListener('mousemove',move);window.addEventListener('mouseup',up);window.addEventListener('contextmenu',menu);window.addEventListener('wheel',wheel,{passive:false});
   return()=>{window.removeEventListener('mousedown',down);window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',up);window.removeEventListener('contextmenu',menu);window.removeEventListener('wheel',wheel)};
  },[]);
@@ -315,7 +315,7 @@ function Player({onNearby,onMove,onPosition}:{onNearby:(b:Billboard|null)=>void;
  const body = useRef<RapierRigidBody>(null!);
  const pressed = useRef<Record<string, boolean>>({});
  useEffect(()=>{
-   const down=(e:KeyboardEvent)=>{if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)){pressed.current[e.code]=true;e.preventDefault()};if(e.code==='KeyE'){const b=(window as any).__urbanNearbyBillboard as Billboard|null;if(b){e.preventDefault();onNearby(b);(window as any).__urbanInteractBillboard?.(b)}}};
+   const down=(e:KeyboardEvent)=>{if((window as any).__urbanModalOpen)return;if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)){pressed.current[e.code]=true;e.preventDefault()};if(e.code==='KeyE'){const b=(window as any).__urbanNearbyBillboard as Billboard|null;if(b){e.preventDefault();onNearby(b);(window as any).__urbanInteractBillboard?.(b)}}};
    const up=(e:KeyboardEvent)=>{pressed.current[e.code]=false};
    window.addEventListener('keydown',down,{passive:false});
    window.addEventListener('keyup',up);
@@ -495,7 +495,8 @@ function App(){
  useEffect(()=>{if(authOpen)requestAnimationFrame(()=>authInputRef.current?.focus());},[authOpen,authMode]);
   const modalOpen=!!selected||authOpen||historyOpen;
   useEffect(()=>{if(!modalOpen)return;const stop=(e:WheelEvent)=>{e.stopPropagation();e.preventDefault()};window.addEventListener('wheel',stop,{capture:true,passive:false});return()=>window.removeEventListener('wheel',stop,true)},[modalOpen]);
-  useEffect(()=>{if(selected)setBookingCompanyName(user?.displayName||user?.username||'');},[selected?.id,user?.id]);
+  useEffect(()=>{if(selected){setBookingCompanyName(user?.displayName||user?.username||'');setAdUrl(user?.websiteUrl||'');}},[selected?.id,user?.id,user?.websiteUrl]);
+  useEffect(()=>{(window as any).__urbanModalOpen=modalOpen;return()=>{(window as any).__urbanModalOpen=false}},[modalOpen]);
  useEffect(()=>{const s=io(api);socket.current=s;s.on('players:list',(p:Remote[])=>setPlayers(p.filter(x=>x.id!==s.id)));s.on('player:joined',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:update',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:left',(id:string)=>setPlayers(a=>a.filter(x=>x.id!==id)));s.on('billboard:update',(b:any)=>{const local=MAP_BILLBOARDS.find(x=>x.id===b.id);if(local){local.bid=b.bid;if(typeof b.available==='boolean')local.occupied=!b.available;} if(b.bidder)setBidders(v=>({...v,[b.id]:b.bidder}));else if(b.bidder===null)setBidders(v=>{const n={...v};delete n[b.id];return n});setSelected(v=>v&&v.id===b.id?{...v,bid:b.bid,occupied:typeof b.available==='boolean'?!b.available:v.occupied}:v)});s.on('billboard:expired',(b:any)=>{setActiveBookings(v=>{const n={...v};delete n[b.id];return n});const local=MAP_BILLBOARDS.find(x=>x.id===b.id);if(local)local.occupied=false;setBidders(v=>{const n={...v};delete n[b.id];return n});setSelected(v=>v&&v.id===b.id?{...v,occupied:false}:v)});return()=>{s.removeAllListeners();s.disconnect();if(socket.current===s)socket.current=null;}},[]);
  useEffect(()=>{fetch(api+'/api/billboards').then(r=>r.ok?r.json():Promise.reject()).then((rows:any[])=>{for(const row of rows){const local=MAP_BILLBOARDS.find(x=>x.id===row.id);const bid=Number(row.currentBid??row.minBid);if(local&&Number.isFinite(bid))local.bid=bid;}}).catch(()=>{});},[]);
  useEffect(()=>{(window as any).__urbanInteractBillboard=(b:Billboard)=>setSelected(b);return()=>{delete (window as any).__urbanInteractBillboard;delete (window as any).__urbanNearbyBillboard}},[]);
