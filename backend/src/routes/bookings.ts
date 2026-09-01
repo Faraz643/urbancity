@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticate, requireActiveUser, AuthRequest } from '../middleware/auth';
 
 const router=Router();
 const MAX_MINUTES=48*60;
@@ -64,7 +64,7 @@ router.get('/billboard/:billboardId',async(req,res,next)=>{
 
 
 // Update an active booking creative. Ownership is checked server-side from the authenticated user.
-router.patch('/:billboardId/creative',authenticate,async(req:AuthRequest,res,next)=>{
+router.patch('/:billboardId/creative',authenticate,requireActiveUser,async(req:AuthRequest,res,next)=>{
  try{
   const data=z.object({
    companyName:z.string().min(2).max(80).optional(),
@@ -102,7 +102,7 @@ router.patch('/:billboardId/creative',authenticate,async(req:AuthRequest,res,nex
  }catch(e){next(e)}
 });
 
-router.post('/',authenticate,async(req:AuthRequest,res,next)=>{
+router.post('/',authenticate,requireActiveUser,async(req:AuthRequest,res,next)=>{
  try{
   const data=z.object({billboardId:z.string(),durationMinutes:z.number().int().min(30).max(MAX_MINUTES),companyName:z.string().min(2).max(80).optional(),advertisementId:z.string().optional(),description:z.string().max(500).optional()}).parse(req.body);
   if(data.durationMinutes%30!==0)return res.status(400).json({error:'Choose time in 30-minute steps'});
