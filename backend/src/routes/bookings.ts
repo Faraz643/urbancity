@@ -67,7 +67,9 @@ router.post('/',authenticate,async(req:AuthRequest,res,next)=>{
   const data=z.object({billboardId:z.string(),durationMinutes:z.number().int().min(30).max(MAX_MINUTES),companyName:z.string().min(2).max(80).optional(),advertisementId:z.string().optional()}).parse(req.body);
   if(data.durationMinutes%30!==0)return res.status(400).json({error:'Choose time in 30-minute steps'});
   const result=await prisma.$transaction(async tx=>{
-   const billboard=await tx.billboard.findUnique({where:{id:data.billboardId}});
+   let billboard=await tx.billboard.findUnique({where:{id:data.billboardId}});
+   // World billboard IDs are stable client IDs. Create the database record on first booking after a fresh reset.
+   if(!billboard){const wall=data.billboardId.startsWith('W');billboard=await tx.billboard.create({data:{id:data.billboardId,name:(wall?'Wallboard ':'Billboard ')+data.billboardId,type:wall?'Wall':'Premium Road',positionX:0,positionY:0,positionZ:0,location:'UrbanCity',isAvailable:true,isActive:true,minBid:0}});}
    if(!billboard)throw Object.assign(new Error('Billboard not found'),{status:404});
    const now=new Date();
    const active=await tx.booking.findFirst({where:{billboardId:data.billboardId,status:'ACTIVE',endDate:{gt:now}}});
