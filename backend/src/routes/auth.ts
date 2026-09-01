@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { prisma } from '../db';
-import { authenticate, AuthRequest } from '../middleware/auth';
+import { authenticate, requireActiveUser, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
@@ -138,6 +138,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res, next) => {
       username: user.username,
       displayName: user.displayName,
       role: user.role,
+      isActive: user.isActive,
       avatar: user.avatar,
       websiteUrl: user.websiteUrl,
       companyDescription: user.companyDescription,
@@ -153,7 +154,7 @@ router.get('/me', authenticate, async (req: AuthRequest, res, next) => {
 });
 
 // Update profile
-router.patch('/profile', authenticate, async (req: AuthRequest, res, next) => {
+router.patch('/profile', authenticate, requireActiveUser, async (req: AuthRequest, res, next) => {
   try {
     const schema = z.object({
       displayName: z.string().min(1).optional(),
