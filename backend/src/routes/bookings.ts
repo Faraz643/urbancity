@@ -62,6 +62,44 @@ router.get('/billboard/:billboardId',async(req,res,next)=>{
  }catch(e){next(e)}
 });
 
+
+// Update an active booking creative. Ownership is checked server-side from the authenticated user.
+router.patch('/:billboardId/creative',authenticate,async(req:AuthRequest,res,next)=>{
+ try{
+  const data=z.object({
+   companyName:z.string().min(2).max(80).optional(),
+   description:z.string().max(500).optional(),
+   targetUrl:z.string().url().or(z.literal('')).optional(),
+   imageUrl:z.string().url().nullable().optional(),
+  }).parse(req.body);
+  const booking=await prisma.booking.findFirst({
+   where:{billboardId:req.params.billboardId,userId:req.user!.id,status:'ACTIVE',endDate:{gt:new Date()}},
+   orderBy:{endDate:'desc'},include:{advertisement:true,user:{select:{username:true,displayName:true,websiteUrl:true}}}
+  });
+  if(!booking)return res.status(403).json({error:'You can only edit your own active booking.'});
+  const cleanDescription=data.description?.trim();
+  const cleanUrl=data.targetUrl===undefined?undefined:(data.targetUrl.trim()||null);
+  const removeImage=data.imageUrl===null;
+  let advertisementId=booking.advertisementId;
+  if(removeImage){
+   if(booking.advertisementId) await prisma.advertisement.update({where:{id:booking.advertisementId},data:{imageUrl:null as any}});
+   advertisementId=null;
+  }else if(data.imageUrl){
+   if(booking.advertisementId) await prisma.advertisement.update({where:{id:booking.advertisementId},data:{title:data.companyName||booking.companyName,description:cleanDescription,targetUrl:cleanUrl||undefined,imageUrl:data.imageUrl}});
+   else {
+    const ad=await prisma.advertisement.create({data:{userId:req.user!.id,title:data.companyName||booking.companyName,description:cleanDescription||'',imageUrl:data.imageUrl,targetUrl:cleanUrl||undefined,status:'APPROVED'}});
+    advertisementId=ad.id;
+   }
+  }
+  const updated=await prisma.booking.update({
+   where:{id:booking.id},
+   data:{companyName:data.companyName||booking.companyName,description:cleanDescription===undefined?booking.description:cleanDescription,advertisementId},
+   include:{advertisement:true,user:{select:{username:true,displayName:true,websiteUrl:true}}}
+  });
+  res.json({...updated,siteUrl:updated.advertisement?.targetUrl||cleanUrl||updated.user.websiteUrl,imageUrl:updated.advertisement?.imageUrl||null,description:updated.advertisement?.description||updated.description||null,targetUrl:updated.advertisement?.targetUrl||cleanUrl||updated.user.websiteUrl});
+ }catch(e){next(e)}
+});
+
 router.post('/',authenticate,async(req:AuthRequest,res,next)=>{
  try{
   const data=z.object({billboardId:z.string(),durationMinutes:z.number().int().min(30).max(MAX_MINUTES),companyName:z.string().min(2).max(80).optional(),advertisementId:z.string().optional(),description:z.string().max(500).optional()}).parse(req.body);
