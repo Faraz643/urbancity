@@ -89,7 +89,7 @@ router.get('/:bookingId/status',authenticate,async(req:AuthRequest,res,next)=>{
 router.post('/webhook/dodo',async(req,res)=>{
  const client=dodo();
  try{
-  const raw=JSON.stringify(req.body);
+  const raw=(req as any).rawBody||JSON.stringify(req.body);
   const payload=(client as any).webhooks.unwrap(raw,{headers:{
    'webhook-id':String(req.headers['webhook-id']||''),
    'webhook-signature':String(req.headers['webhook-signature']||''),
