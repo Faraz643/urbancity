@@ -9,13 +9,11 @@ const MAX_MINUTES=48*60;
 function priceFor(type:string, minutes:number){
   const main=type==='Premium Road';
   if(minutes<=0||minutes%30!==0||minutes>MAX_MINUTES) throw new Error('Duration must be in 30-minute steps, maximum 2 days');
-  if(!main) return (minutes/30)*100;
-  // Main inventory: ₹20 per half-hour. At exactly 24 hours the automatic
-  // one-day package price is ₹800 (regular price ₹960, saving ₹160).
-  // Beyond 24 hours, the first day stays ₹800 and each additional half-hour is ₹18.
-  if(minutes===24*60) return 800;
-  if(minutes>24*60) return 800+((minutes-24*60)/30)*18;
-  return (minutes/30)*20;
+  // Fixed USD pricing. 24h automatically receives the one-day package price.
+  if(!main) return (minutes/30)*1.05;
+  if(minutes===24*60) return 8.40;
+  if(minutes>24*60) return 8.40+((minutes-24*60)/30)*0.19;
+  return (minutes/30)*0.21;
 }
 
 router.get('/history', async (_req,res,next)=>{
