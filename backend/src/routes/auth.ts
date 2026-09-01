@@ -12,6 +12,7 @@ const registerSchema = z.object({
   username: z.string().min(3).max(30),
   password: z.string().min(6),
   displayName: z.string().optional(),
+  websiteUrl: z.string().url().optional(),
 });
 
 const loginSchema = z.object({
@@ -41,6 +42,7 @@ router.post('/register', async (req, res, next) => {
           username: data.username,
           passwordHash,
           displayName: data.displayName || data.username,
+          websiteUrl: data.websiteUrl,
         },
       });
       await tx.wallet.create({ data: { userId: created.id, balance: 1000 } });
@@ -61,6 +63,7 @@ router.post('/register', async (req, res, next) => {
         username: user.username,
         displayName: user.displayName,
         role: user.role,
+        websiteUrl: user.websiteUrl,
       },
     });
   } catch (error) {
@@ -134,6 +137,8 @@ router.get('/me', authenticate, async (req: AuthRequest, res, next) => {
       displayName: user.displayName,
       role: user.role,
       avatar: user.avatar,
+      websiteUrl: user.websiteUrl,
+      companyDescription: user.companyDescription,
       wallet: user.wallet,
       stats: {
         totalBids: user._count.bids,
@@ -151,6 +156,8 @@ router.patch('/profile', authenticate, async (req: AuthRequest, res, next) => {
     const schema = z.object({
       displayName: z.string().min(1).optional(),
       avatar: z.string().optional(),
+      websiteUrl: z.string().url().optional(),
+      companyDescription: z.string().max(300).optional(),
     });
 
     const data = schema.parse(req.body);
@@ -166,6 +173,8 @@ router.patch('/profile', authenticate, async (req: AuthRequest, res, next) => {
       username: user.username,
       displayName: user.displayName,
       avatar: user.avatar,
+      websiteUrl: user.websiteUrl,
+      companyDescription: user.companyDescription,
     });
   } catch (error) {
     next(error);
