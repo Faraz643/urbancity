@@ -47,14 +47,14 @@ router.get('/leaderboard', async (_req,res,next)=>{
 router.get('/billboard/:billboardId',async(req,res,next)=>{
  try{
   const now=new Date();
-  const active=await prisma.booking.findFirst({where:{billboardId:req.params.billboardId,status:'ACTIVE',endDate:{gt:now}},orderBy:{endDate:'desc'},include:{user:{select:{username:true,displayName:true,websiteUrl:true}}}});
+  const active=await prisma.booking.findFirst({where:{billboardId:req.params.billboardId,status:'ACTIVE',endDate:{gt:now}},orderBy:{endDate:'desc'},include:{user:{select:{username:true,displayName:true,websiteUrl:true}},advertisement:true}});
   res.json({active:active?{...active,user:active.user,siteUrl:active.user.websiteUrl}:null});
  }catch(e){next(e)}
 });
 
 router.post('/',authenticate,async(req:AuthRequest,res,next)=>{
  try{
-  const data=z.object({billboardId:z.string(),durationMinutes:z.number().int().min(30).max(MAX_MINUTES),companyName:z.string().min(2).max(80).optional()}).parse(req.body);
+  const data=z.object({billboardId:z.string(),durationMinutes:z.number().int().min(30).max(MAX_MINUTES),companyName:z.string().min(2).max(80).optional(),advertisementId:z.string().optional()}).parse(req.body);
   if(data.durationMinutes%30!==0)return res.status(400).json({error:'Choose time in 30-minute steps'});
   const result=await prisma.$transaction(async tx=>{
    const billboard=await tx.billboard.findUnique({where:{id:data.billboardId}});
