@@ -168,8 +168,16 @@ router.patch('/advertisements/:id/status', authenticate, requireAdmin, async (re
  try{
   const status=String(req.body?.status||'');
   if(!['PENDING','APPROVED','REJECTED','DISABLED'].includes(status))return res.status(400).json({error:'Invalid advertisement status'});
-  const ad=await prisma.advertisement.update({where:{id:req.params.id},data:{status}});
-  res.json(ad);
+
+  const result=await prisma.$transaction(async tx=>{
+   const ad=await tx.advertisement.update({where:{id:req.params.id},data:{status}});
+   // A non-approved creative must never remain active in a campaign.
+   if(status!=='APPROVED'){
+    await tx.advertisingCampaign.updateMany({where:{advertisementId:ad.id,isActive:true},data:{isActive:false}});
+   }
+   return ad;
+  });
+  res.json(result);
  }catch(error){next(error)}
 });
 
