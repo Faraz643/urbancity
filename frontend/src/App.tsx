@@ -389,8 +389,8 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;
    <group onClick={(e)=>{e.stopPropagation();onSelect(b)}}>
      <mesh><boxGeometry args={[w,h,.45]}/><meshStandardMaterial color="#111827"/></mesh>
      {bidder?.imageUrl?<AdCreative url={bidder.imageUrl} w={w-.35} h={h-.35} z={.231}/>:<mesh position={[0,0,.24]}><planeGeometry args={[w-.35,h-.35]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#294c0b'} emissive={b.occupied?'#3b0c21':'#234d03'} emissiveIntensity={0.7}/></mesh>}
-     <Text position={[0,.2,.48]} fontSize={h*.18} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{bidder?bidder.name.toUpperCase():b.ad}</Text>
-     <Text position={[0,-h*.28,.48]} fontSize={.22} color="#b8d9ff" anchorX="center">{bidder ? bidder.name : '#'+b.id}</Text>
+     {!bidder?.imageUrl && <Text position={[0,.2,.48]} fontSize={h*.18} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{bidder?bidder.name.toUpperCase():b.ad}</Text>}
+     {!bidder?.imageUrl && <Text position={[0,-h*.28,.48]} fontSize={.22} color="#b8d9ff" anchorX="center">{bidder ? bidder.name : '#'+b.id}</Text>}
      <Text position={[0,h/2+1.02,.5]} fontSize={.58} color="white" anchorX="center" anchorY="middle" outlineWidth={0.04} outlineColor="#07111e">{String(nearCount)}</Text>
      <Text position={[0,h/2+.62,.5]} fontSize={.22} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.018} outlineColor="#07111e">visitors</Text>
    </group>
