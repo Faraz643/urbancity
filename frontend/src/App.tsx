@@ -437,10 +437,7 @@ function MiniMap({players}:{players:Remote[]}) {
  const [yaw,setYaw]=useState(0);
  useEffect(()=>{let id=0;const tick=()=>{const p=(window as any).__urbanPlayerPosition as THREE.Vector3|undefined;if(p)setMe([p.x,p.y,p.z]);setYaw((window as any).__urbanCameraYaw??0);id=requestAnimationFrame(tick)};id=requestAnimationFrame(tick);return()=>cancelAnimationFrame(id)},[]);
  const toPct=(x:number,z:number)=>({left:`${Math.max(3,Math.min(97,(x+60)/120*100))}%`,top:`${Math.max(3,Math.min(97,(z+60)/120*100))}%`});
-  const applyActiveBookings=(rows:Record<string,any>)=>{setActiveBookings(rows);const next:Record<string,BidderInfo>={};for(const [id,a] of Object.entries(rows)){const x:any=a;next[id]={name:x.companyName||x.user?.displayName||x.user?.username||'Advertiser',amount:Number(x.amount||0),siteUrl:x.targetUrl||x.siteUrl||x.user?.websiteUrl||undefined,imageUrl:x.imageUrl||undefined};const local=MAP_BILLBOARDS.find(b=>b.id===id);if(local)local.occupied=true;}for(const local of MAP_BILLBOARDS){if(!rows[local.id])local.occupied=false;}setBidders(next);};
-    const loadAllActiveBillboards=async()=>{try{const r=await fetch(api+'/api/bookings/active');const d=await readApi(r);if(r.ok&&d&&typeof d==='object')applyActiveBookings(d);}catch{}};
-    const loadActiveBillboard=async(_id:string)=>{await loadAllActiveBillboards();};
-    useEffect(()=>{loadAllActiveBillboards();const t=window.setInterval(loadAllActiveBillboards,60_000);return()=>window.clearInterval(t)},[]);
+
 
  return <div className="minimap"><div className="mapgrid">
    <div className="map-road vertical"/><div className="map-road horizontal"/>
@@ -456,6 +453,11 @@ type AuthUser={id:string;email:string;username:string;displayName:string;role:st
 
 function App(){
  const api=import.meta.env.VITE_SERVER_URL||'http://localhost:3001';
+ const toAssetUrl=(value?:string)=>value?(value.startsWith('http')?value:api+value):undefined;
+  const applyActiveBookings=(rows:Record<string,any>)=>{setActiveBookings(rows);const next:Record<string,BidderInfo>={};for(const [id,a] of Object.entries(rows)){const x:any=a;next[id]={name:x.companyName||x.user?.displayName||x.user?.username||'Advertiser',amount:Number(x.amount||0),siteUrl:x.targetUrl||x.siteUrl||x.user?.websiteUrl||undefined,imageUrl:toAssetUrl(x.imageUrl)};const local=MAP_BILLBOARDS.find(b=>b.id===id);if(local)local.occupied=true;}for(const local of MAP_BILLBOARDS){if(!rows[local.id])local.occupied=false;}setBidders(next);};
+    const loadAllActiveBillboards=async()=>{try{const r=await fetch(api+'/api/bookings/active');const d=await readApi(r);if(r.ok&&d&&typeof d==='object')applyActiveBookings(d);}catch{}};
+    const loadActiveBillboard=async(_id:string)=>{await loadAllActiveBillboards();};
+    useEffect(()=>{loadAllActiveBillboards();const t=window.setInterval(loadAllActiveBillboards,60_000);return()=>window.clearInterval(t)},[]);
  const [nearby,setNearby]=useState<Billboard|null>(null),[selected,setSelected]=useState<Billboard|null>(null),[balance,setBalance]=useState(750000),[players,setPlayers]=useState<Remote[]>([]),[timeMode,setTimeMode]=useState<TimeMode>('evening'),[localPosition,setLocalPosition]=useState<[number,number,number]>([0,1.4,8]);
  const [user,setUser]=useState<AuthUser|null>(null),[authOpen,setAuthOpen]=useState(false),[authMode,setAuthMode]=useState<'login'|'register'>('login'),[authEmail,setAuthEmail]=useState(''),[authPassword,setAuthPassword]=useState(''),[authUsername,setAuthUsername]=useState(''),[authWebsite,setAuthWebsite]=useState(''),[authError,setAuthError]=useState(''),[authBusy,setAuthBusy]=useState(false);
  const socket=useRef<Socket|null>(null);
