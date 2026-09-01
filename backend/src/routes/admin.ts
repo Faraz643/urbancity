@@ -10,6 +10,8 @@ router.get('/stats', authenticate, requireAdmin, async (_req, res, next) => {
     const [
       totalUsers,
       totalBillboards,
+      activeBookings,
+      totalRevenue,
       totalAuctions,
       totalBids,
       totalAds,
@@ -19,6 +21,8 @@ router.get('/stats', authenticate, requireAdmin, async (_req, res, next) => {
     ] = await Promise.all([
       prisma.user.count(),
       prisma.billboard.count(),
+      prisma.booking.count({where:{status:'ACTIVE',endDate:{gt:new Date()}}}),
+      prisma.booking.aggregate({where:{status:{in:['ACTIVE','EXPIRED']}},_sum:{amount:true}}),
       prisma.auction.count(),
       prisma.bid.count(),
       prisma.advertisement.count(),
@@ -30,6 +34,8 @@ router.get('/stats', authenticate, requireAdmin, async (_req, res, next) => {
     res.json({
       totalUsers,
       totalBillboards,
+      activeBookings,
+      revenue:Number(totalRevenue._sum.amount||0),
       totalAuctions,
       totalBids,
       totalAds,
@@ -75,10 +81,22 @@ router.get('/users', authenticate, requireAdmin, async (req, res, next) => {
   }
 });
 
+// Update a user's active status. Admins cannot deactivate themselves.
+router.patch('/users/:id/status', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
+ try {
+  const isActive=Boolean(req.body?.isActive);
+  if(req.params.id===req.user!.id)return res.status(400).json({error:'You cannot deactivate your own admin account.'});
+  const user=await prisma.user.update({where:{id:req.params.id},data:{isActive}});
+  res.json({id:user.id,isActive:user.isActive});
+ }catch(error){next(error)}
+});
+
 // Update user role
 router.patch('/users/:id/role', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
   try {
     const { role } = req.body;
+    if(!['USER','ADMIN'].includes(role)) return res.status(400).json({error:'Invalid role'});
+    if(req.params.id===req.user!.id && role!=='ADMIN') return res.status(400).json({error:'You cannot remove your own admin role.'});
 
     const user = await prisma.user.update({
       where: { id: req.params.id },
@@ -89,6 +107,21 @@ router.patch('/users/:id/role', authenticate, requireAdmin, async (req: AuthRequ
   } catch (error) {
     next(error);
   }
+});
+
+// All bookings for operations management
+router.get('/bookings', authenticate, requireAdmin, async (_req,res,next)=>{
+ try{
+  const rows=await prisma.booking.findMany({include:{user:{select:{email:true,username:true,displayName:true}},billboard:{select:{name:true,type:true}},advertisement:true},orderBy:{createdAt:'desc'},take:250});
+  res.json(rows);
+ }catch(error){next(error)}
+});
+
+router.patch('/bookings/:id/cancel', authenticate, requireAdmin, async (_req,res,next)=>{
+ try{
+  const booking=await prisma.booking.update({where:{id:_req.params.id},data:{status:'CANCELLED'}});
+  res.json(booking);
+ }catch(error){next(error)}
 });
 
 // Get all transactions
@@ -129,6 +162,19 @@ router.get('/advertisements', authenticate, requireAdmin, async (req, res, next)
   } catch (error) {
     next(error);
   }
+});
+
+router.patch('/advertisements/:id/status', authenticate, requireAdmin, async (req,res,next)=>{
+ try{
+  const status=String(req.body?.status||'');
+  if(!['PENDING','APPROVED','REJECTED','DISABLED'].includes(status))return res.status(400).json({error:'Invalid advertisement status'});
+  const ad=await prisma.advertisement.update({where:{id:req.params.id},data:{status}});
+  res.json(ad);
+ }catch(error){next(error)}
+});
+
+router.get('/billboards', authenticate, requireAdmin, async (_req,res,next)=>{
+ try{res.json(await prisma.billboard.findMany({include:{bookings:{where:{status:'ACTIVE',endDate:{gt:new Date()}},take:1,include:{user:{select:{displayName:true,username:true}}}},_count:{select:{bookings:true,trafficAnalytics:true}}},orderBy:{createdAt:'desc'},take:300}));}catch(error){next(error)}
 });
 
 // Get active visitors (from WebSocket connections - simulated via analytics)
