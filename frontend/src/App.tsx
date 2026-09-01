@@ -361,7 +361,9 @@ function BillboardPad({b}:{b:Billboard}) {
  </group>
 }
 
-function AdCreative({url,w,h}:{url:string;w:number;h:number}) { const texture=useMemo(()=>new THREE.TextureLoader().load(url),[url]); useEffect(()=>()=>texture.dispose(),[texture]); return <mesh position={[0,0,.125]}><planeGeometry args={[w,h]}/><meshBasicMaterial map={texture} toneMapped={false}/></mesh> }\n\nfunction BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;onSelect:(b:Billboard)=>void;nearCount:number;totalVisitors:number;bidder?:BidderInfo}) {
+function AdCreative({url,w,h}:{url:string;w:number;h:number}) { const texture=useMemo(()=>new THREE.TextureLoader().load(url),[url]); useEffect(()=>()=>texture.dispose(),[texture]); return <mesh position={[0,0,.125]}><planeGeometry args={[w,h]}/><meshBasicMaterial map={texture} toneMapped={false}/></mesh> }
+
+function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;onSelect:(b:Billboard)=>void;nearCount:number;totalVisitors:number;bidder?:BidderInfo}) {
 
  const isWall=b.kind==='wall-ad';
  const w=b.size?.[0] ?? (b.type==='Premium Road'?9:6);
