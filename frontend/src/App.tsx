@@ -13,6 +13,11 @@ type Remote = { id:string; name:string; position:[number,number,number]; rotatio
 const MAP_BILLBOARDS: Billboard[] = [
   { id:'102', type:'Premium Road', position:[0,4,-22], traffic:'High', bid:5000, occupied:false, ad:'ZEST • meal delivery' },
   { id:'207', type:'Premium Road', position:[0,4,22], traffic:'High', bid:8200, occupied:true, ad:'URBAN FINANCE' },
+  // Portrait inventory flanking the two premium main boards. Each is independently bookable.
+  { id:'102-L', type:'Vertical', kind:'vertical-ad', position:[-7.2,5.2,-22], traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,7.2] },
+  { id:'102-R', type:'Vertical', kind:'vertical-ad', position:[7.2,5.2,-22], traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,7.2] },
+  { id:'207-L', type:'Vertical', kind:'vertical-ad', position:[-7.2,5.2,22], rotationY:Math.PI, traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,7.2] },
+  { id:'207-R', type:'Vertical', kind:'vertical-ad', position:[7.2,5.2,22], rotationY:Math.PI, traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,7.2] },
   { id:'311', type:'Street', position:[28,3,-14], traffic:'Medium', bid:1800, occupied:false, ad:'AVAILABLE' },
   { id:'412', type:'Street', position:[-28,3,4], traffic:'Medium', bid:2200, occupied:false, ad:'AVAILABLE' },
 
@@ -374,10 +379,12 @@ function AdCreative({url,w,h,z=.125}:{url:string;w:number;h:number;z?:number}) {
 function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;onSelect:(b:Billboard)=>void;nearCount:number;totalVisitors:number;bidder?:BidderInfo}) {
 
  const isWall=b.kind==='wall-ad';
+ const isVertical=b.kind==='vertical-ad';
  const w=b.size?.[0] ?? (b.type==='Premium Road'?9:6);
+ const h=b.size?.[1] ?? (isVertical?7.2:(b.type==='Premium Road'?4.6:3.4));
  const h=b.size?.[1] ?? (b.type==='Premium Road'?4.6:3);
 
- if(isWall) {
+ if(isWall || isVertical) {
    return <RigidBody type="fixed" colliders={false} position={b.position} rotation={[0,b.rotationY ?? 0,0]}>
      <CuboidCollider args={[w/2,h/2,0.08]} />
      <group onClick={(e)=>{e.stopPropagation();onSelect(b)}}>
