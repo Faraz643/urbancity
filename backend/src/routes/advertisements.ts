@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { z } from 'zod';
 import { prisma } from '../db';
-import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
+import { authenticate, requireActiveUser, requireAdmin, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 const uploadDir=path.resolve(process.cwd(),'uploads','advertisements');
@@ -56,10 +56,10 @@ router.get('/my-ads', authenticate, async (req: AuthRequest, res, next) => {
 });
 
 // Upload advertisement creative
-router.post('/upload', authenticate, upload.single('file'), async (req:AuthRequest,res,next)=>{try{if(!req.file)return res.status(400).json({error:'Upload a PNG, JPG or WEBP image (max 5 MB).'});const base=(process.env.PUBLIC_API_URL||req.protocol+'://'+req.get('host'));res.status(201).json({imageUrl:base+'/uploads/advertisements/'+req.file.filename});}catch(error){next(error);}});
+router.post('/upload', authenticate, requireActiveUser, upload.single('file'), async (req:AuthRequest,res,next)=>{try{if(!req.file)return res.status(400).json({error:'Upload a PNG, JPG or WEBP image (max 5 MB).'});const base=(process.env.PUBLIC_API_URL||req.protocol+'://'+req.get('host'));res.status(201).json({imageUrl:base+'/uploads/advertisements/'+req.file.filename});}catch(error){next(error);}});
 
 // Create advertisement
-router.post('/', authenticate, async (req: AuthRequest, res, next) => {
+router.post('/', authenticate, requireActiveUser, async (req: AuthRequest, res, next) => {
   try {
     const schema = z.object({
       title: z.string().min(1).max(100),
@@ -85,7 +85,7 @@ router.post('/', authenticate, async (req: AuthRequest, res, next) => {
 });
 
 // Update advertisement
-router.patch('/:id', authenticate, async (req: AuthRequest, res, next) => {
+router.patch('/:id', authenticate, requireActiveUser, async (req: AuthRequest, res, next) => {
   try {
     const schema = z.object({
       title: z.string().min(1).max(100).optional(),
@@ -136,7 +136,7 @@ router.patch('/:id/status', authenticate, requireAdmin, async (req: AuthRequest,
 });
 
 // Create advertising campaign
-router.post('/campaigns', authenticate, async (req: AuthRequest, res, next) => {
+router.post('/campaigns', authenticate, requireActiveUser, async (req: AuthRequest, res, next) => {
   try {
     const schema = z.object({
       billboardId: z.string(),
