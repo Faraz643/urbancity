@@ -26,6 +26,7 @@ app.disable('x-powered-by');
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
+app.use('/uploads',express.static('uploads'));
 
 // Development-friendly API limits. Authentication is protected separately so normal
 // gameplay, billboard reads and wallet refreshes cannot lock a local player out.
