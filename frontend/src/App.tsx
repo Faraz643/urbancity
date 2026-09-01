@@ -361,7 +361,18 @@ function BillboardPad({b}:{b:Billboard}) {
  </group>
 }
 
-function AdCreative({url,w,h,z=.125}:{url:string;w:number;h:number;z?:number}) { const texture=useMemo(()=>new THREE.TextureLoader().load(url),[url]); useEffect(()=>()=>texture.dispose(),[texture]); return <mesh position={[0,0,z]} renderOrder={2}><planeGeometry args={[w,h]}/><meshBasicMaterial map={texture} toneMapped={false} side={THREE.DoubleSide}/></mesh> }
+function AdCreative({url,w,h,z=.125}:{url:string;w:number;h:number;z?:number}) {
+ const [aspect,setAspect]=useState<number|null>(null);
+ useEffect(()=>{let alive=true;const loader=new THREE.TextureLoader();loader.load(url,(t)=>{if(!alive)return;t.colorSpace=THREE.SRGBColorSpace;t.generateMipmaps=true;t.minFilter=THREE.LinearMipmapLinearFilter;t.magFilter=THREE.LinearFilter;setAspect(t.image?.width&&t.image?.height?t.image.width/t.image.height:1);t.dispose();},undefined,()=>alive&&setAspect(1));return()=>{alive=false;setAspect(null)}},[url]);
+ if(!aspect)return null;
+ const boardAspect=w/h;
+ const imageW=aspect>=boardAspect?w:h*aspect;
+ const imageH=aspect>=boardAspect?w/aspect:h;
+ return <group position={[0,0,z]} renderOrder={2}>
+   <mesh><planeGeometry args={[w,h]}/><meshBasicMaterial color="#0b1018" toneMapped={false} side={THREE.DoubleSide}/></mesh>
+   <mesh position={[0,0,.002]}><planeGeometry args={[imageW,imageH]}/><meshBasicMaterial map={useLoader(THREE.TextureLoader,url)} toneMapped={false} side={THREE.DoubleSide}/></mesh>
+ </group>
+}
 
 function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;onSelect:(b:Billboard)=>void;nearCount:number;totalVisitors:number;bidder?:BidderInfo}) {
 
