@@ -207,6 +207,7 @@ model Booking {
   durationMinutes Int
   amount      Decimal
   companyName String
+  description String?
   advertisementId String?
   advertisement Advertisement? @relation(fields: [advertisementId], references: [id], onDelete: SetNull)
   status      String    @default("ACTIVE")
