@@ -1,9 +1,16 @@
 import { Router } from 'express';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
 
 const router = Router();
+const uploadDir=path.resolve(process.cwd(),'uploads','advertisements');
+fs.mkdirSync(uploadDir,{recursive:true});
+const storage=multer.diskStorage({destination:uploadDir,filename:(_req,file,cb)=>cb(null,Date.now()+'-'+Math.random().toString(36).slice(2)+path.extname(file.originalname).toLowerCase())});
+const upload=multer({storage,limits:{fileSize:5*1024*1024},fileFilter:(_req,file,cb)=>cb(null,/^image\/(jpeg|png|webp)$/.test(file.mimetype))});
 
 // Get all advertisements (public)
 router.get('/', async (req, res, next) => {
@@ -47,6 +54,9 @@ router.get('/my-ads', authenticate, async (req: AuthRequest, res, next) => {
     next(error);
   }
 });
+
+// Upload advertisement creative
+router.post('/upload', authenticate, upload.single('file'), async (req:AuthRequest,res,next)=>{try{if(!req.file)return res.status(400).json({error:'Upload a PNG, JPG or WEBP image (max 5 MB).'});const base=(process.env.PUBLIC_API_URL||req.protocol+'://'+req.get('host'));res.status(201).json({imageUrl:base+'/uploads/advertisements/'+req.file.filename});}catch(error){next(error);}});
 
 // Create advertisement
 router.post('/', authenticate, async (req: AuthRequest, res, next) => {
