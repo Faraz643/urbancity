@@ -82,7 +82,9 @@ router.patch('/:billboardId/creative',authenticate,async(req:AuthRequest,res,nex
   const removeImage=data.imageUrl===null;
   let advertisementId=booking.advertisementId;
   if(removeImage){
-   if(booking.advertisementId) await prisma.advertisement.update({where:{id:booking.advertisementId},data:{imageUrl:null as any}});
+   // Advertisement.imageUrl is required in the schema, so do not write NULL.
+   // Detach the advertisement from the booking; the booking's own text fields
+   // become the active creative and the old advertisement record is left intact.
    advertisementId=null;
   }else if(data.imageUrl){
    if(booking.advertisementId) await prisma.advertisement.update({where:{id:booking.advertisementId},data:{title:data.companyName||booking.companyName,description:cleanDescription,targetUrl:cleanUrl||undefined,imageUrl:data.imageUrl}});
