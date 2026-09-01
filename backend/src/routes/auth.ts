@@ -43,7 +43,7 @@ router.post('/register', async (req, res, next) => {
           displayName: data.displayName || data.username,
         },
       });
-      await tx.wallet.create({ data: { userId: created.id, balance: 100000 } });
+      await tx.wallet.create({ data: { userId: created.id, balance: 1000 } });
       return created;
     });
 
