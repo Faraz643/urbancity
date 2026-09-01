@@ -396,7 +396,6 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;
        <mesh position={[0,h/2+.22,0]}><boxGeometry args={[w+.5,.08,.22]}/><meshStandardMaterial color="#49d17d" emissive="#1b6f43" emissiveIntensity={1.1}/></mesh>
      </group>
      {isVertical && <mesh position={[0,-h/2-2,0]}><boxGeometry args={[.3,4,.3]}/><meshStandardMaterial color="#171c25"/></mesh>}
-   </RigidBody>
    </RigidBody>;
  }
 
