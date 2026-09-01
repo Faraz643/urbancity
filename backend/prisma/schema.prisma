@@ -29,6 +29,7 @@ model User {
   campaigns       AdvertisingCampaign[]
   notifications   Notification[]
   bookings        Booking[]
+  payments        Payment[]
 
   @@map("users")
 }
@@ -213,8 +214,30 @@ model Booking {
   status      String    @default("ACTIVE")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  payment     Payment?
 
   @@index([billboardId, status, endDate])
   @@index([userId, createdAt])
   @@map("bookings")
+}
+
+
+model Payment {
+  id              String   @id @default(uuid())
+  bookingId       String   @unique
+  booking         Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider        String   @default("DODO")
+  providerPaymentId String? @unique
+  checkoutSessionId String? @unique
+  amount          Decimal
+  currency        String   @default("USD")
+  status          String   @default("PENDING")
+  providerEventId String? @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, status])
+  @@map("payments")
 }
