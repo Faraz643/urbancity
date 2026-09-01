@@ -8,11 +8,13 @@ const MAX_MINUTES=48*60;
 
 function priceFor(type:string, minutes:number){
   const main=type==='Premium Road';
-  const unit=main?150:100;
   if(minutes<=0||minutes%30!==0||minutes>MAX_MINUTES) throw new Error('Duration must be in 30-minute steps, maximum 2 days');
-  if(main && minutes===12*60) return 3000;
-  if(main && minutes>12*60) return (minutes/30)*125;
-  return (minutes/30)*unit;
+  if(!main) return (minutes/30)*100;
+  // Main inventory: ₹52 per half-hour, an explicit/equivalent 24h package at ₹2,000,
+  // then ₹45 per additional half-hour beyond 24 hours.
+  if(minutes===24*60) return 2000;
+  if(minutes>24*60) return 2000+((minutes-24*60)/30)*45;
+  return (minutes/30)*52;
 }
 
 router.get('/history', async (_req,res,next)=>{
