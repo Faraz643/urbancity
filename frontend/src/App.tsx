@@ -7,7 +7,7 @@ import { io, Socket } from 'socket.io-client';
 
 type AdSlotKind = 'billboard' | 'wall-ad' | 'vertical-ad';
 type BidderInfo = {name:string;amount:number;siteUrl?:string;imageUrl?:string};
-type Billboard = { id:string; type:'Premium Road'|'Street'|'Building Wall'; position:[number,number,number]; traffic:'High'|'Medium'; bid:number; occupied:boolean; ad:string; rotationY?:number; kind?:AdSlotKind; size?:[number,number] };
+type Billboard = { id:string; type:'Premium Road'|'Street'|'Building Wall'|'Vertical'; position:[number,number,number]; traffic:'High'|'Medium'; bid:number; occupied:boolean; ad:string; rotationY?:number; kind?:AdSlotKind; size?:[number,number] };
 type Remote = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean };
 
 const MAP_BILLBOARDS: Billboard[] = [
@@ -367,13 +367,95 @@ function BillboardPad({b}:{b:Billboard}) {
 }
 
 function AdCreative({url,w,h,z=.125}:{url:string;w:number;h:number;z?:number}) {
- const [creative,setCreative]=useState<{texture:THREE.Texture;aspect:number}|null>(null);
- useEffect(()=>{let alive=true;const loader=new THREE.TextureLoader();loader.load(url,(texture)=>{texture.colorSpace=THREE.SRGBColorSpace;texture.generateMipmaps=true;texture.minFilter=THREE.LinearMipmapLinearFilter;texture.magFilter=THREE.LinearFilter;if(alive){const image:any=texture.image;setCreative({texture,aspect:image?.width&&image?.height?image.width/image.height:1})}else texture.dispose();},undefined,()=>alive&&setCreative(null));return()=>{alive=false;setCreative(prev=>{if(prev){prev.texture.dispose()}return null})}},[url]);
+ const [creative,setCreative]=useState<{texture:THREE.Texture;blurTexture:THREE.Texture;aspect:number}|null>(null);
+
+ useEffect(()=>{
+   let alive=true;
+   const loader=new THREE.TextureLoader();
+
+   loader.load(url,(texture)=>{
+     texture.colorSpace=THREE.SRGBColorSpace;
+     texture.generateMipmaps=true;
+     texture.minFilter=THREE.LinearMipmapLinearFilter;
+     texture.magFilter=THREE.LinearFilter;
+
+     const image:any=texture.image;
+     const aspect=image?.width&&image?.height?image.width/image.height:1;
+
+     // Build a soft, enlarged version of the same campaign artwork for the
+     // letterbox area, so portrait and landscape creatives never sit on a flat color.
+     const canvas=document.createElement('canvas');
+     canvas.width=768;
+     canvas.height=768;
+     const ctx=canvas.getContext('2d');
+
+     let blurTexture:THREE.Texture;
+     if(ctx && image?.width && image?.height){
+       const canvasAspect=canvas.width/canvas.height;
+       const imageAspect=image.width/image.height;
+       let dw:number,dh:number;
+       if(imageAspect>canvasAspect){
+         dh=canvas.height*1.12;
+         dw=dh*imageAspect;
+       }else{
+         dw=canvas.width*1.12;
+         dh=dw/imageAspect;
+       }
+       ctx.fillStyle='#080d14';
+       ctx.fillRect(0,0,canvas.width,canvas.height);
+       ctx.save();
+       ctx.filter='blur(26px) brightness(0.55)';
+       ctx.drawImage(image,(canvas.width-dw)/2,(canvas.height-dh)/2,dw,dh);
+       ctx.restore();
+       blurTexture=new THREE.CanvasTexture(canvas);
+       blurTexture.colorSpace=THREE.SRGBColorSpace;
+       blurTexture.minFilter=THREE.LinearFilter;
+       blurTexture.magFilter=THREE.LinearFilter;
+     }else{
+       blurTexture=texture.clone();
+       blurTexture.needsUpdate=true;
+     }
+
+     if(alive){
+       setCreative({texture,blurTexture,aspect});
+     }else{
+       texture.dispose();
+       blurTexture.dispose();
+     }
+   },undefined,()=>alive&&setCreative(null));
+
+   return()=>{
+     alive=false;
+     setCreative(prev=>{
+       if(prev){
+         prev.texture.dispose();
+         if(prev.blurTexture!==prev.texture)prev.blurTexture.dispose();
+       }
+       return null;
+     });
+   };
+ },[url]);
+
  if(!creative)return <mesh position={[0,0,z]}><planeGeometry args={[w,h]}/><meshBasicMaterial color="#0b1018" toneMapped={false}/></mesh>;
+
  const boardAspect=w/h;
  const imageW=creative.aspect>=boardAspect?w:h*creative.aspect;
  const imageH=creative.aspect>=boardAspect?w/creative.aspect:h;
- return <group position={[0,0,z]}><mesh><planeGeometry args={[w,h]}/><meshBasicMaterial color="#0b1018" toneMapped={false} side={THREE.DoubleSide}/></mesh><mesh position={[0,0,.002]}><planeGeometry args={[imageW,imageH]}/><meshBasicMaterial map={creative.texture} toneMapped={false} side={THREE.DoubleSide}/></mesh></group>
+
+ return <group position={[0,0,z]}>
+   <mesh>
+     <planeGeometry args={[w,h]}/>
+     <meshBasicMaterial map={creative.blurTexture} toneMapped={false} side={THREE.DoubleSide}/>
+   </mesh>
+   <mesh position={[0,0,.002]}>
+     <planeGeometry args={[w,h]}/>
+     <meshBasicMaterial color="#05080d" transparent opacity={0.18} toneMapped={false} side={THREE.DoubleSide}/>
+   </mesh>
+   <mesh position={[0,0,.004]}>
+     <planeGeometry args={[imageW,imageH]}/>
+     <meshBasicMaterial map={creative.texture} toneMapped={false} side={THREE.DoubleSide}/>
+   </mesh>
+ </group>;
 }
 
 function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;onSelect:(b:Billboard)=>void;nearCount:number;totalVisitors:number;bidder?:BidderInfo}) {
@@ -389,8 +471,8 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;
      <group onClick={(e)=>{e.stopPropagation();onSelect(b)}}>
        <mesh><boxGeometry args={[w+.35,h+.35,.16]}/><meshStandardMaterial color="#111827" metalness={0.45}/></mesh>
        {bidder?.imageUrl?<AdCreative url={bidder.imageUrl} w={w} h={h}/>:<mesh position={[0,0,.095]}><planeGeometry args={[w,h]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#214b14'} emissive={b.occupied?'#3b0c21':'#1c5d12'} emissiveIntensity={0.65}/></mesh>}
-       <Text position={[0,.2,.12]} fontSize={Math.min(h*.18,.72)} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{bidder?('NOW BIDDING • '+bidder.name.toUpperCase()):b.ad}</Text>
-       <Text position={[0,-h*.34,.12]} fontSize={.2} color="#b8d9ff" anchorX="center">{bidder?bidder.name+' bid ₹'+bidder.amount.toLocaleString():'WALL #'+b.id+' • ₹'+b.bid.toLocaleString()}</Text>
+       {!bidder?.imageUrl && <Text position={[0,.2,.12]} fontSize={Math.min(h*.18,.72)} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{bidder?('NOW BIDDING • '+bidder.name.toUpperCase()):b.ad}</Text>}
+       {!bidder?.imageUrl && <Text position={[0,-h*.34,.12]} fontSize={.2} color="#b8d9ff" anchorX="center">{bidder?bidder.name+' bid ₹'+bidder.amount.toLocaleString():'WALL #'+b.id+' • ₹'+b.bid.toLocaleString()}</Text>}
      <Text position={[0,h/2+1.02,.15]} fontSize={.58} color="white" anchorX="center" anchorY="middle" outlineWidth={0.04} outlineColor="#07111e">{String(nearCount)}</Text>
      <Text position={[0,h/2+.62,.15]} fontSize={.22} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.018} outlineColor="#07111e">visitors</Text>
        <mesh position={[0,h/2+.22,0]}><boxGeometry args={[w+.5,.08,.22]}/><meshStandardMaterial color="#49d17d" emissive="#1b6f43" emissiveIntensity={1.1}/></mesh>
