@@ -44,6 +44,16 @@ router.get('/leaderboard', async (_req,res,next)=>{
  }catch(e){next(e)}
 });
 
+router.get('/active',async(_req,res,next)=>{
+ try{
+  const now=new Date();
+  const rows=await prisma.booking.findMany({where:{status:'ACTIVE',endDate:{gt:now}},orderBy:{endDate:'desc'},include:{user:{select:{username:true,displayName:true,websiteUrl:true}},advertisement:true}});
+  const active:Record<string,any>={};
+  for(const row of rows){if(!active[row.billboardId]) active[row.billboardId]={...row,siteUrl:row.user.websiteUrl,imageUrl:row.advertisement?.imageUrl||null,description:row.advertisement?.description||row.advertisement?.title||null,targetUrl:row.advertisement?.targetUrl||row.user.websiteUrl};}
+  res.json(active);
+ }catch(e){next(e)}
+});
+
 router.get('/billboard/:billboardId',async(req,res,next)=>{
  try{
   const now=new Date();
@@ -66,7 +76,7 @@ router.post('/',authenticate,async(req:AuthRequest,res,next)=>{
    const wallet=await tx.wallet.findUnique({where:{userId:req.user!.id}});
    if(!wallet||Number(wallet.balance)<amount)throw Object.assign(new Error('Insufficient wallet balance'),{status:400});
    const endDate=new Date(now.getTime()+data.durationMinutes*60*1000);
-   const booking=await tx.booking.create({data:{userId:req.user!.id,billboardId:data.billboardId,startDate:now,endDate,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username,advertisementId:data.advertisementId},include:{user:{select:{username:true,displayName:true,websiteUrl:true,avatar:true}}}});
+   const booking=await tx.booking.create({data:{userId:req.user!.id,billboardId:data.billboardId,startDate:now,endDate,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username,advertisementId:data.advertisementId},include:{user:{select:{username:true,displayName:true,websiteUrl:true,avatar:true}},advertisement:true}});
    await tx.wallet.update({where:{id:wallet.id},data:{balance:{decrement:amount}}});
    await tx.transaction.create({data:{walletId:wallet.id,userId:req.user!.id,type:'AD_SPACE_PURCHASE',amount,description:'Fixed-price advertising booking',referenceId:booking.id}});
    await tx.billboard.update({where:{id:data.billboardId},data:{isAvailable:false,currentBid:amount,currentBidderId:req.user!.id}});
