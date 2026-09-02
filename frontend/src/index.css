@@ -82,3 +82,8 @@ html,body,#root{min-height:100%;width:100%}
   .game-menu-button{width:40px;padding:0}
   .account-button{font-size:12px;padding-left:10px!important;padding-right:10px!important}
 }
+
+
+/* Keep account control compact; never stretch across the viewport */
+.account-button{left:auto!important;right:18px!important;width:auto!important;max-width:calc(100vw - 96px);white-space:nowrap;flex:0 0 auto;align-self:flex-start}
+@media(max-width:700px){.account-button{left:auto!important;right:12px!important;width:auto!important;max-width:calc(100vw - 76px)}}
