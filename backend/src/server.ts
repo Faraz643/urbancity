@@ -52,6 +52,29 @@ type Player = {
   moving: boolean;
 };
 
+const billboardFootfall = new Map<string, number>();
+const playerBillboardRanges = new Map<string, Set<string>>();
+
+const footfallRadiusFor = (id:string) => id.startsWith('W') ? 10 : (id==='102'||id==='207'||id==='501'||id==='502'||id==='503'||id==='504' ? 12 : 9);
+
+async function recordFootfall(playerId:string, position:[number,number,number]) {
+  const previous=playerBillboardRanges.get(playerId)||new Set<string>();
+  const current=new Set<string>();
+  for(const billboard of liveBillboards.values()) {
+    const db=await prisma.billboard.findUnique({where:{id:billboard.id},select:{positionX:true,positionZ:true}});
+    if(!db) continue;
+    if(Math.hypot(position[0]-db.positionX,position[2]-db.positionZ)<=footfallRadiusFor(billboard.id)) {
+      current.add(billboard.id);
+      if(!previous.has(billboard.id)) {
+        const total=(billboardFootfall.get(billboard.id)||0)+1;
+        billboardFootfall.set(billboard.id,total);
+        io.emit('billboard:footfall',{id:billboard.id,total});
+      }
+    }
+  }
+  playerBillboardRanges.set(playerId,current);
+}
+
 type LiveBillboard = {
   id: string;
   bid: number;
@@ -98,7 +121,7 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/api/live/billboards', (_req, res) => {
-  res.json([...liveBillboards.values()]);
+  res.json([...liveBillboards.values()].map(b=>({...b,footfall:billboardFootfall.get(b.id)||0})));
 });
 
 // Authentication gets its own limiter; this prevents repeated login attempts while keeping gameplay APIs responsive.
@@ -148,6 +171,7 @@ io.on('connection', (socket) => {
 
     if (typeof data.moving === 'boolean') current.moving = data.moving;
     socket.broadcast.emit('player:update', current);
+    if(databaseReady) recordFootfall(socket.id,current.position).catch(()=>{});
   });
 
   socket.on('billboard:bid', async (data: { id: string; amount: number; bidder?: { name: string; amount: number } }) => {
@@ -187,10 +211,20 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     players.delete(socket.id);
+    playerBillboardRanges.delete(socket.id);
     io.emit('player:left', socket.id);
     io.emit('online:count', players.size);
   });
 });
+
+// Load persisted footfall totals on startup.
+async function loadFootfallTotals(){
+ if(!databaseReady)return;
+ try{const rows=await prisma.trafficAnalytics.groupBy({by:['billboardId'],_sum:{nearbyVisitors:true}});for(const row of rows)billboardFootfall.set(row.billboardId,row._sum.nearbyVisitors||0);}catch(e){console.warn('Could not load footfall totals',e)}
+}
+
+// Persist footfall totals periodically. Each range entry counts as one footfall event.
+setInterval(async()=>{if(!databaseReady)return;try{for(const [billboardId,total] of billboardFootfall){const existing=await prisma.trafficAnalytics.aggregate({where:{billboardId},_sum:{nearbyVisitors:true}});const persisted=existing._sum.nearbyVisitors||0;const delta=total-persisted;if(delta>0)await prisma.trafficAnalytics.create({data:{billboardId,nearbyVisitors:delta}})}}catch(e){console.warn('Footfall persistence failed',e)}},30_000);
 
 // Automatically expire completed advertising bookings and release their billboard.
 async function expireBookings() {
@@ -260,6 +294,7 @@ const PORT = Number(process.env.PORT || 3001);
 
 async function start() {
   await checkDatabase();
+  await loadFootfallTotals();
   await expireBookings();
   httpServer.listen(PORT, () => {
     console.log('UrbanCity server on ' + PORT);
