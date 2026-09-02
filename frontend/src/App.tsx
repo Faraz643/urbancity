@@ -43,6 +43,11 @@ const MAP_BILLBOARDS: Billboard[] = [
   // Front exterior facade is z=17; this gives the small building its second visible wall-ad slot.
   { id:'W06', type:'Building Wall', kind:'wall-ad', position:[-20,8.8,17.12], rotationY:0, traffic:'High', bid:3400, occupied:false, ad:'YOUR NEXT AD', size:[6.2,3.8] },
 
+  // Two buildings immediately to the right of W06: small [20,10] and large [34,11].
+  // Both boards sit just outside their front (+Z) facades.
+  { id:'W07', type:'Building Wall', kind:'wall-ad', position:[20,8.8,16.12], rotationY:0, traffic:'High', bid:3300, occupied:false, ad:'YOUR BRAND', size:[6.4,3.8] },
+  { id:'W08', type:'Building Wall', kind:'wall-ad', position:[34,10.8,17.62], rotationY:0, traffic:'High', bid:3700, occupied:false, ad:'CITY REACH', size:[7.6,4.2] },
+
 ];
 
 function Building({ position, size, height, color }: { position: [number, number, number]; size: [number, number]; height: number; color: string }) {
