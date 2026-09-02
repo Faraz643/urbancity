@@ -220,11 +220,11 @@ io.on('connection', (socket) => {
 // Load persisted footfall totals on startup.
 async function loadFootfallTotals(){
  if(!databaseReady)return;
- try{const rows=await prisma.trafficAnalytics.groupBy({by:['billboardId'],_sum:{nearbyVisitors:true}});for(const row of rows)billboardFootfall.set(row.billboardId,row._sum.nearbyVisitors||0);}catch(e){console.warn('Could not load footfall totals',e)}
+ try{const rows=await prisma.billboardFootfall.findMany();for(const row of rows)billboardFootfall.set(row.billboardId,row.total);}catch(e){console.warn('Could not load footfall totals',e)}
 }
 
-// Persist footfall totals periodically. Each range entry counts as one footfall event.
-setInterval(async()=>{if(!databaseReady)return;try{for(const [billboardId,total] of billboardFootfall){const existing=await prisma.trafficAnalytics.aggregate({where:{billboardId},_sum:{nearbyVisitors:true}});const persisted=existing._sum.nearbyVisitors||0;const delta=total-persisted;if(delta>0)await prisma.trafficAnalytics.create({data:{billboardId,nearbyVisitors:delta}})}}catch(e){console.warn('Footfall persistence failed',e)}},30_000);
+// Persist exact cumulative totals without mixing them with live traffic snapshots.
+setInterval(async()=>{if(!databaseReady)return;try{for(const [billboardId,total] of billboardFootfall){await prisma.billboardFootfall.upsert({where:{billboardId},update:{total},create:{billboardId,total}})}}catch(e){console.warn('Footfall persistence failed',e)}},30_000);
 
 // Automatically expire completed advertising bookings and release their billboard.
 async function expireBookings() {
