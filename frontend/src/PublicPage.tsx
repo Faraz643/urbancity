@@ -73,7 +73,7 @@ export default function PublicPage({page}:{page:PageKey}) {
   return <main className="public-page">
     <nav className="public-nav"><Link to="/" className="public-brand">URBANCITY</Link><Link to="/" className="back-to-city">← Back to City</Link></nav>
     <article className="public-article">
-      <div className="public-kicker">URBANCITY • {page.replaceAll('-',' ').toUpperCase()}</div>
+      <div className="public-kicker">URBANCITY • {page.split('-').join(' ').toUpperCase()}</div>
       <h1>{data.title}</h1><p className="public-lead">{data.lead}</p>
       <div className="public-divider"/>
       {data.sections.map(s=><section key={s.heading}><h2>{s.heading}</h2>{s.body.map((p,i)=><p key={i}>{p}</p>)}</section>)}
