@@ -28,8 +28,10 @@ const MAP_BILLBOARDS: Billboard[] = [
   { id:'504', type:'Street', position:[53,4,53], traffic:'Medium', bid:2400, occupied:false, ad:'CORNER SOUTHEAST', rotationY:-Math.PI*3/4 },
 
   // Building-mounted advertising inventory. These use the exact same bid and interaction system.
-  { id:'W01', type:'Building Wall', kind:'wall-ad', position:[-20,8.0,17.08], rotationY:0, traffic:'High', bid:3200, occupied:false, ad:'ADVERTISE HERE', size:[5.8,3.4] },
-  { id:'W02', type:'Building Wall', kind:'wall-ad', position:[20,7.8,16.08], rotationY:0, traffic:'High', bid:4500, occupied:false, ad:'CITY REACH', size:[7.2,4.2] },
+  // Start-area left building behind the left tree: building center [-20,-17], depth 12, front facade at z=-11.
+  { id:'W01', type:'Building Wall', kind:'wall-ad', position:[-20,8.2,-10.88], rotationY:0, traffic:'High', bid:3200, occupied:false, ad:'ADVERTISE HERE', size:[5.8,3.4] },
+  // Start-area right building behind the right tree: building center [20,-18], depth 13, front facade at z=-11.5.
+  { id:'W02', type:'Building Wall', kind:'wall-ad', position:[20,8.4,-11.38], rotationY:0, traffic:'High', bid:4500, occupied:false, ad:'CITY REACH', size:[7.2,4.2] },
   { id:'W03', type:'Building Wall', kind:'wall-ad', position:[-20,8.8,17.04], traffic:'High', bid:3600, occupied:false, ad:'YOUR BRAND', size:[6.2,3.8] },
   { id:'W04', type:'Building Wall', kind:'wall-ad', position:[34,10.8,17.54], traffic:'Medium', bid:2800, occupied:false, ad:'AVAILABLE', size:[7.4,4.2] },
   { id:'W05', type:'Building Wall', kind:'wall-ad', position:[-33,10.8,16.04], traffic:'Medium', bid:2600, occupied:false, ad:'LOCAL SPOT', size:[7.4,4.1] },
