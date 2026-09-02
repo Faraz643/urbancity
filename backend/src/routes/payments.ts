@@ -85,9 +85,17 @@ router.post('/checkout',authenticate,requireActiveUser,async(req:AuthRequest,res
    if(taken)throw Object.assign(new Error('This advertising space is currently reserved or booked'),{status:409});
 
    const amount=priceFor(billboard.type,data.durationMinutes);
-   // Dates are reset at successful payment so advertising time never starts while checkout is open.
+   // Reuse the user's current pending booking for this billboard. A retry is a new
+   // payment attempt, not a new reservation record.
+   const existing=await tx.booking.findFirst({where:{userId:req.user!.id,billboardId:data.billboardId,status:'PAYMENT_PENDING'},include:{payment:true},orderBy:{createdAt:'desc'}});
    const provisionalEnd=new Date(now.getTime()+30*60*1000);
-   const booking=await tx.booking.create({data:{userId:req.user!.id,billboardId:data.billboardId,startDate:now,endDate:provisionalEnd,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username,description:data.description||null,advertisementId:data.advertisementId,status:'PAYMENT_PENDING'}});
+   let booking:any;
+   if(existing){
+    booking=await tx.booking.update({where:{id:existing.id},data:{startDate:now,endDate:provisionalEnd,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username,description:data.description||null,advertisementId:data.advertisementId}});
+    if(existing.payment)await tx.payment.delete({where:{id:existing.payment.id}});
+   }else{
+    booking=await tx.booking.create({data:{userId:req.user!.id,billboardId:data.billboardId,startDate:now,endDate:provisionalEnd,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username,description:data.description||null,advertisementId:data.advertisementId,status:'PAYMENT_PENDING'}});
+   }
    const payment=await tx.payment.create({data:{bookingId:booking.id,userId:req.user!.id,provider:'CASHFREE',amount,currency:'INR',status:'PENDING'}});
    return {booking,payment,amount};
   });
