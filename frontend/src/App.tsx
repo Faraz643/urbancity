@@ -27,12 +27,19 @@ const MAP_BILLBOARDS: Billboard[] = [
   { id:'503', type:'Street', position:[-53,4,53], traffic:'Medium', bid:2400, occupied:false, ad:'CORNER SOUTHWEST', rotationY:Math.PI*3/4 },
   { id:'504', type:'Street', position:[53,4,53], traffic:'Medium', bid:2400, occupied:false, ad:'CORNER SOUTHEAST', rotationY:-Math.PI*3/4 },
 
-  // Building-mounted advertising inventory. These use the exact same bid and interaction system.
-  // Start-area left building behind the left tree: building center [-20,-17], depth 12, front facade at z=-11.
-  { id:'W01', type:'Building Wall', kind:'wall-ad', position:[-20,8.2,-10.88], rotationY:0, traffic:'High', bid:3200, occupied:false, ad:'ADVERTISE HERE', size:[5.8,3.4] },
-  // Start-area right building behind the right tree: building center [20,-18], depth 13, front facade at z=-11.5.
-  { id:'W02', type:'Building Wall', kind:'wall-ad', position:[20,8.4,-11.38], rotationY:0, traffic:'High', bid:4500, occupied:false, ad:'CITY REACH', size:[7.2,4.2] },
-  { id:'W05', type:'Building Wall', kind:'wall-ad', position:[-33,10.8,16.04], traffic:'Medium', bid:2600, occupied:false, ad:'LOCAL SPOT', size:[7.4,4.1] },
+  // Building-mounted advertising inventory.
+  // Rule: wall ads are explicitly assigned to an exterior/front facade and no building gets
+  // more than two wall boards. This avoids hidden boards inside geometry and overlapping slots.
+  // Left start-area building [-20,-17], 9 x 12 footprint, front facade z=-11.
+  { id:'W01', type:'Building Wall', kind:'wall-ad', position:[-22.05,8.2,-10.82], rotationY:0, traffic:'High', bid:3200, occupied:false, ad:'ADVERTISE HERE', size:[3.4,3.4] },
+  { id:'W03', type:'Building Wall', kind:'wall-ad', position:[-17.95,8.2,-10.82], rotationY:0, traffic:'High', bid:3600, occupied:false, ad:'YOUR BRAND', size:[3.4,3.4] },
+
+  // Right start-area building [20,-18], 10 x 13 footprint, front facade z=-11.5.
+  { id:'W02', type:'Building Wall', kind:'wall-ad', position:[17.7,8.4,-11.32], rotationY:0, traffic:'High', bid:4500, occupied:false, ad:'CITY REACH', size:[4.2,3.5] },
+  { id:'W04', type:'Building Wall', kind:'wall-ad', position:[22.3,8.4,-11.32], rotationY:0, traffic:'Medium', bid:2800, occupied:false, ad:'AVAILABLE', size:[4.2,3.5] },
+
+  // Third exterior building [-33,9], 17 x 14 footprint: one board remains on its front facade.
+  { id:'W05', type:'Building Wall', kind:'wall-ad', position:[-33,10.8,16.12], rotationY:0, traffic:'Medium', bid:2600, occupied:false, ad:'LOCAL SPOT', size:[7.4,4.1] },
 ];
 
 function Building({ position, size, height, color }: { position: [number, number, number]; size: [number, number]; height: number; color: string }) {
