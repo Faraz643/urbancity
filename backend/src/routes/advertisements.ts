@@ -1,16 +1,33 @@
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
+import { randomUUID } from 'crypto';
+import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { authenticate, requireActiveUser, AuthRequest } from '../middleware/auth';
 
 const router = Router();
-const uploadDir=path.resolve(process.cwd(),'uploads','advertisements');
-fs.mkdirSync(uploadDir,{recursive:true});
-const storage=multer.diskStorage({destination:uploadDir,filename:(_req,file,cb)=>cb(null,Date.now()+'-'+Math.random().toString(36).slice(2)+path.extname(file.originalname).toLowerCase())});
-const upload=multer({storage,limits:{fileSize:5*1024*1024},fileFilter:(_req,file,cb)=>cb(null,/^image\/(jpeg|png|webp)$/.test(file.mimetype))});
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_STORAGE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || 'advertisements';
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => cb(null, /^image\/(jpeg|png|webp)$/.test(file.mimetype)),
+});
+
+function getStorageClient() {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('Supabase Storage is not configured');
+  }
+  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    realtime: { transport: WebSocket as any },
+  });
+}
 
 // Get all advertisements (public)
 router.get('/', async (req, res, next) => {
@@ -55,8 +72,34 @@ router.get('/my-ads', authenticate, async (req: AuthRequest, res, next) => {
   }
 });
 
-// Upload advertisement creative
-router.post('/upload', authenticate, requireActiveUser, upload.single('file'), async (req:AuthRequest,res,next)=>{try{if(!req.file)return res.status(400).json({error:'Upload a PNG, JPG or WEBP image (max 5 MB).'});const base=(process.env.PUBLIC_API_URL||req.protocol+'://'+req.get('host'));res.status(201).json({imageUrl:base+'/uploads/advertisements/'+req.file.filename});}catch(error){next(error);}});
+// Upload advertisement creative to persistent Supabase Storage.
+router.post('/upload', authenticate, requireActiveUser, upload.single('file'), async (req: AuthRequest, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Upload a PNG, JPG or WEBP image (max 5 MB).' });
+    }
+
+    const ext = path.extname(req.file.originalname).toLowerCase() || '.img';
+    const objectPath = `advertisements/${req.user!.id}/${Date.now()}-${randomUUID()}${ext}`;
+    const supabase = getStorageClient();
+
+    const { error: uploadError } = await supabase.storage
+      .from(SUPABASE_STORAGE_BUCKET)
+      .upload(objectPath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        upsert: false,
+      });
+
+    if (uploadError) {
+      throw new Error(`Advertisement upload failed: ${uploadError.message}`);
+    }
+
+    const { data } = supabase.storage.from(SUPABASE_STORAGE_BUCKET).getPublicUrl(objectPath);
+    res.status(201).json({ imageUrl: data.publicUrl, path: objectPath });
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Create advertisement
 router.post('/', authenticate, requireActiveUser, async (req: AuthRequest, res, next) => {
