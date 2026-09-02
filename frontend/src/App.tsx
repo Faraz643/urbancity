@@ -630,8 +630,8 @@ function App(){
   {paymentNotice&&<div role="status" style={{position:'fixed',top:72,left:'50%',transform:'translateX(-50%)',zIndex:200,maxWidth:'min(560px,90vw)',padding:'12px 16px',borderRadius:10,background:paymentNotice.ok?'#123d2b':'#4a1f27',color:'#fff',boxShadow:'0 12px 40px rgba(0,0,0,.35)',cursor:'pointer'}} onClick={()=>setPaymentNotice(null)}>{paymentNotice.message}</div>}
   <div className="hud top"><div><b>● ONLINE</b><span>{totalVisitors}</span></div></div>
   <button className="game-menu-button" onClick={()=>setGameMenuOpen(true)} aria-label="Open UrbanCity menu">☰ <span>MENU</span></button>
-  {gameMenuOpen&&<div className="game-menu-overlay" onClick={()=>setGameMenuOpen(false)}>
-    <aside className="game-menu" onClick={e=>e.stopPropagation()}>
+  {gameMenuOpen&&<div className="game-menu-overlay" onWheel={e=>e.stopPropagation()} onTouchMove={e=>e.stopPropagation()} onClick={()=>setGameMenuOpen(false)}>
+    <aside className="game-menu" onWheel={e=>e.stopPropagation()} onTouchMove={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
       <div className="game-menu-head"><div><b>URBANCITY</b><small>INFORMATION & SUPPORT</small></div><button onClick={()=>setGameMenuOpen(false)} aria-label="Close menu">×</button></div>
       <div className="game-menu-links">
         <a href="/about">About UrbanCity</a><a href="/how-it-works">How It Works</a><a href="/faq">FAQ</a><a href="/rules">Rules</a><a href="/pricing">Pricing</a>
