@@ -547,6 +547,7 @@ function MiniMap({players}:{players:Remote[]}) {
 type AuthUser={id:string;email:string;username:string;displayName:string;role:string;websiteUrl?:string|null;companyDescription?:string|null;wallet?:{balance:number}|null};
 
 function App(){
+ const [gameMenuOpen,setGameMenuOpen]=useState(false);
  const api=import.meta.env.VITE_SERVER_URL||'http://localhost:3001';
  const toAssetUrl=(value?:string)=>value?(value.startsWith('http')?value:api+value):undefined;
   const applyActiveBookings=(rows:Record<string,any>)=>{setActiveBookings(rows);const next:Record<string,BidderInfo>={};for(const [id,a] of Object.entries(rows)){const x:any=a;next[id]={name:x.companyName||x.user?.displayName||x.user?.username||'Advertiser',amount:Number(x.amount||0),siteUrl:x.targetUrl||x.siteUrl||x.user?.websiteUrl||undefined,imageUrl:toAssetUrl(x.imageUrl),description:x.description||x.advertisement?.description||x.user?.companyDescription||undefined};const local=MAP_BILLBOARDS.find(b=>b.id===id);if(local)local.occupied=true;}for(const local of MAP_BILLBOARDS){if(!rows[local.id])local.occupied=false;}setBidders(next);};
@@ -628,6 +629,20 @@ function App(){
  return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} timeMode={timeMode} visitorStats={visitorStats} onLocalPosition={setLocalPosition} bidders={bidders}/>
   {paymentNotice&&<div role="status" style={{position:'fixed',top:72,left:'50%',transform:'translateX(-50%)',zIndex:200,maxWidth:'min(560px,90vw)',padding:'12px 16px',borderRadius:10,background:paymentNotice.ok?'#123d2b':'#4a1f27',color:'#fff',boxShadow:'0 12px 40px rgba(0,0,0,.35)',cursor:'pointer'}} onClick={()=>setPaymentNotice(null)}>{paymentNotice.message}</div>}
   <div className="hud top"><div><b>● ONLINE</b><span>{totalVisitors}</span></div></div>
+  <button className="game-menu-button" onClick={()=>setGameMenuOpen(true)} aria-label="Open UrbanCity menu">☰ <span>MENU</span></button>
+  {gameMenuOpen&&<div className="game-menu-overlay" onClick={()=>setGameMenuOpen(false)}>
+    <aside className="game-menu" onClick={e=>e.stopPropagation()}>
+      <div className="game-menu-head"><div><b>URBANCITY</b><small>INFORMATION & SUPPORT</small></div><button onClick={()=>setGameMenuOpen(false)} aria-label="Close menu">×</button></div>
+      <div className="game-menu-links">
+        <a href="/about">About UrbanCity</a><a href="/how-it-works">How It Works</a><a href="/faq">FAQ</a><a href="/rules">Rules</a><a href="/pricing">Pricing</a>
+      </div>
+      <div className="game-menu-separator">LEGAL & SUPPORT</div>
+      <div className="game-menu-links">
+        <a href="/terms">Terms & Conditions</a><a href="/privacy">Privacy Policy</a><a href="/refund-policy">Refund & Cancellation</a><a href="/contact">Contact Us</a>
+      </div>
+      <p className="game-menu-note">These pages are public and can also be opened directly by URL.</p>
+    </aside>
+  </div>}
   <button className="account-button" onClick={()=>user?logout():setAuthOpen(true)}>{user?<><span className="account-name">{user.displayName||user.username}</span><span className="account-action">Logout</span></>:'Login'}</button>
   <div className="time-switcher">{(["morning","evening","night"] as TimeMode[]).map(m=><button key={m} className={timeMode===m?"active":""} onClick={()=>setTimeMode(m)}>{m}</button>)}</div>
   <div className="hud controls"><b>Controls</b><small><kbd>W A S D</kbd> move</small><small><kbd>E</kbd> interact</small></div>
