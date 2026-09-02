@@ -49,6 +49,10 @@ async function activatePayment(paymentId:string, providerPaymentId?:string, prov
   const payment=await tx.payment.findUnique({where:{id:paymentId},include:{booking:true}});
   if(!payment||payment.status==='SUCCEEDED')return;
   const now=new Date();
+  // Pending checkout attempts never own inventory. Only a successfully paid
+  // booking may block a billboard, so abandoned checkout cannot leave it stuck.
+  const alreadyActive=await tx.booking.findFirst({where:{billboardId:payment.booking.billboardId,status:'ACTIVE',endDate:{gt:now},id:{not:payment.bookingId}}});
+  if(alreadyActive)throw Object.assign(new Error('This advertising space was booked by another completed payment.'),{status:409});
   const endDate=new Date(now.getTime()+payment.booking.durationMinutes*60*1000);
   await tx.payment.update({where:{id:payment.id},data:{status:'SUCCEEDED',providerPaymentId:providerPaymentId||payment.providerPaymentId,providerEventId:providerEventId||payment.providerEventId}});
   await tx.booking.update({where:{id:payment.bookingId},data:{status:'ACTIVE',startDate:now,endDate}});
@@ -77,13 +81,21 @@ router.post('/checkout',authenticate,requireActiveUser,async(req:AuthRequest,res
     billboard=await tx.billboard.create({data:{id:data.billboardId,name:(wall?'Wallboard ':'Billboard ')+data.billboardId,type:wall?'Wall':'Premium Road',positionX:0,positionY:0,positionZ:0,location:'UrbanCity',isAvailable:true,isActive:true,minBid:0}});
    }
    if(!billboard)throw Object.assign(new Error('Billboard not found'),{status:404});
-   const taken=await tx.booking.findFirst({where:{billboardId:data.billboardId,status:{in:['ACTIVE','PAYMENT_PENDING']},endDate:{gt:now}}});
+   const taken=await tx.booking.findFirst({where:{billboardId:data.billboardId,status:'ACTIVE',endDate:{gt:now}}});
    if(taken)throw Object.assign(new Error('This advertising space is currently reserved or booked'),{status:409});
 
    const amount=priceFor(billboard.type,data.durationMinutes);
-   // Dates are reset at successful payment so advertising time never starts while checkout is open.
+   // Reuse the user's current pending booking for this billboard. A retry is a new
+   // payment attempt, not a new reservation record.
+   const existing=await tx.booking.findFirst({where:{userId:req.user!.id,billboardId:data.billboardId,status:'PAYMENT_PENDING'},include:{payment:true},orderBy:{createdAt:'desc'}});
    const provisionalEnd=new Date(now.getTime()+30*60*1000);
-   const booking=await tx.booking.create({data:{userId:req.user!.id,billboardId:data.billboardId,startDate:now,endDate:provisionalEnd,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username,description:data.description||null,advertisementId:data.advertisementId,status:'PAYMENT_PENDING'}});
+   let booking:any;
+   if(existing){
+    booking=await tx.booking.update({where:{id:existing.id},data:{startDate:now,endDate:provisionalEnd,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username,description:data.description||null,advertisementId:data.advertisementId}});
+    if(existing.payment)await tx.payment.delete({where:{id:existing.payment.id}});
+   }else{
+    booking=await tx.booking.create({data:{userId:req.user!.id,billboardId:data.billboardId,startDate:now,endDate:provisionalEnd,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username,description:data.description||null,advertisementId:data.advertisementId,status:'PAYMENT_PENDING'}});
+   }
    const payment=await tx.payment.create({data:{bookingId:booking.id,userId:req.user!.id,provider:'CASHFREE',amount,currency:'INR',status:'PENDING'}});
    return {booking,payment,amount};
   });
@@ -95,7 +107,9 @@ router.post('/checkout',authenticate,requireActiveUser,async(req:AuthRequest,res
     : (process.env.CASHFREE_TEST_CUSTOMER_PHONE||'9999999999');
    if(!phone)throw Object.assign(new Error('Set CASHFREE_CUSTOMER_PHONE before using Cashfree production checkout.'),{status:503});
 
-   const orderId='UC_'+prepared.booking.id.replace(/-/g,'').slice(0,40);
+   // Every Cashfree checkout attempt needs its own provider order ID. The booking
+   // can be reused on retries, but the payment attempt is new.
+   const orderId='UC_'+prepared.payment.id.replace(/-/g,'').slice(0,40);
    const frontend=process.env.FRONTEND_URL||'http://localhost:5173';
    const response=await fetch(cashfreeBaseUrl()+'/orders',{
     method:'POST',

@@ -39,3 +39,58 @@
 .startup-steps{margin:26px auto 0;text-align:left;display:grid;gap:11px;font-size:12px;color:#70849c}
 .startup-steps .done{color:#8de0ba}.startup-steps .active{color:#b9c9ff}
 .startup-wait{margin-top:22px;font-size:11px;line-height:1.5;color:#9aaec5}
+
+
+/* Public information pages */
+.public-page{min-height:100vh;background:radial-gradient(circle at 50% -10%,#1b3558 0,#0b1523 42%,#060b13 100%);color:#e8eef8;padding:0 24px 48px;box-sizing:border-box}
+.public-nav{max-width:1040px;margin:auto;height:82px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(171,198,232,.13)}
+.public-brand{color:#fff;text-decoration:none;font-weight:900;letter-spacing:3px;font-size:18px}.back-to-city{color:#a8c7ff;text-decoration:none;font-size:14px}
+.public-article{max-width:760px;margin:0 auto;padding:74px 0 42px}.public-kicker{font-size:11px;letter-spacing:2.4px;color:#88a9d9;font-weight:800}
+.public-article h1{font-size:clamp(38px,7vw,68px);line-height:1.03;margin:16px 0 18px;color:#fff;letter-spacing:-1.8px}.public-lead{font-size:20px;line-height:1.65;color:#b7c5d7;max-width:720px}.public-divider{height:1px;background:rgba(171,198,232,.17);margin:40px 0}
+.public-article section{margin:34px 0}.public-article h2{font-size:23px;color:#fff;margin:0 0 12px}.public-article p{font-size:16px;line-height:1.78;color:#c2ccda;margin:0 0 12px}.public-updated{font-size:13px!important;color:#718197!important;margin-top:48px!important}
+.public-footer{max-width:1040px;margin:20px auto 0;padding:25px 0;border-top:1px solid rgba(171,198,232,.13);display:flex;flex-wrap:wrap;gap:10px 18px}.public-footer a{font-size:13px;color:#9fb2ca;text-decoration:none}.public-footer a.selected,.public-footer a:hover{color:#fff}
+.game-menu-button{position:fixed;z-index:91;top:20px;left:20px;border:1px solid rgba(160,191,232,.3);background:rgba(7,14,25,.78);backdrop-filter:blur(12px);color:#f4f8ff;border-radius:10px;padding:10px 13px;font-weight:800;letter-spacing:1px;cursor:pointer;box-shadow:0 10px 35px rgba(0,0,0,.22)}.game-menu-button span{font-size:11px;margin-left:4px}
+.game-menu-overlay{position:fixed;inset:0;z-index:180;background:rgba(2,6,12,.55);backdrop-filter:blur(4px);display:flex;align-items:flex-start;justify-content:flex-start;padding:72px 20px 20px;box-sizing:border-box}
+.game-menu{width:min(370px,calc(100vw - 40px));background:linear-gradient(145deg,#121e30,#0b121f);border:1px solid rgba(151,185,232,.25);border-radius:16px;padding:20px;box-shadow:0 28px 90px rgba(0,0,0,.55);color:#fff}
+.game-menu-head{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,.1)}.game-menu-head b{display:block;letter-spacing:2px;font-size:18px}.game-menu-head small{display:block;color:#7f98b9;font-size:9px;letter-spacing:1.5px;margin-top:5px}.game-menu-head button{background:transparent;border:0;color:#c5d2e3;font-size:26px;cursor:pointer;line-height:1}
+.game-menu-links{display:grid;gap:4px;padding:13px 0}.game-menu-links a{padding:11px 12px;border-radius:8px;color:#dce8f8;text-decoration:none;font-size:14px}.game-menu-links a:hover{background:rgba(128,162,216,.14);color:#fff}.game-menu-separator{font-size:10px;letter-spacing:1.7px;color:#7188a8;border-top:1px solid rgba(255,255,255,.1);padding-top:16px;margin-top:3px}.game-menu-note{font-size:11px;line-height:1.5;color:#71849e;margin:6px 0 0}
+@media(max-width:600px){.public-page{padding:0 17px 32px}.public-nav{height:70px}.public-article{padding:48px 0 25px}.public-lead{font-size:17px}.public-article p{font-size:15px}.game-menu-button{top:12px;left:12px}.game-menu-overlay{padding:58px 12px 12px}}
+
+
+/* Responsive menu, scrolling and matching modern scrollbars */
+html,body,#root{min-height:100%;width:100%}
+.public-page{height:100dvh;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#52709a rgba(255,255,255,.06)}
+.public-page::-webkit-scrollbar,.game-menu::-webkit-scrollbar{width:9px}
+.public-page::-webkit-scrollbar-track,.game-menu::-webkit-scrollbar-track{background:rgba(255,255,255,.045);border-radius:999px}
+.public-page::-webkit-scrollbar-thumb,.game-menu::-webkit-scrollbar-thumb{background:linear-gradient(#5f7fae,#304967);border-radius:999px;border:2px solid rgba(7,14,25,.5)}
+.public-page::-webkit-scrollbar-thumb:hover,.game-menu::-webkit-scrollbar-thumb:hover{background:#7897c5}
+
+.game-menu-button{top:18px;left:18px;height:42px;display:flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box}
+.account-button{top:18px!important;right:18px!important;min-height:42px;box-sizing:border-box}
+.game-menu-overlay{align-items:flex-start;padding:72px 18px 18px;overflow-y:auto;overscroll-behavior:contain}
+.game-menu{max-height:calc(100dvh - 90px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#52709a rgba(255,255,255,.06)}
+
+@media(max-width:700px){
+  .game-menu-button{top:12px;left:12px;height:40px;padding:8px 11px}
+  .account-button{top:12px!important;right:12px!important;min-height:40px}
+  .game-menu-overlay{padding:62px 12px 12px}
+  .game-menu{width:100%;max-width:430px;max-height:calc(100dvh - 74px)}
+  .public-page{height:100dvh}
+}
+@media(max-width:390px){
+  .game-menu-button span{display:none}
+  .game-menu-button{width:40px;padding:0}
+  .account-button{font-size:12px;padding-left:10px!important;padding-right:10px!important}
+}
+
+
+/* Keep account control compact; never stretch across the viewport */
+.account-button{left:auto!important;right:18px!important;width:auto!important;max-width:calc(100vw - 96px);white-space:nowrap;flex:0 0 auto;align-self:flex-start}
+@media(max-width:700px){.account-button{left:auto!important;right:12px!important;width:auto!important;max-width:calc(100vw - 76px)}}
+
+/* One precise top-row: ONLINE → MENU → LOGIN/ACCOUNT */
+.game-topbar{position:fixed;z-index:91;top:16px;left:16px;display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px)}
+.game-topbar .top{position:relative;top:auto;left:auto;margin:0;height:42px;box-sizing:border-box;display:flex;align-items:center}
+.game-topbar .game-menu-button,.game-topbar .account-button{position:relative!important;top:auto!important;left:auto!important;right:auto!important;margin:0;height:42px;min-height:42px;box-sizing:border-box;width:auto!important;max-width:none;flex:0 0 auto}
+.game-topbar .account-button{align-self:auto}
+@media(max-width:700px){.game-topbar{top:12px;left:12px;gap:7px;max-width:calc(100vw - 24px)}.game-topbar .top{height:40px;padding:6px 9px}.game-topbar .game-menu-button,.game-topbar .account-button{height:40px;min-height:40px}.game-topbar .account-name{max-width:96px;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:middle}}
