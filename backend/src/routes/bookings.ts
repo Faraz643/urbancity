@@ -9,11 +9,11 @@ const MAX_MINUTES=48*60;
 function priceFor(type:string, minutes:number){
   const main=type==='Premium Road';
   if(minutes<=0||minutes%30!==0||minutes>MAX_MINUTES) throw new Error('Duration must be in 30-minute steps, maximum 2 days');
-  // Fixed USD pricing. 24h automatically receives the one-day package price.
-  if(!main) return (minutes/30)*1.05;
-  if(minutes===24*60) return 8.40;
-  if(minutes>24*60) return 8.40+((minutes-24*60)/30)*0.19;
-  return (minutes/30)*0.21;
+  // INR pricing aligned with the Cashfree payment checkout. 24h receives the one-day package price.
+  if(!main) return (minutes/30)*105;
+  if(minutes===24*60) return 840;
+  if(minutes>24*60) return 840+((minutes-24*60)/30)*19;
+  return (minutes/30)*21;
 }
 
 router.get('/history', async (_req,res,next)=>{
