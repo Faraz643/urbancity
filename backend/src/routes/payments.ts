@@ -49,6 +49,10 @@ async function activatePayment(paymentId:string, providerPaymentId?:string, prov
   const payment=await tx.payment.findUnique({where:{id:paymentId},include:{booking:true}});
   if(!payment||payment.status==='SUCCEEDED')return;
   const now=new Date();
+  // Pending checkout attempts never own inventory. Only a successfully paid
+  // booking may block a billboard, so abandoned checkout cannot leave it stuck.
+  const alreadyActive=await tx.booking.findFirst({where:{billboardId:payment.booking.billboardId,status:'ACTIVE',endDate:{gt:now},id:{not:payment.bookingId}}});
+  if(alreadyActive)throw Object.assign(new Error('This advertising space was booked by another completed payment.'),{status:409});
   const endDate=new Date(now.getTime()+payment.booking.durationMinutes*60*1000);
   await tx.payment.update({where:{id:payment.id},data:{status:'SUCCEEDED',providerPaymentId:providerPaymentId||payment.providerPaymentId,providerEventId:providerEventId||payment.providerEventId}});
   await tx.booking.update({where:{id:payment.bookingId},data:{status:'ACTIVE',startDate:now,endDate}});
@@ -77,7 +81,7 @@ router.post('/checkout',authenticate,requireActiveUser,async(req:AuthRequest,res
     billboard=await tx.billboard.create({data:{id:data.billboardId,name:(wall?'Wallboard ':'Billboard ')+data.billboardId,type:wall?'Wall':'Premium Road',positionX:0,positionY:0,positionZ:0,location:'UrbanCity',isAvailable:true,isActive:true,minBid:0}});
    }
    if(!billboard)throw Object.assign(new Error('Billboard not found'),{status:404});
-   const taken=await tx.booking.findFirst({where:{billboardId:data.billboardId,status:{in:['ACTIVE','PAYMENT_PENDING']},endDate:{gt:now}}});
+   const taken=await tx.booking.findFirst({where:{billboardId:data.billboardId,status:'ACTIVE',endDate:{gt:now}}});
    if(taken)throw Object.assign(new Error('This advertising space is currently reserved or booked'),{status:409});
 
    const amount=priceFor(billboard.type,data.durationMinutes);
