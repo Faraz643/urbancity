@@ -107,7 +107,9 @@ router.post('/checkout',authenticate,requireActiveUser,async(req:AuthRequest,res
     : (process.env.CASHFREE_TEST_CUSTOMER_PHONE||'9999999999');
    if(!phone)throw Object.assign(new Error('Set CASHFREE_CUSTOMER_PHONE before using Cashfree production checkout.'),{status:503});
 
-   const orderId='UC_'+prepared.booking.id.replace(/-/g,'').slice(0,40);
+   // Every Cashfree checkout attempt needs its own provider order ID. The booking
+   // can be reused on retries, but the payment attempt is new.
+   const orderId='UC_'+prepared.payment.id.replace(/-/g,'').slice(0,40);
    const frontend=process.env.FRONTEND_URL||'http://localhost:5173';
    const response=await fetch(cashfreeBaseUrl()+'/orders',{
     method:'POST',
