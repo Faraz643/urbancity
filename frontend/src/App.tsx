@@ -38,6 +38,9 @@ const MAP_BILLBOARDS: Billboard[] = [
   { id:'W02', type:'Building Wall', kind:'wall-ad', position:[17.7,8.4,-11.32], rotationY:0, traffic:'High', bid:4500, occupied:false, ad:'CITY REACH', size:[4.2,3.5] },
   { id:'W04', type:'Building Wall', kind:'wall-ad', position:[22.3,8.4,-11.32], rotationY:0, traffic:'Medium', bid:2800, occupied:false, ad:'AVAILABLE', size:[4.2,3.5] },
 
+  // Restore the clearly visible third-building wall board (W05).
+  { id:'W05', type:'Building Wall', kind:'wall-ad', position:[-33,10.8,16.12], rotationY:0, traffic:'Medium', bid:2600, occupied:false, ad:'LOCAL SPOT', size:[7.4,4.1] },
+
 ];
 
 function Building({ position, size, height, color }: { position: [number, number, number]; size: [number, number]; height: number; color: string }) {
