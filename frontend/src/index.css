@@ -100,3 +100,5 @@ html,body,#root{min-height:100%;width:100%}
 .duration-preset{min-width:0;padding:10px 6px;border-radius:9px;border:1px solid rgba(140,171,215,.25);background:#0b1421;color:#dce8f8;cursor:pointer;display:flex;flex-direction:column;gap:4px;align-items:center}
 .duration-preset strong{font-size:12px}.duration-preset small{font-size:11px;color:#91a6c2}.duration-preset:hover,.duration-preset.active{border-color:#6d9be0;background:rgba(79,121,186,.2);color:#fff}.duration-preset.active small{color:#c6dbff}
 @media(max-width:430px){.duration-presets{grid-template-columns:repeat(2,minmax(0,1fr))}.duration-preset{padding:11px 8px}}
+
+.duration-manual{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px}.duration-manual b{min-width:92px;text-align:center;color:#eef5ff}.duration-manual .duration-step{width:36px;height:34px;border-radius:8px}

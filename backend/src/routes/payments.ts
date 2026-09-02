@@ -30,9 +30,16 @@ function cashfreeHeaders(idempotencyKey?:string){
 
 function priceFor(type:string, minutes:number){
  if(minutes<=0||minutes%30!==0||minutes>MAX_MINUTES) throw new Error('Duration must be in 30-minute steps, maximum 2 days');
- // Final launch pricing. Wide premium and vertical main boards share MAIN pricing.
- const per30=type==='Premium Road'||type==='Vertical'?49:type==='Building Wall'||type==='Wall'?29:19;
- return (minutes/30)*per30;
+ const category=type==='Premium Road'||type==='Vertical'?'MAIN':type==='Building Wall'||type==='Wall'?'WALL':'CORNER';
+ const per30=category==='MAIN'?49:category==='WALL'?29:19;
+ // Launch offer: short campaigns use the base rate. A discount starts only when
+ // the selected duration reaches a full 24 hours; 23h30m correctly returns to base pricing.
+ if(minutes<1440)return (minutes/30)*per30;
+ const firstDay=category==='MAIN'?999:category==='WALL'?599:399;
+ const extraDay=category==='MAIN'?799:category==='WALL'?499:299;
+ const fullDays=Math.floor(minutes/1440);
+ const remainder=minutes%1440;
+ return firstDay+Math.max(0,fullDays-1)*extraDay+(remainder/30)*per30;
 }
 
 function normalizeCashfreeError(status:number, body:any){
