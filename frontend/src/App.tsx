@@ -374,7 +374,7 @@ function Player({onNearby,onMove,onPosition}:{onNearby:(b:Billboard|null)=>void;
    (window as any).__urbanNearbyBillboard=nearest;
    networkAt.current+=dt;if(networkAt.current>.08){networkAt.current=0;onMove({position:[p.x,p.y,p.z],rotation:Math.atan2(velocity.current.x,velocity.current.z),moving:velocity.current.lengthSq()>.1})}
  });
- return <RigidBody ref={body} colliders={false} position={[0,1.4,8]} enabledRotations={[false,true,false]} linearDamping={8} friction={0} mass={1}>
+ return <RigidBody ref={body} colliders={false} position={[0,1.4,8]} enabledRotations={[false,false,false]} angularDamping={12} linearDamping={8} friction={0} mass={1}>
    <CapsuleCollider args={[0.75,0.42]}/>
    <PlayerAvatar moving={velocity.current.lengthSq()>.1}/>
    <Text position={[0,1.85,0]} fontSize={0.28} color="white" anchorX="center">You</Text>
