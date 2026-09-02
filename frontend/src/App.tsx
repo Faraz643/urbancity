@@ -48,6 +48,10 @@ const MAP_BILLBOARDS: Billboard[] = [
   { id:'W07', type:'Building Wall', kind:'wall-ad', position:[20,8.8,16.12], rotationY:0, traffic:'High', bid:3300, occupied:false, ad:'YOUR BRAND', size:[6.4,3.8] },
   { id:'W08', type:'Building Wall', kind:'wall-ad', position:[34,10.8,17.62], rotationY:0, traffic:'High', bid:3700, occupied:false, ad:'CITY REACH', size:[7.6,4.2] },
 
+  // Building directly behind the W04 building: center [20,-43], 9 x 15 footprint.
+  // Board is mounted on its outward/front (+Z) facade.
+  { id:'W09', type:'Building Wall', kind:'wall-ad', position:[20,9.0,-35.38], rotationY:0, traffic:'Medium', bid:3000, occupied:false, ad:'ADVERTISE HERE', size:[6.4,3.8] },
+
 ];
 
 function Building({ position, size, height, color }: { position: [number, number, number]; size: [number, number]; height: number; color: string }) {
