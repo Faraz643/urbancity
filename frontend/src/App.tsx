@@ -18,8 +18,6 @@ const MAP_BILLBOARDS: Billboard[] = [
   { id:'102-R', type:'Vertical', kind:'vertical-ad', position:[6.4,4,-22], traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,4.6] },
   { id:'207-L', type:'Vertical', kind:'vertical-ad', position:[-6.4,4,22], rotationY:Math.PI, traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,4.6] },
   { id:'207-R', type:'Vertical', kind:'vertical-ad', position:[6.4,4,22], rotationY:Math.PI, traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,4.6] },
-  { id:'311', type:'Street', position:[28,3,-14], traffic:'Medium', bid:1800, occupied:false, ad:'AVAILABLE' },
-  { id:'412', type:'Street', position:[-28,3,4], traffic:'Medium', bid:2200, occupied:false, ad:'AVAILABLE' },
 
   // Perimeter corner inventory: one physical billboard at each corner, facing inward.
   { id:'501', type:'Street', position:[-53,4,-53], traffic:'Medium', bid:2400, occupied:false, ad:'CORNER NORTHWEST', rotationY:Math.PI/4 },
