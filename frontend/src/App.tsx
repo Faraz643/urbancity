@@ -18,8 +18,6 @@ const MAP_BILLBOARDS: Billboard[] = [
   { id:'102-R', type:'Vertical', kind:'vertical-ad', position:[6.4,4,-22], traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,4.6] },
   { id:'207-L', type:'Vertical', kind:'vertical-ad', position:[-6.4,4,22], rotationY:Math.PI, traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,4.6] },
   { id:'207-R', type:'Vertical', kind:'vertical-ad', position:[6.4,4,22], rotationY:Math.PI, traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,4.6] },
-  { id:'311', type:'Street', position:[28,3,-14], traffic:'Medium', bid:1800, occupied:false, ad:'AVAILABLE' },
-  { id:'412', type:'Street', position:[-28,3,4], traffic:'Medium', bid:2200, occupied:false, ad:'AVAILABLE' },
 
   // Perimeter corner inventory: one physical billboard at each corner, facing inward.
   { id:'501', type:'Street', position:[-53,4,-53], traffic:'Medium', bid:2400, occupied:false, ad:'CORNER NORTHWEST', rotationY:Math.PI/4 },
@@ -40,6 +38,24 @@ const MAP_BILLBOARDS: Billboard[] = [
 
   // Restore the clearly visible third-building wall board (W05).
   { id:'W05', type:'Building Wall', kind:'wall-ad', position:[-33,10.8,16.12], rotationY:0, traffic:'Medium', bid:2600, occupied:false, ad:'LOCAL SPOT', size:[7.4,4.1] },
+
+  // Small neighboring building beside W05: center [-20,11], 9 x 12 footprint.
+  // Front exterior facade is z=17; this gives the small building its second visible wall-ad slot.
+  { id:'W06', type:'Building Wall', kind:'wall-ad', position:[-20,8.8,17.12], rotationY:0, traffic:'High', bid:3400, occupied:false, ad:'YOUR NEXT AD', size:[6.2,3.8] },
+
+  // Two buildings immediately to the right of W06: small [20,10] and large [34,11].
+  // Both boards sit just outside their front (+Z) facades.
+  { id:'W07', type:'Building Wall', kind:'wall-ad', position:[20,8.8,16.12], rotationY:0, traffic:'High', bid:3300, occupied:false, ad:'YOUR BRAND', size:[6.4,3.8] },
+  { id:'W08', type:'Building Wall', kind:'wall-ad', position:[34,10.8,17.62], rotationY:0, traffic:'High', bid:3700, occupied:false, ad:'CITY REACH', size:[7.6,4.2] },
+
+  // Building directly behind the W04 building: center [20,-43], 9 x 15 footprint.
+  // Board is mounted on its outward/front (+Z) facade.
+  { id:'W09', type:'Building Wall', kind:'wall-ad', position:[20,9.0,-35.38], rotationY:0, traffic:'Medium', bid:3000, occupied:false, ad:'ADVERTISE HERE', size:[6.4,3.8] },
+
+  // Buildings behind the W03 building: small [-20,-42] and large [-31,-43].
+  // Each board is mounted just outside the outward/front (+Z) facade.
+  { id:'W10', type:'Building Wall', kind:'wall-ad', position:[-20,8.8,-34.38], rotationY:0, traffic:'Medium', bid:2900, occupied:false, ad:'YOUR BRAND', size:[5.8,3.6] },
+  { id:'W11', type:'Building Wall', kind:'wall-ad', position:[-31,10.5,-36.38], rotationY:0, traffic:'High', bid:3500, occupied:false, ad:'CITY REACH', size:[7.2,4.0] },
 
 ];
 
