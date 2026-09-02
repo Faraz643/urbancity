@@ -55,3 +55,30 @@
 .game-menu-head{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:18px;border-bottom:1px solid rgba(255,255,255,.1)}.game-menu-head b{display:block;letter-spacing:2px;font-size:18px}.game-menu-head small{display:block;color:#7f98b9;font-size:9px;letter-spacing:1.5px;margin-top:5px}.game-menu-head button{background:transparent;border:0;color:#c5d2e3;font-size:26px;cursor:pointer;line-height:1}
 .game-menu-links{display:grid;gap:4px;padding:13px 0}.game-menu-links a{padding:11px 12px;border-radius:8px;color:#dce8f8;text-decoration:none;font-size:14px}.game-menu-links a:hover{background:rgba(128,162,216,.14);color:#fff}.game-menu-separator{font-size:10px;letter-spacing:1.7px;color:#7188a8;border-top:1px solid rgba(255,255,255,.1);padding-top:16px;margin-top:3px}.game-menu-note{font-size:11px;line-height:1.5;color:#71849e;margin:6px 0 0}
 @media(max-width:600px){.public-page{padding:0 17px 32px}.public-nav{height:70px}.public-article{padding:48px 0 25px}.public-lead{font-size:17px}.public-article p{font-size:15px}.game-menu-button{top:12px;left:12px}.game-menu-overlay{padding:58px 12px 12px}}
+
+
+/* Responsive menu, scrolling and matching modern scrollbars */
+html,body,#root{min-height:100%;width:100%}
+.public-page{height:100dvh;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#52709a rgba(255,255,255,.06)}
+.public-page::-webkit-scrollbar,.game-menu::-webkit-scrollbar{width:9px}
+.public-page::-webkit-scrollbar-track,.game-menu::-webkit-scrollbar-track{background:rgba(255,255,255,.045);border-radius:999px}
+.public-page::-webkit-scrollbar-thumb,.game-menu::-webkit-scrollbar-thumb{background:linear-gradient(#5f7fae,#304967);border-radius:999px;border:2px solid rgba(7,14,25,.5)}
+.public-page::-webkit-scrollbar-thumb:hover,.game-menu::-webkit-scrollbar-thumb:hover{background:#7897c5}
+
+.game-menu-button{top:18px;left:18px;height:42px;display:flex;align-items:center;justify-content:center;gap:6px;box-sizing:border-box}
+.account-button{top:18px!important;right:18px!important;min-height:42px;box-sizing:border-box}
+.game-menu-overlay{align-items:flex-start;padding:72px 18px 18px;overflow-y:auto;overscroll-behavior:contain}
+.game-menu{max-height:calc(100dvh - 90px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#52709a rgba(255,255,255,.06)}
+
+@media(max-width:700px){
+  .game-menu-button{top:12px;left:12px;height:40px;padding:8px 11px}
+  .account-button{top:12px!important;right:12px!important;min-height:40px}
+  .game-menu-overlay{padding:62px 12px 12px}
+  .game-menu{width:100%;max-width:430px;max-height:calc(100dvh - 74px)}
+  .public-page{height:100dvh}
+}
+@media(max-width:390px){
+  .game-menu-button span{display:none}
+  .game-menu-button{width:40px;padding:0}
+  .account-button{font-size:12px;padding-left:10px!important;padding-right:10px!important}
+}
