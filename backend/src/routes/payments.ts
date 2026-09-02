@@ -56,13 +56,6 @@ async function activatePayment(paymentId:string, providerPaymentId?:string, prov
  });
 }
 
-async function markPaymentNotSuccessful(paymentId:string, status:'FAILED'|'CANCELLED', bookingStatus:'PAYMENT_FAILED'|'PAYMENT_CANCELLED', providerEventId?:string){
- await prisma.$transaction([
-  prisma.payment.update({where:{id:paymentId},data:{status,providerEventId:providerEventId}}),
-  prisma.booking.update({where:{id:(await prisma.payment.findUniqueOrThrow({where:{id:paymentId},select:{bookingId:true}})).bookingId},data:{status:bookingStatus}}),
- ]);
-}
-
 router.post('/checkout',authenticate,requireActiveUser,async(req:AuthRequest,res,next)=>{
  try{
   const data=z.object({
