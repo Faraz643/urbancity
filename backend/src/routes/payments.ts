@@ -7,6 +7,8 @@ import { authenticate, requireActiveUser, AuthRequest } from '../middleware/auth
 const router=Router();
 const MAX_MINUTES=48*60;
 const API_VERSION=process.env.CASHFREE_API_VERSION||'2025-01-01';
+const CHECKOUT_LOCK_MINUTES=10;
+const CHECKOUT_LOCK_MESSAGE='Someone else is booking this space right now. Please check another board or try again after 10 minutes.';
 
 function cashfreeBaseUrl(){
  return (process.env.CASHFREE_ENV||'sandbox').toLowerCase()==='production'
@@ -65,6 +67,7 @@ async function activatePayment(paymentId:string, providerPaymentId?:string, prov
   await tx.payment.update({where:{id:payment.id},data:{status:'SUCCEEDED',providerPaymentId:providerPaymentId||payment.providerPaymentId,providerEventId:providerEventId||payment.providerEventId}});
   await tx.booking.update({where:{id:payment.bookingId},data:{status:'ACTIVE',startDate:now,endDate}});
   await tx.billboard.update({where:{id:payment.booking.billboardId},data:{isAvailable:false,currentBid:payment.booking.amount,currentBidderId:payment.userId}});
+  await tx.checkoutLock.deleteMany({where:{billboardId:payment.booking.billboardId}});
  });
 }
 
@@ -79,9 +82,10 @@ router.post('/checkout',authenticate,requireActiveUser,async(req:AuthRequest,res
 
   const now=new Date();
   const prepared=await prisma.$transaction(async tx=>{
-   // Release abandoned checkout reservations after 30 minutes.
-   const staleBefore=new Date(Date.now()-30*60*1000);
-   await tx.booking.updateMany({where:{status:'PAYMENT_PENDING',createdAt:{lt:staleBefore}},data:{status:'PAYMENT_CANCELLED'}});
+   // A database-enforced unique lock makes this atomic even when two users click
+   // Book & Pay at almost exactly the same time.
+   await tx.checkoutLock.deleteMany({where:{expiresAt:{lte:now}}});
+   const lockExpiresAt=new Date(now.getTime()+CHECKOUT_LOCK_MINUTES*60*1000);
 
    let billboard=await tx.billboard.findUnique({where:{id:data.billboardId}});
    if(!billboard){
@@ -92,18 +96,33 @@ router.post('/checkout',authenticate,requireActiveUser,async(req:AuthRequest,res
    const taken=await tx.booking.findFirst({where:{billboardId:data.billboardId,status:'ACTIVE',endDate:{gt:now}}});
    if(taken)throw Object.assign(new Error('This advertising space is currently reserved or booked'),{status:409});
 
+   const currentLock=await tx.checkoutLock.findUnique({where:{billboardId:data.billboardId}});
+   if(currentLock&&currentLock.userId!==req.user!.id)throw Object.assign(new Error(CHECKOUT_LOCK_MESSAGE),{status:409});
+
    const amount=priceFor(billboard.type,data.durationMinutes,data.billboardId);
-   // Reuse the user's current pending booking for this billboard. A retry is a new
-   // payment attempt, not a new reservation record.
-   const existing=await tx.booking.findFirst({where:{userId:req.user!.id,billboardId:data.billboardId,status:'PAYMENT_PENDING'},include:{payment:true},orderBy:{createdAt:'desc'}});
-   const provisionalEnd=new Date(now.getTime()+30*60*1000);
    let booking:any;
-   if(existing){
-    booking=await tx.booking.update({where:{id:existing.id},data:{startDate:now,endDate:provisionalEnd,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username,description:data.description||null,advertisementId:data.advertisementId}});
-    if(existing.payment)await tx.payment.delete({where:{id:existing.payment.id}});
-   }else{
-    booking=await tx.booking.create({data:{userId:req.user!.id,billboardId:data.billboardId,startDate:now,endDate:provisionalEnd,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username,description:data.description||null,advertisementId:data.advertisementId,status:'PAYMENT_PENDING'}});
+   if(currentLock?.bookingId){
+    const existing=await tx.booking.findFirst({where:{id:currentLock.bookingId,userId:req.user!.id,status:'PAYMENT_PENDING'},include:{payment:true}});
+    if(existing){
+     booking=await tx.booking.update({where:{id:existing.id},data:{startDate:now,endDate:lockExpiresAt,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username,description:data.description||null,advertisementId:data.advertisementId}});
+     if(existing.payment)await tx.payment.delete({where:{id:existing.payment.id}});
+    }
    }
+   if(!booking){
+    booking=await tx.booking.create({data:{userId:req.user!.id,billboardId:data.billboardId,startDate:now,endDate:lockExpiresAt,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username,description:data.description||null,advertisementId:data.advertisementId,status:'PAYMENT_PENDING'}});
+   }
+
+   if(currentLock){
+    await tx.checkoutLock.update({where:{id:currentLock.id},data:{userId:req.user!.id,bookingId:booking.id,expiresAt:lockExpiresAt}});
+   }else{
+    try{
+     await tx.checkoutLock.create({data:{billboardId:data.billboardId,userId:req.user!.id,bookingId:booking.id,expiresAt:lockExpiresAt}});
+    }catch(error:any){
+     if(error?.code==='P2002')throw Object.assign(new Error(CHECKOUT_LOCK_MESSAGE),{status:409});
+     throw error;
+    }
+   }
+
    const payment=await tx.payment.create({data:{bookingId:booking.id,userId:req.user!.id,provider:'CASHFREE',amount,currency:'INR',status:'PENDING'}});
    return {booking,payment,amount};
   });
@@ -158,6 +177,7 @@ router.post('/checkout',authenticate,requireActiveUser,async(req:AuthRequest,res
    await prisma.$transaction([
     prisma.payment.update({where:{id:prepared.payment.id},data:{status:'FAILED'}}),
     prisma.booking.update({where:{id:prepared.booking.id},data:{status:'PAYMENT_FAILED'}}),
+    prisma.checkoutLock.deleteMany({where:{bookingId:prepared.booking.id}}),
    ]);
    throw error;
   }
@@ -186,6 +206,7 @@ router.get('/:bookingId/verify',authenticate,async(req:AuthRequest,res,next)=>{
    await prisma.$transaction([
     prisma.payment.update({where:{id:payment.id},data:{status:'CANCELLED'}}),
     prisma.booking.update({where:{id:payment.bookingId},data:{status:'PAYMENT_CANCELLED'}}),
+    prisma.checkoutLock.deleteMany({where:{bookingId:payment.bookingId}}),
    ]);
   }
   res.json({paid:false,paymentStatus:payment.status,bookingStatus:payment.booking.status,providerStatus:order.order_status||'UNKNOWN'});
@@ -233,11 +254,13 @@ router.post('/webhook/cashfree',async(req,res)=>{
    if(payment.status!=='SUCCEEDED')await prisma.$transaction([
     prisma.payment.update({where:{id:payment.id},data:{status:'FAILED',providerEventId:eventId||undefined}}),
     prisma.booking.update({where:{id:payment.bookingId},data:{status:'PAYMENT_FAILED'}}),
+    prisma.checkoutLock.deleteMany({where:{bookingId:payment.bookingId}}),
    ]);
   }else if(paymentStatus==='USER_DROPPED'||event?.type==='PAYMENT_USER_DROPPED_WEBHOOK'){
    if(payment.status!=='SUCCEEDED')await prisma.$transaction([
     prisma.payment.update({where:{id:payment.id},data:{status:'CANCELLED',providerEventId:eventId||undefined}}),
     prisma.booking.update({where:{id:payment.bookingId},data:{status:'PAYMENT_CANCELLED'}}),
+    prisma.checkoutLock.deleteMany({where:{bookingId:payment.bookingId}}),
    ]);
   }
   res.status(200).json({received:true});
