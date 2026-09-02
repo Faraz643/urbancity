@@ -29,14 +29,10 @@ function cashfreeHeaders(idempotencyKey?:string){
 }
 
 function priceFor(type:string, minutes:number){
- const main=type==='Premium Road';
  if(minutes<=0||minutes%30!==0||minutes>MAX_MINUTES) throw new Error('Duration must be in 30-minute steps, maximum 2 days');
- // UrbanCity is now collected through an INR gateway. These preserve the previous
- // price scale ($0.21 -> ₹21, $1.05 -> ₹105, one-day package $8.40 -> ₹840).
- if(!main)return (minutes/30)*105;
- if(minutes===1440)return 840;
- if(minutes>1440)return 840+((minutes-1440)/30)*19;
- return (minutes/30)*21;
+ // Final launch pricing. Wide premium and vertical main boards share MAIN pricing.
+ const per30=type==='Premium Road'||type==='Vertical'?49:type==='Building Wall'||type==='Wall'?29:19;
+ return (minutes/30)*per30;
 }
 
 function normalizeCashfreeError(status:number, body:any){
