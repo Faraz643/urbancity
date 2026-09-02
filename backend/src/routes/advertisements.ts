@@ -3,6 +3,7 @@ import multer from 'multer';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
 import { z } from 'zod';
 import { prisma } from '../db';
 import { authenticate, requireActiveUser, AuthRequest } from '../middleware/auth';
@@ -24,6 +25,7 @@ function getStorageClient() {
   }
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
+    realtime: { transport: WebSocket as any },
   });
 }
 
