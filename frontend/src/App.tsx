@@ -518,7 +518,25 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;
  </RigidBody>
 }
 
-function RemoteAvatar({p}:{p:Remote}) { const ref=useRef<THREE.Group>(null!); useFrame((_,dt)=>{ref.current.position.lerp(new THREE.Vector3(...p.position),1-Math.pow(.001,dt));ref.current.rotation.y=THREE.MathUtils.lerp(ref.current.rotation.y,p.rotation,Math.min(1,dt*10))}); return <group ref={ref} position={p.position}><mesh castShadow position={[0,1,0]}><capsuleGeometry args={[.38,1.1,5,8]}/><meshStandardMaterial color="#f59e0b"/></mesh><Text position={[0,2.1,0]} fontSize={.25} color="white" anchorX="center">{p.name}</Text></group> }
+function RemoteAvatar({p}:{p:Remote}) {
+ const ref=useRef<THREE.Group>(null!);
+ const moving=useRef(false);
+ const lastPosition=useRef(new THREE.Vector3(...p.position));
+ const animation=useRef(0);
+ useFrame((_,dt)=>{
+   const next=new THREE.Vector3(...p.position);
+   const before=ref.current.position.clone();
+   ref.current.position.lerp(next,1-Math.pow(.001,dt));
+   moving.current=before.distanceTo(next)>0.02;
+   ref.current.rotation.y=THREE.MathUtils.lerp(ref.current.rotation.y,p.rotation,Math.min(1,dt*10));
+   animation.current+=dt*(moving.current?8:2.2);
+   lastPosition.current.copy(next);
+ });
+ return <group ref={ref} position={p.position}>
+   <PlayerAvatar moving={moving.current}/>
+   <Text position={[0,1.85,0]} fontSize={.25} color="white" anchorX="center" outlineWidth={0.015} outlineColor="#07111e">{p.name}</Text>
+ </group>
+}
 function RemotePlayers({players}:{players:Remote[]}) { return <>{players.map(p=><RemoteAvatar key={p.id} p={p}/>)}</> }
 
 function World({ setNearby, players, setSelected, onMove, timeMode, visitorStats, onLocalPosition, bidders }: {
