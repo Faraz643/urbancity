@@ -344,7 +344,7 @@ function Player({onNearby,onMove,onPosition}:{onNearby:(b:Billboard|null)=>void;
  const body = useRef<RapierRigidBody>(null!);
  const pressed = useRef<Record<string, boolean>>({});
  useEffect(()=>{
-   const down=(e:KeyboardEvent)=>{if((window as any).__urbanModalOpen)return;if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)){pressed.current[e.code]=true;e.preventDefault()};if(e.code==='KeyE'){const b=(window as any).__urbanNearbyBillboard as Billboard|null;if(b){e.preventDefault();onNearby(b);(window as any).__urbanInteractBillboard?.(b)}}};
+   const down=(e:KeyboardEvent)=>{if((window as any).__urbanModalOpen)return;if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight'].includes(e.code)){pressed.current[e.code]=true;e.preventDefault()};if(e.code==='KeyE'){const b=(window as any).__urbanNearbyBillboard as Billboard|null;if(b){e.preventDefault();onNearby(b);(window as any).__urbanInteractBillboard?.(b)}}};
    const up=(e:KeyboardEvent)=>{pressed.current[e.code]=false};
    window.addEventListener('keydown',down,{passive:false});
    window.addEventListener('keyup',up);
