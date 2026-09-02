@@ -28,9 +28,14 @@ function cashfreeHeaders(idempotencyKey?:string){
  };
 }
 
-function priceFor(type:string, minutes:number){
+function priceFor(type:string, minutes:number, billboardId?:string){
  if(minutes<=0||minutes%30!==0||minutes>MAX_MINUTES) throw new Error('Duration must be in 30-minute steps, maximum 2 days');
- const category=type==='Premium Road'||type==='Vertical'?'MAIN':type==='Building Wall'||type==='Wall'?'WALL':'CORNER';
+ // Billboard ID is the stable inventory key shared with the frontend. Prefer it over
+ // legacy database type values so stale records can never charge a wall board as a corner.
+ const category=billboardId?.startsWith('W')?'WALL'
+  :(['501','502','503','504'].includes(billboardId||''))?'CORNER'
+  :(type==='Premium Road'||type==='Vertical'||type==='PREMIUM'?'MAIN'
+  :type==='Building Wall'||type==='Wall'||type==='WALL'?'WALL':'CORNER');
  const per30=category==='MAIN'?49:category==='WALL'?29:19;
  // Launch offer: short campaigns use the base rate. A discount starts only when
  // the selected duration reaches a full 24 hours; 23h30m correctly returns to base pricing.
@@ -87,7 +92,7 @@ router.post('/checkout',authenticate,requireActiveUser,async(req:AuthRequest,res
    const taken=await tx.booking.findFirst({where:{billboardId:data.billboardId,status:'ACTIVE',endDate:{gt:now}}});
    if(taken)throw Object.assign(new Error('This advertising space is currently reserved or booked'),{status:409});
 
-   const amount=priceFor(billboard.type,data.durationMinutes);
+   const amount=priceFor(billboard.type,data.durationMinutes,data.billboardId);
    // Reuse the user's current pending booking for this billboard. A retry is a new
    // payment attempt, not a new reservation record.
    const existing=await tx.booking.findFirst({where:{userId:req.user!.id,billboardId:data.billboardId,status:'PAYMENT_PENDING'},include:{payment:true},orderBy:{createdAt:'desc'}});
