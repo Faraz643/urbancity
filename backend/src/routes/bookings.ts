@@ -16,9 +16,15 @@ function priceFor(type:string, minutes:number){
   return (minutes/30)*21;
 }
 
-router.get('/history', async (_req,res,next)=>{
+// Personal booking history is private. Public leaderboard data is exposed separately below.
+router.get('/history',authenticate,async(req:AuthRequest,res,next)=>{
  try{
-  const rows=await prisma.booking.findMany({orderBy:{createdAt:'desc'},take:100,include:{user:{select:{username:true,displayName:true}},billboard:{select:{id:true,name:true,type:true}}}});
+  const rows=await prisma.booking.findMany({
+   where:{userId:req.user!.id},
+   orderBy:{createdAt:'desc'},
+   take:100,
+   include:{billboard:{select:{id:true,name:true,type:true}},advertisement:true}
+  });
   res.json(rows);
  }catch(e){next(e)}
 });
@@ -102,31 +108,5 @@ router.patch('/:billboardId/creative',authenticate,requireActiveUser,async(req:A
  }catch(e){next(e)}
 });
 
-// Legacy virtual-wallet purchase flow retained only for development diagnostics; public checkout uses /api/payments/checkout.
-router.post('/legacy-wallet',authenticate,requireActiveUser,async(req:AuthRequest,res,next)=>{
- try{
-  const data=z.object({billboardId:z.string(),durationMinutes:z.number().int().min(30).max(MAX_MINUTES),companyName:z.string().min(2).max(80).optional(),advertisementId:z.string().optional(),description:z.string().max(500).optional()}).parse(req.body);
-  if(data.durationMinutes%30!==0)return res.status(400).json({error:'Choose time in 30-minute steps'});
-  const result=await prisma.$transaction(async tx=>{
-   let billboard=await tx.billboard.findUnique({where:{id:data.billboardId}});
-   // World billboard IDs are stable client IDs. Create the database record on first booking after a fresh reset.
-   if(!billboard){const wall=data.billboardId.startsWith('W');billboard=await tx.billboard.create({data:{id:data.billboardId,name:(wall?'Wallboard ':'Billboard ')+data.billboardId,type:wall?'Wall':'Premium Road',positionX:0,positionY:0,positionZ:0,location:'UrbanCity',isAvailable:true,isActive:true,minBid:0}});}
-   if(!billboard)throw Object.assign(new Error('Billboard not found'),{status:404});
-   const now=new Date();
-   const active=await tx.booking.findFirst({where:{billboardId:data.billboardId,status:'ACTIVE',endDate:{gt:now}}});
-   if(active)throw Object.assign(new Error('This advertising space is currently booked'),{status:409});
-   const amount=priceFor(billboard.type,data.durationMinutes);
-   const wallet=await tx.wallet.findUnique({where:{userId:req.user!.id}});
-   if(!wallet||Number(wallet.balance)<amount)throw Object.assign(new Error('Insufficient wallet balance'),{status:400});
-   const endDate=new Date(now.getTime()+data.durationMinutes*60*1000);
-   const booking=await tx.booking.create({data:{userId:req.user!.id,billboardId:data.billboardId,startDate:now,endDate,durationMinutes:data.durationMinutes,amount,companyName:data.companyName||req.user!.displayName||req.user!.username,description:data.description||null,advertisementId:data.advertisementId},include:{user:{select:{username:true,displayName:true,websiteUrl:true,avatar:true}},advertisement:true}});
-   await tx.wallet.update({where:{id:wallet.id},data:{balance:{decrement:amount}}});
-   await tx.transaction.create({data:{walletId:wallet.id,userId:req.user!.id,type:'AD_SPACE_PURCHASE',amount,description:'Fixed-price advertising booking',referenceId:booking.id}});
-   await tx.billboard.update({where:{id:data.billboardId},data:{isAvailable:false,currentBid:amount,currentBidderId:req.user!.id}});
-   return {booking,balance:Number(wallet.balance)-amount};
-  });
-  res.status(201).json(result);
- }catch(e){next(e)}
-});
 
 export {router as bookingRouter};
