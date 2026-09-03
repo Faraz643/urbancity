@@ -29,7 +29,6 @@ router.get('/history',authenticate,async(req:AuthRequest,res,next)=>{
  }catch(e){next(e)}
 });
 
-
 router.get('/leaderboard', async (_req,res,next)=>{
  try{
   const rows=await prisma.booking.findMany({
@@ -68,7 +67,6 @@ router.get('/billboard/:billboardId',async(req,res,next)=>{
  }catch(e){next(e)}
 });
 
-
 // Update an active booking creative. Ownership is checked server-side from the authenticated user.
 router.patch('/:billboardId/creative',authenticate,requireActiveUser,async(req:AuthRequest,res,next)=>{
  try{
@@ -87,18 +85,29 @@ router.patch('/:billboardId/creative',authenticate,requireActiveUser,async(req:A
   const cleanUrl=data.targetUrl===undefined?undefined:(data.targetUrl.trim()||null);
   const removeImage=data.imageUrl===null;
   let advertisementId=booking.advertisementId;
+
   if(removeImage){
-   // Advertisement.imageUrl is required in the schema, so do not write NULL.
-   // Detach the advertisement from the booking; the booking's own text fields
-   // become the active creative and the old advertisement record is left intact.
+   // Advertisement.imageUrl is required in the schema, so detach the image-backed
+   // advertisement and let the booking's text fields become the active creative.
    advertisementId=null;
+  }else if(booking.advertisementId){
+   // Always persist text/link edits, even when the user does not upload a new image.
+   // Previously these fields were only written when imageUrl was supplied, making
+   // "Save Changes" appear to do nothing for normal text-only edits.
+   await prisma.advertisement.update({
+    where:{id:booking.advertisementId},
+    data:{
+     title:data.companyName||booking.companyName,
+     description:cleanDescription===undefined?booking.advertisement?.description||'':cleanDescription,
+     targetUrl:cleanUrl===undefined?booking.advertisement?.targetUrl||undefined:cleanUrl||undefined,
+     ...(data.imageUrl?{imageUrl:data.imageUrl}:{}),
+    }
+   });
   }else if(data.imageUrl){
-   if(booking.advertisementId) await prisma.advertisement.update({where:{id:booking.advertisementId},data:{title:data.companyName||booking.companyName,description:cleanDescription,targetUrl:cleanUrl||undefined,imageUrl:data.imageUrl}});
-   else {
-    const ad=await prisma.advertisement.create({data:{userId:req.user!.id,title:data.companyName||booking.companyName,description:cleanDescription||'',imageUrl:data.imageUrl,targetUrl:cleanUrl||undefined,status:'APPROVED'}});
-    advertisementId=ad.id;
-   }
+   const ad=await prisma.advertisement.create({data:{userId:req.user!.id,title:data.companyName||booking.companyName,description:cleanDescription||'',imageUrl:data.imageUrl,targetUrl:cleanUrl||undefined,status:'APPROVED'}});
+   advertisementId=ad.id;
   }
+
   const updated=await prisma.booking.update({
    where:{id:booking.id},
    data:{companyName:data.companyName||booking.companyName,description:cleanDescription===undefined?booking.description:cleanDescription,advertisementId},
@@ -107,6 +116,5 @@ router.patch('/:billboardId/creative',authenticate,requireActiveUser,async(req:A
   res.json({...updated,siteUrl:updated.advertisement?.targetUrl||cleanUrl||updated.user.websiteUrl,imageUrl:updated.advertisement?.imageUrl||null,description:updated.advertisement?.description||updated.description||null,targetUrl:updated.advertisement?.targetUrl||cleanUrl||updated.user.websiteUrl});
  }catch(e){next(e)}
 });
-
 
 export {router as bookingRouter};
