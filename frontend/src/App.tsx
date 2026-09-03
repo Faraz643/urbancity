@@ -10,6 +10,12 @@ type BidderInfo = {name:string;amount:number;siteUrl?:string;imageUrl?:string;de
 type Billboard = { id:string; type:'Premium Road'|'Street'|'Building Wall'|'Vertical'; position:[number,number,number]; traffic:'High'|'Medium'; bid:number; occupied:boolean; ad:string; rotationY?:number; kind?:AdSlotKind; size?:[number,number] };
 type Remote = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean };
 
+// This is the same reach radius used by the real-time number shown above each billboard.
+// Footfall uses this exact radius too, so "live reach" and "total footfall" mean the same area.
+function billboardTrafficRadius(b: Billboard) {
+  return b.kind==='wall-ad' ? 10 : (b.kind==='vertical-ad' ? 9 : (b.type==='Premium Road' ? 12 : 9));
+}
+
 const MAP_BILLBOARDS: Billboard[] = [
   { id:'102', type:'Premium Road', position:[0,4,-22], traffic:'High', bid:5000, occupied:false, ad:'ZEST • meal delivery' },
   { id:'207', type:'Premium Road', position:[0,4,22], rotationY:Math.PI, traffic:'High', bid:8200, occupied:true, ad:'URBAN FINANCE' },
@@ -353,7 +359,7 @@ function Player({onNearby,onMove,onPosition,onFootfallEnter,onFootfallLeave}:{on
  const velocity = useRef(new THREE.Vector3());
  const target = useRef(new THREE.Vector3());
  const networkAt = useRef(0);
- const lastFootfallBoardId = useRef<string|null>(null);
+ const footfallInsideIds = useRef<Set<string>>(new Set());
  useFrame((_,dt)=>{
    const k=pressed.current;
    const inputX=((k.KeyD||k.ArrowRight)?1:0)-((k.KeyA||k.ArrowLeft)?1:0);
@@ -373,13 +379,20 @@ function Player({onNearby,onMove,onPosition,onFootfallEnter,onFootfallLeave}:{on
    for(const b of MAP_BILLBOARDS){const d=Math.hypot(p.x-b.position[0],p.z-b.position[2]);if(d<5&&d<dist){nearest=b;dist=d}}
    onNearby(nearest);
    (window as any).__urbanNearbyBillboard=nearest;
-   const nextFootfallId=nearest?.id||null;
-   const previousFootfallId=lastFootfallBoardId.current;
-   if(nextFootfallId!==previousFootfallId){
-     if(previousFootfallId) onFootfallLeave(previousFootfallId);
-     if(nextFootfallId) onFootfallEnter(nextFootfallId);
-     lastFootfallBoardId.current=nextFootfallId;
+
+   // Footfall deliberately uses the EXACT same radius as the live real-time
+   // number displayed above each board. A player is counted once per board on
+   // OUTSIDE -> INSIDE, then must leave that board's traffic radius before
+   // another entry can count.
+   const nextInside=new Set<string>();
+   for(const b of MAP_BILLBOARDS){
+     const d=Math.hypot(p.x-b.position[0],p.z-b.position[2]);
+     if(d<=billboardTrafficRadius(b)) nextInside.add(b.id);
    }
+   const previousInside=footfallInsideIds.current;
+   for(const id of nextInside) if(!previousInside.has(id)) onFootfallEnter(id);
+   for(const id of previousInside) if(!nextInside.has(id)) onFootfallLeave(id);
+   footfallInsideIds.current=nextInside;
    networkAt.current+=dt;if(networkAt.current>.08){networkAt.current=0;onMove({position:[p.x,p.y,p.z],rotation:Math.atan2(velocity.current.x,velocity.current.z),moving:velocity.current.lengthSq()>.1})}
  });
  return <RigidBody ref={body} colliders={false} position={[0,1.4,8]} enabledRotations={[false,false,false]} angularDamping={12} linearDamping={8} friction={0} mass={1}>
@@ -631,8 +644,7 @@ function App(){
    const all=[localPosition,...players.map(p=>p.position)];
    for(const pos of all){
      for(const b of MAP_BILLBOARDS){
-       const radius=b.kind==='wall-ad'?10:(b.kind==='vertical-ad'?9:(b.type==='Premium Road'?12:9));
-       if(Math.hypot(pos[0]-b.position[0],pos[2]-b.position[2])<=radius) stats[b.id]++;
+       if(Math.hypot(pos[0]-b.position[0],pos[2]-b.position[2])<=billboardTrafficRadius(b)) stats[b.id]++;
      }
    }
    return stats;
