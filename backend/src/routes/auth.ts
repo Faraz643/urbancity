@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { prisma } from '../db';
-import { authenticate, requireActiveUser, AuthRequest } from '../middleware/auth';
+import { authenticate, requireActiveUser, AuthRequest, getJwtSecret } from '../middleware/auth';
 
 const router = Router();
 
@@ -51,7 +51,7 @@ router.post('/register', async (req, res, next) => {
 
     const token = jwt.sign(
       { userId: user.id },
-      process.env.JWT_SECRET || 'development-only-change-me',
+      getJwtSecret(),
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
@@ -91,7 +91,7 @@ router.post('/login', async (req, res, next) => {
 
     const token = jwt.sign(
       { userId: user.id },
-      process.env.JWT_SECRET || 'development-only-change-me',
+      getJwtSecret(),
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
