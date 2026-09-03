@@ -80,13 +80,16 @@ router.post('/site-visit', async (req,res,next)=>{
     if(!/^[a-zA-Z0-9_-]{16,128}$/.test(visitorId)||!/^[a-zA-Z0-9_-]{16,128}$/.test(sessionId)){
       return res.status(400).json({error:'Invalid analytics visitor session.'});
     }
-    // Upsert makes duplicate tracking calls completely idempotent without
-    // triggering Prisma unique-constraint errors or noisy server logs.
-    await prisma.siteVisit.upsert({
-      where:{sessionId},
-      create:{visitorId,sessionId},
-      update:{},
-    });
+    // PostgreSQL-native atomic insert. Prisma's upsert can use a multi-step
+    // implementation in some schema/client combinations, so two simultaneous
+    // browser requests can still race into the unique session_id constraint.
+    // ON CONFLICT is atomic in PostgreSQL: duplicates simply do nothing.
+    await prisma.$executeRaw`
+      INSERT INTO public.site_visits ("visitor_id", "session_id")
+      VALUES (${visitorId}, ${sessionId})
+      ON CONFLICT ("session_id") DO NOTHING
+    `;
+
     const [totalVisits,uniqueRows]=await Promise.all([
       prisma.siteVisit.count(),
       prisma.siteVisit.findMany({distinct:['visitorId'],select:{visitorId:true}}),
