@@ -33,11 +33,21 @@ app.use('/uploads',express.static('uploads'));
 const jsonRateLimit = (windowMs:number, max:number) => rateLimit({ windowMs, max, standardHeaders:true, legacyHeaders:false, handler:(_req,res)=>res.status(429).json({error:'Too many requests. Please wait a moment and try again.',code:'RATE_LIMITED',retryAfterSeconds:Math.ceil(windowMs/1000)}) });
 // Global gameplay/read endpoints are intentionally not rate-limited here.
 
-type Player = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean };
+type Player = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean; joinedAt:number };
 const players = new Map<string, Player>();
 const billboardFootfall = new Map<string, number>();
 const billboardFootfallPositions = new Map<string, {x:number;z:number}>();
 const playerFootfallInside = new Map<string, Set<string>>();
+
+const PLAYER_BASE_HEIGHT = 2.8;
+const PLAYER_MAX_HEIGHT = 44;
+const PLAYER_MAX_GROWTH_MS = 10 * 60 * 1000;
+
+function playerGrowthHeight(player:Player, now=Date.now()) {
+  const elapsed=Math.max(0,now-player.joinedAt);
+  const progress=Math.min(1,elapsed/PLAYER_MAX_GROWTH_MS);
+  return PLAYER_BASE_HEIGHT + (PLAYER_MAX_HEIGHT-PLAYER_BASE_HEIGHT)*progress;
+}
 
 function recordFootfallEnter(playerId:string,billboardId:string){
   if(!billboardId)return;
@@ -51,6 +61,7 @@ async function checkDatabase(){try{await prisma.$queryRaw`SELECT 1`;databaseRead
 
 app.get('/health',(_req,res)=>res.json({status:'ok',online:players.size,database:databaseReady?'connected':'unavailable',timestamp:new Date().toISOString()}));
 app.get('/api/live/billboards',async(_req,res)=>{try{const rows=await prisma.billboard.findMany({select:{id:true,currentBid:true}});res.json(rows.map(b=>({id:b.id,bid:Number(b.currentBid||0),footfall:billboardFootfall.get(b.id)||0})))}catch{res.json([...billboardFootfall.entries()].map(([id,footfall])=>({id,bid:0,footfall})))}});
+app.get('/api/live/player-growth',(_req,res)=>{const now=Date.now();res.set('Cache-Control','no-store');res.json([...players.values()].map(player=>({id:player.id,name:player.name,height:Number(playerGrowthHeight(player,now).toFixed(3)),maxHeight:PLAYER_MAX_HEIGHT})))});
 const isDev=process.env.NODE_ENV!=='production';
 app.use('/api/auth',isDev?authRouter:jsonRateLimit(Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS||60000),Number(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS||60)),authRouter);
 app.use('/api/billboards',billboardRouter);app.use('/api/bookings',bookingRouter);app.use('/api/advertisements',advertisementRouter);app.use('/api/admin',adminRouter);app.use('/api/analytics',analyticsRouter);app.use('/api/payments',paymentRouter);
@@ -58,7 +69,7 @@ app.use('/api/billboards',billboardRouter);app.use('/api/bookings',bookingRouter
 const io=new Server(httpServer,{cors:{origin:FRONTEND_URL,credentials:true}});
 io.use((socket,next)=>{const token=typeof socket.handshake.auth?.token==='string'?socket.handshake.auth.token:'';if(!token)return next();try{const decoded=jwt.verify(token,getJwtSecret()) as {userId?:string};if(!decoded.userId)return next(new Error('Invalid socket token'));socket.data.userId=decoded.userId;next()}catch{next(new Error('Invalid socket token'))}});
 io.on('connection',(socket)=>{
-  const player:Player={id:socket.id,name:socket.data.userId?'Player-'+String(socket.data.userId).slice(0,4):'Visitor-'+randomUUID().slice(0,4),position:[0,1,8],rotation:0,moving:false};
+  const player:Player={id:socket.id,name:socket.data.userId?'Player-'+String(socket.data.userId).slice(0,4):'Visitor-'+randomUUID().slice(0,4),position:[0,1,8],rotation:0,moving:false,joinedAt:Date.now()};
   players.set(socket.id,player);socket.emit('players:list',[...players.values()]);socket.broadcast.emit('player:joined',player);io.emit('online:count',players.size);
   socket.on('player:update',(data:Partial<Player>)=>{const current=players.get(socket.id);if(!current)return;if(Array.isArray(data.position)&&data.position.length===3&&data.position.every(v=>typeof v==='number'&&Number.isFinite(v))){const next=data.position as [number,number,number];const dx=next[0]-current.position[0],dy=next[1]-current.position[1],dz=next[2]-current.position[2];if(Math.hypot(dx,dy,dz)<=8&&Math.abs(next[0])<=80&&next[1]>=-2&&next[1]<=30&&Math.abs(next[2])<=80)current.position=next}if(typeof data.rotation==='number'&&Number.isFinite(data.rotation))current.rotation=data.rotation;if(typeof data.moving==='boolean')current.moving=data.moving;socket.broadcast.emit('player:update',current)});
   socket.on('billboard:footfall-enter',(data:{id?:string})=>{const id=String(data?.id||'');if(!id||!billboardFootfallPositions.has(id))return;const inside=playerFootfallInside.get(socket.id)||new Set<string>();if(inside.has(id))return;inside.add(id);playerFootfallInside.set(socket.id,inside);recordFootfallEnter(socket.id,id)});
