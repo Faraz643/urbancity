@@ -346,7 +346,7 @@ function PlayerAvatar({moving}:{moving:boolean}) {
  </group>;
 }
 
-function Player({onNearby,onMove,onPosition,onStanding NearbyEnter,onStanding NearbyLeave}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void;onPosition:(p:[number,number,number])=>void;onStanding NearbyEnter:(id:string)=>void;onStanding NearbyLeave:(id:string)=>void}) {
+function Player({onNearby,onMove,onPosition,ononFootfallEnter,ononFootfallLeave}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void;onPosition:(p:[number,number,number])=>void;ononFootfallEnter:(id:string)=>void;ononFootfallLeave:(id:string)=>void}) {
  const body = useRef<RapierRigidBody>(null!);
  const pressed = useRef<Record<string, boolean>>({});
  useEffect(()=>{
@@ -390,8 +390,8 @@ function Player({onNearby,onMove,onPosition,onStanding NearbyEnter,onStanding Ne
      if(d<=billboardTrafficRadius(b)) nextInside.add(b.id);
    }
    const previousInside=footfallInsideIds.current;
-   for(const id of nextInside) if(!previousInside.has(id)) onStanding NearbyEnter(id);
-   for(const id of previousInside) if(!nextInside.has(id)) onStanding NearbyLeave(id);
+   for(const id of nextInside) if(!previousInside.has(id)) ononFootfallEnter(id);
+   for(const id of previousInside) if(!nextInside.has(id)) ononFootfallLeave(id);
    footfallInsideIds.current=nextInside;
    networkAt.current+=dt;if(networkAt.current>.08){networkAt.current=0;onMove({position:[p.x,p.y,p.z],rotation:Math.atan2(velocity.current.x,velocity.current.z),moving:velocity.current.lengthSq()>.1})}
  });
@@ -560,13 +560,13 @@ function RemoteAvatar({p}:{p:Remote}) {
 }
 function RemotePlayers({players}:{players:Remote[]}) { return <>{players.map(p=><RemoteAvatar key={p.id} p={p}/>)}</> }
 
-function World({ setNearby, players, setSelected, onMove, onStanding NearbyEnter, onStanding NearbyLeave, timeMode, visitorStats, onLocalPosition, bidders }: {
+function World({ setNearby, players, setSelected, onMove, ononFootfallEnter, ononFootfallLeave, timeMode, visitorStats, onLocalPosition, bidders }: {
   setNearby: (b: Billboard | null) => void;
   players: Remote[];
   setSelected: (b: Billboard) => void;
   onMove: (state: { position: [number, number, number]; rotation: number; moving: boolean }) => void;
-  onStanding NearbyEnter: (id:string) => void;
-  onStanding NearbyLeave: (id:string) => void;
+  ononFootfallEnter: (id:string) => void;
+  ononFootfallLeave: (id:string) => void;
   timeMode: TimeMode;
   visitorStats: Record<string, number>;
   onLocalPosition: (p: [number, number, number]) => void;
@@ -583,7 +583,7 @@ function World({ setNearby, players, setSelected, onMove, onStanding NearbyEnter
        <Suspense fallback={null}>
          <GameCamera/><Physics gravity={[0,-20,0]}>
            <City timeMode={timeMode}/>
-           <Player onNearby={setNearby} onMove={onMove} onPosition={onLocalPosition} onStanding NearbyEnter={onStanding NearbyEnter} onStanding NearbyLeave={onStanding NearbyLeave}/>
+           <Player onNearby={setNearby} onMove={onMove} onPosition={onLocalPosition} ononFootfallEnter={ononFootfallEnter} ononFootfallLeave={ononFootfallLeave}/>
            {MAP_BILLBOARDS.map(b=><group key={b.id}><BillboardPad b={b}/><BillboardMesh b={b} onSelect={setSelected} nearCount={visitorStats[b.id] ?? 0} totalVisitors={players.length+1} bidder={bidders[b.id]}/></group>)}
            <RemotePlayers players={players}/>
          </Physics>
@@ -633,11 +633,11 @@ function App(){
  const [leaderboard,setLeaderboard]=useState<any[]>([]);
  const [activeBookings,setActiveBookings]=useState<Record<string,any>>({});
  const [clock,setClock]=useState(Date.now());
- const [footfallTotals,setStanding NearbyTotals]=useState<Record<string,number>>({});
+ const [footfallTotals,setfootfallTotals]=useState<Record<string,number>>({});
  const authInputRef=useRef<HTMLInputElement|null>(null);
  const totalVisitors=players.length+1;
  const formatInr=(value:number)=>'₹'+Number(value||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
- useEffect(()=>{fetch(api+'/api/live/billboards').then(r=>r.ok?r.json():[]).then((rows:any[])=>{const next:Record<string,number>={};for(const row of rows)next[row.id]=Number(row.footfall||0);setStanding NearbyTotals(next)}).catch(()=>{});},[api]);
+ useEffect(()=>{fetch(api+'/api/live/billboards').then(r=>r.ok?r.json():[]).then((rows:any[])=>{const next:Record<string,number>={};for(const row of rows)next[row.id]=Number(row.footfall||0);setfootfallTotals(next)}).catch(()=>{});},[api]);
  const visitorStats=useMemo(()=>{
    const stats:Record<string,number>={};
    for(const b of MAP_BILLBOARDS) stats[b.id]=0;
@@ -670,7 +670,7 @@ function App(){
   useEffect(()=>{if(!modalOpen)return;const stop=(e:WheelEvent)=>{const target=e.target as HTMLElement|null;const insidePanel=!!target?.closest('.panel,[data-urban-modal]');if(!insidePanel){e.stopPropagation();e.preventDefault();}};window.addEventListener('wheel',stop,{capture:true,passive:false});return()=>window.removeEventListener('wheel',stop,true)},[modalOpen]);
   useEffect(()=>{if(selected){const active=activeBookings[selected.id];setEditMode(false);setRemovePhoto(false);if(active?.userId&&active.userId===user?.id){setBookingCompanyName(active.companyName||user?.displayName||user?.username||'');setAdTitle(active.description||active.advertisement?.description||'');setAdUrl(active.targetUrl||active.advertisement?.targetUrl||user?.websiteUrl||'');setAdFile(null);}else{setBookingCompanyName(user?.displayName||user?.username||'');setAdTitle('');setAdUrl(user?.websiteUrl||'');setAdFile(null);}}},[selected?.id,user?.id,user?.websiteUrl]);
   useEffect(()=>{(window as any).__urbanModalOpen=modalOpen;return()=>{(window as any).__urbanModalOpen=false}},[modalOpen]);
- useEffect(()=>{const s=io(api);socket.current=s;s.on('players:list',(p:Remote[])=>setPlayers(p.filter(x=>x.id!==s.id)));s.on('player:joined',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:update',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:left',(id:string)=>setPlayers(a=>a.filter(x=>x.id!==id)));s.on('billboard:footfall',(d:{id:string;total:number})=>setStanding NearbyTotals(v=>({...v,[d.id]:d.total})));s.on('billboard:update',(b:any)=>{const local=MAP_BILLBOARDS.find(x=>x.id===b.id);if(local){local.bid=b.bid;if(typeof b.available==='boolean')local.occupied=!b.available;} if(b.bidder)setBidders(v=>({...v,[b.id]:b.bidder}));else if(b.bidder===null)setBidders(v=>{const n={...v};delete n[b.id];return n});setSelected(v=>v&&v.id===b.id?{...v,bid:b.bid,occupied:typeof b.available==='boolean'?!b.available:v.occupied}:v)});s.on('billboard:expired',(b:any)=>{setActiveBookings(v=>{const n={...v};delete n[b.id];return n});const local=MAP_BILLBOARDS.find(x=>x.id===b.id);if(local)local.occupied=false;setBidders(v=>{const n={...v};delete n[b.id];return n});setSelected(v=>v&&v.id===b.id?{...v,occupied:false}:v)});return()=>{s.removeAllListeners();s.disconnect();if(socket.current===s)socket.current=null;}},[]);
+ useEffect(()=>{const s=io(api);socket.current=s;s.on('players:list',(p:Remote[])=>setPlayers(p.filter(x=>x.id!==s.id)));s.on('player:joined',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:update',(p:Remote)=>setPlayers(a=>[...a.filter(x=>x.id!==p.id),p]));s.on('player:left',(id:string)=>setPlayers(a=>a.filter(x=>x.id!==id)));s.on('billboard:footfall',(d:{id:string;total:number})=>setfootfallTotals(v=>({...v,[d.id]:d.total})));s.on('billboard:update',(b:any)=>{const local=MAP_BILLBOARDS.find(x=>x.id===b.id);if(local){local.bid=b.bid;if(typeof b.available==='boolean')local.occupied=!b.available;} if(b.bidder)setBidders(v=>({...v,[b.id]:b.bidder}));else if(b.bidder===null)setBidders(v=>{const n={...v};delete n[b.id];return n});setSelected(v=>v&&v.id===b.id?{...v,bid:b.bid,occupied:typeof b.available==='boolean'?!b.available:v.occupied}:v)});s.on('billboard:expired',(b:any)=>{setActiveBookings(v=>{const n={...v};delete n[b.id];return n});const local=MAP_BILLBOARDS.find(x=>x.id===b.id);if(local)local.occupied=false;setBidders(v=>{const n={...v};delete n[b.id];return n});setSelected(v=>v&&v.id===b.id?{...v,occupied:false}:v)});return()=>{s.removeAllListeners();s.disconnect();if(socket.current===s)socket.current=null;}},[]);
  useEffect(()=>{fetch(api+'/api/billboards').then(r=>r.ok?r.json():Promise.reject()).then((rows:any[])=>{for(const row of rows){const local=MAP_BILLBOARDS.find(x=>x.id===row.id);const bid=Number(row.currentBid??row.minBid);if(local&&Number.isFinite(bid))local.bid=bid;}}).catch(()=>{});},[]);
  useEffect(()=>{(window as any).__urbanInteractBillboard=(b:Billboard)=>setSelected(b);return()=>{delete (window as any).__urbanInteractBillboard;delete (window as any).__urbanNearbyBillboard}},[]);
 
@@ -737,7 +737,7 @@ function App(){
  const saveCreative=async()=>{if(!selected||!user)return;setBookingError('');const link=adUrl.trim();if(link){try{const u=new URL(link);if(!['http:','https:'].includes(u.protocol))throw new Error()}catch{setBookingError('Please enter a valid website URL including https:// (for example: https://yourcompany.com).');return;}}setEditBusy(true);try{const imageUrl=removePhoto?null:await uploadImageOnly();const body:any={companyName:bookingCompanyName.trim()||undefined,description:adTitle.trim(),targetUrl:adUrl.trim()};if(removePhoto)body.imageUrl=null;else if(imageUrl)body.imageUrl=imageUrl;const r=await fetch(api+'/api/bookings/'+encodeURIComponent(selected.id)+'/creative',{method:'PATCH',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify(body)});const data=await readApi(r);if(!r.ok)throw new Error(data.error||'Could not update creative');setActiveBookings(v=>({...v,[selected.id]:data}));setBidders(v=>({...v,[selected.id]:{name:data.companyName,amount:Number(data.amount||0),siteUrl:data.targetUrl||data.siteUrl||undefined,imageUrl:toAssetUrl(data.imageUrl),description:data.description||undefined}}));setAdFile(null);setRemovePhoto(false);setEditMode(false);await loadAllActiveBillboards();}catch(e:any){setBookingError(e.message||'Could not update creative')}finally{setEditBusy(false)}};
  const bid=async()=>{if(!selected)return;if(!user){setAuthOpen(true);setAuthError('Login or register to place a real bid.');return;}try{const ar=await fetch(api+'/api/auctions/billboard/'+selected.id+'/active');const auction=await readApi(ar);if(!ar.ok)throw new Error(auction.error||'Auction unavailable');const next=Math.max(selected.bid+500,Number(auction.currentPrice||0)+500);const r=await fetch(api+'/api/auctions/'+auction.id+'/bids',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({amount:next})});const data=await readApi(r);if(!r.ok)throw new Error(data.error||'Bid failed');selected.bid=next;const bidder={name:data.bidder?.displayName||data.bidder?.username||user.displayName||user.username,amount:next};setBidders(v=>({...v,[selected.id]:bidder}));setSelected({...selected});socket.current?.emit('billboard:bid',{id:selected.id,amount:next,bidder});await loadMe();}catch(e:any){alert(e.message||'Could not place bid');}};
 
- return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} onStanding NearbyEnter={(id)=>socket.current?.emit('billboard:footfall-enter',{id})} onStanding NearbyLeave={(id)=>socket.current?.emit('billboard:footfall-leave',{id})} timeMode={timeMode} visitorStats={visitorStats} onLocalPosition={setLocalPosition} bidders={bidders}/>
+ return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} ononFootfallEnter={(id)=>socket.current?.emit('billboard:footfall-enter',{id})} ononFootfallLeave={(id)=>socket.current?.emit('billboard:footfall-leave',{id})} timeMode={timeMode} visitorStats={visitorStats} onLocalPosition={setLocalPosition} bidders={bidders}/>
   {paymentNotice&&<div role="status" style={{position:'fixed',top:72,left:'50%',transform:'translateX(-50%)',zIndex:200,maxWidth:'min(560px,90vw)',padding:'12px 16px',borderRadius:10,background:paymentNotice.ok?'#123d2b':'#4a1f27',color:'#fff',boxShadow:'0 12px 40px rgba(0,0,0,.35)',cursor:'pointer'}} onClick={()=>setPaymentNotice(null)}>{paymentNotice.message}</div>}
   <div className="game-topbar">
     <div className="hud top"><div><b>● ONLINE</b><span>{totalVisitors}</span></div></div>
