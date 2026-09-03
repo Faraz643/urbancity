@@ -53,49 +53,14 @@ type Player = {
 };
 
 const billboardFootfall = new Map<string, number>();
-const playerBillboardRanges = new Map<string, Set<string>>();
-const playerFootfallLastEntered = new Map<string, Map<string, number>>();
-const billboardFootfallPositions = new Map<string, {x:number;z:number}>();
 
-const footfallRadiusFor = (id:string) => id.startsWith('W') ? 10 : (id.includes('-') ? 9 : (id==='102'||id==='207'||id==='501'||id==='502'||id==='503'||id==='504' ? 12 : 9));
-
-// IMPORTANT: player:update fires many times per second. Footfall detection must therefore
-// be synchronous and state must be updated immediately, otherwise overlapping async calls
-// can all see the player as "outside" and increment repeatedly.
-function recordFootfall(playerId:string, position:[number,number,number]) {
-  const inside=playerBillboardRanges.get(playerId)||new Set<string>();
-  const enteredAt=playerFootfallLastEntered.get(playerId)||new Map<string,number>();
-  const now=Date.now();
-
-  for(const [id,board] of billboardFootfallPositions) {
-    const radius=footfallRadiusFor(id);
-    const distance=Math.hypot(position[0]-board.x,position[2]-board.z);
-    const wasInside=inside.has(id);
-
-    // Hysteresis is intentional: a player must move clearly outside the range before
-    // another entry can be counted. Physics/network jitter around the boundary therefore
-    // cannot create dozens of false footfall events.
-    if(wasInside) {
-      if(distance>radius+2) inside.delete(id);
-      continue;
-    }
-
-    if(distance<=radius) {
-      const last=enteredAt.get(id)||0;
-      // Extra safety against duplicate/reconnect bursts. This does not block normal
-      // leave-and-return behaviour; a genuine exit is still required above.
-      if(now-last>=2000) {
-        const total=(billboardFootfall.get(id)||0)+1;
-        billboardFootfall.set(id,total);
-        enteredAt.set(id,now);
-        io.emit('billboard:footfall',{id,total});
-      }
-      inside.add(id);
-    }
-  }
-
-  playerBillboardRanges.set(playerId,inside);
-  playerFootfallLastEntered.set(playerId,enteredAt);
+// Footfall is event-based, not movement-polling based. The client emits exactly one
+// event when its character transitions from outside a board's interaction range to inside.
+function recordFootfallEnter(playerId:string, billboardId:string) {
+  if (!billboardId || typeof billboardId!=='string') return;
+  const total=(billboardFootfall.get(billboardId)||0)+1;
+  billboardFootfall.set(billboardId,total);
+  io.emit('billboard:footfall',{id:billboardId,total,playerId});
 }
 
 
@@ -195,9 +160,18 @@ io.on('connection', (socket) => {
 
     if (typeof data.moving === 'boolean') current.moving = data.moving;
     socket.broadcast.emit('player:update', current);
-    if(databaseReady) recordFootfall(socket.id,current.position);
+    // Footfall is intentionally NOT calculated from every movement packet.
+    // See billboard:footfall-enter below; movement polling caused false rapid increments.
   });
 
+
+  socket.on('billboard:footfall-enter',(data:{id?:string})=>{
+    const id=String(data?.id||'');
+    if(!id)return;
+    // Only accept IDs that actually exist in the current billboard inventory.
+    if(!billboardFootfallPositions.has(id))return;
+    recordFootfallEnter(socket.id,id);
+  });
   socket.on('billboard:bid', async (data: { id: string; amount: number; bidder?: { name: string; amount: number } }) => {
     const billboard = liveBillboards.get(data?.id);
     if (!billboard || !Number.isFinite(data?.amount) || data.amount <= billboard.bid) return;
@@ -235,8 +209,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     players.delete(socket.id);
-    playerBillboardRanges.delete(socket.id);
-    playerFootfallLastEntered.delete(socket.id);
+    // No per-movement footfall state is stored on the server.
     io.emit('player:left', socket.id);
     io.emit('online:count', players.size);
   });
@@ -250,10 +223,11 @@ async function loadFootfallTotals(){
      prisma.billboardFootfall.findMany(),
      prisma.billboard.findMany({select:{id:true,positionX:true,positionZ:true}})
    ]);
+   billboardFootfall.clear();
    for(const row of totals)billboardFootfall.set(row.billboardId,row.total);
    billboardFootfallPositions.clear();
    for(const row of billboards)billboardFootfallPositions.set(row.id,{x:row.positionX,z:row.positionZ});
-   console.log('Footfall tracking ready for '+billboardFootfallPositions.size+' billboard(s)');
+   console.log('Footfall totals loaded; '+billboardFootfallPositions.size+' active database billboard(s) available for validation');
  }catch(e){console.warn('Could not load footfall totals',e)}
 }
 
