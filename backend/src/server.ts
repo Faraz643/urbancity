@@ -52,6 +52,20 @@ type Player = {
   moving: boolean;
 };
 
+const billboardFootfall = new Map<string, number>();
+const billboardFootfallPositions = new Map<string, {x:number;z:number}>();
+const playerFootfallInside = new Map<string, Set<string>>();
+
+// Footfall is event-based, not movement-polling based. The client emits exactly one
+// event when its character transitions from outside a board's interaction range to inside.
+function recordFootfallEnter(playerId:string, billboardId:string) {
+  if (!billboardId || typeof billboardId!=='string') return;
+  const total=(billboardFootfall.get(billboardId)||0)+1;
+  billboardFootfall.set(billboardId,total);
+  io.emit('billboard:footfall',{id:billboardId,total,playerId});
+}
+
+
 type LiveBillboard = {
   id: string;
   bid: number;
@@ -98,7 +112,7 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/api/live/billboards', (_req, res) => {
-  res.json([...liveBillboards.values()]);
+  res.json([...liveBillboards.values()].map(b=>({...b,footfall:billboardFootfall.get(b.id)||0})));
 });
 
 // Authentication gets its own limiter; this prevents repeated login attempts while keeping gameplay APIs responsive.
@@ -148,8 +162,27 @@ io.on('connection', (socket) => {
 
     if (typeof data.moving === 'boolean') current.moving = data.moving;
     socket.broadcast.emit('player:update', current);
+    // Footfall is intentionally NOT calculated from every movement packet.
+    // See billboard:footfall-enter below; movement polling caused false rapid increments.
   });
 
+
+  socket.on('billboard:footfall-enter',(data:{id?:string})=>{
+    const id=String(data?.id||'');
+    if(!id || !billboardFootfallPositions.has(id))return;
+    const inside=playerFootfallInside.get(socket.id)||new Set<string>();
+    // Server-side guard: duplicate enter events cannot increment again.
+    if(inside.has(id))return;
+    inside.add(id);
+    playerFootfallInside.set(socket.id,inside);
+    recordFootfallEnter(socket.id,id);
+  });
+
+  socket.on('billboard:footfall-leave',(data:{id?:string})=>{
+    const id=String(data?.id||'');
+    if(!id)return;
+    playerFootfallInside.get(socket.id)?.delete(id);
+  });
   socket.on('billboard:bid', async (data: { id: string; amount: number; bidder?: { name: string; amount: number } }) => {
     const billboard = liveBillboards.get(data?.id);
     if (!billboard || !Number.isFinite(data?.amount) || data.amount <= billboard.bid) return;
@@ -187,10 +220,30 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     players.delete(socket.id);
+    playerFootfallInside.delete(socket.id);
     io.emit('player:left', socket.id);
     io.emit('online:count', players.size);
   });
 });
+
+// Load persisted footfall totals on startup.
+async function loadFootfallTotals(){
+ if(!databaseReady)return;
+ try{
+   const [totals,billboards]=await Promise.all([
+     prisma.billboardFootfall.findMany(),
+     prisma.billboard.findMany({select:{id:true,positionX:true,positionZ:true}})
+   ]);
+   billboardFootfall.clear();
+   for(const row of totals)billboardFootfall.set(row.billboardId,row.total);
+   billboardFootfallPositions.clear();
+   for(const row of billboards)billboardFootfallPositions.set(row.id,{x:row.positionX,z:row.positionZ});
+   console.log('Footfall totals loaded; '+billboardFootfallPositions.size+' active database billboard(s) available for validation');
+ }catch(e){console.warn('Could not load footfall totals',e)}
+}
+
+// Persist exact cumulative totals without mixing them with live traffic snapshots.
+setInterval(async()=>{if(!databaseReady)return;try{for(const [billboardId,total] of billboardFootfall){await prisma.billboardFootfall.upsert({where:{billboardId},update:{total},create:{billboardId,total}})}}catch(e){console.warn('Footfall persistence failed',e)}},30_000);
 
 // Automatically expire completed advertising bookings and release their billboard.
 async function expireBookings() {
@@ -260,6 +313,7 @@ const PORT = Number(process.env.PORT || 3001);
 
 async function start() {
   await checkDatabase();
+  await loadFootfallTotals();
   await expireBookings();
   httpServer.listen(PORT, () => {
     console.log('UrbanCity server on ' + PORT);

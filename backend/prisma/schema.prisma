@@ -173,6 +173,14 @@ model AdvertisingCampaign {
   @@map("advertising_campaigns")
 }
 
+model BillboardFootfall {
+  billboardId String @id
+  total       Int    @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@map("billboard_footfall")
+}
+
 model TrafficAnalytics {
   id             String    @id @default(uuid())
   billboardId    String
