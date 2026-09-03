@@ -54,26 +54,33 @@ type Player = {
 
 const billboardFootfall = new Map<string, number>();
 const playerBillboardRanges = new Map<string, Set<string>>();
+const billboardFootfallPositions = new Map<string, {x:number;z:number}>();
 
-const footfallRadiusFor = (id:string) => id.startsWith('W') ? 10 : (id==='102'||id==='207'||id==='501'||id==='502'||id==='503'||id==='504' ? 12 : 9);
+const footfallRadiusFor = (id:string) => id.startsWith('W') ? 10 : (id.includes('-') ? 9 : (id==='102'||id==='207'||id==='501'||id==='502'||id==='503'||id==='504' ? 12 : 9));
 
-async function recordFootfall(playerId:string, position:[number,number,number]) {
+// IMPORTANT: player:update fires many times per second. Footfall detection must therefore
+// be synchronous and state must be updated immediately, otherwise overlapping async calls
+// can all see the player as "outside" and increment repeatedly.
+function recordFootfall(playerId:string, position:[number,number,number]) {
   const previous=playerBillboardRanges.get(playerId)||new Set<string>();
   const current=new Set<string>();
-  for(const billboard of liveBillboards.values()) {
-    const db=await prisma.billboard.findUnique({where:{id:billboard.id},select:{positionX:true,positionZ:true}});
-    if(!db) continue;
-    if(Math.hypot(position[0]-db.positionX,position[2]-db.positionZ)<=footfallRadiusFor(billboard.id)) {
-      current.add(billboard.id);
-      if(!previous.has(billboard.id)) {
-        const total=(billboardFootfall.get(billboard.id)||0)+1;
-        billboardFootfall.set(billboard.id,total);
-        io.emit('billboard:footfall',{id:billboard.id,total});
+
+  for(const [id,board] of billboardFootfallPositions) {
+    if(Math.hypot(position[0]-board.x,position[2]-board.z)<=footfallRadiusFor(id)) {
+      current.add(id);
+      if(!previous.has(id)) {
+        const total=(billboardFootfall.get(id)||0)+1;
+        billboardFootfall.set(id,total);
+        io.emit('billboard:footfall',{id,total});
       }
     }
   }
+
+  // Set state synchronously on every movement update. Staying in range cannot increment
+  // again; only leave -> enter produces another footfall event.
   playerBillboardRanges.set(playerId,current);
 }
+
 
 type LiveBillboard = {
   id: string;
@@ -220,7 +227,16 @@ io.on('connection', (socket) => {
 // Load persisted footfall totals on startup.
 async function loadFootfallTotals(){
  if(!databaseReady)return;
- try{const rows=await prisma.billboardFootfall.findMany();for(const row of rows)billboardFootfall.set(row.billboardId,row.total);}catch(e){console.warn('Could not load footfall totals',e)}
+ try{
+   const [totals,billboards]=await Promise.all([
+     prisma.billboardFootfall.findMany(),
+     prisma.billboard.findMany({select:{id:true,positionX:true,positionZ:true}})
+   ]);
+   for(const row of totals)billboardFootfall.set(row.billboardId,row.total);
+   billboardFootfallPositions.clear();
+   for(const row of billboards)billboardFootfallPositions.set(row.id,{x:row.positionX,z:row.positionZ});
+   console.log('Footfall tracking ready for '+billboardFootfallPositions.size+' billboard(s)');
+ }catch(e){console.warn('Could not load footfall totals',e)}
 }
 
 // Persist exact cumulative totals without mixing them with live traffic snapshots.
