@@ -61,7 +61,7 @@ async function checkDatabase(){try{await prisma.$queryRaw`SELECT 1`;databaseRead
 
 app.get('/health',(_req,res)=>res.json({status:'ok',online:players.size,database:databaseReady?'connected':'unavailable',timestamp:new Date().toISOString()}));
 app.get('/api/live/billboards',async(_req,res)=>{try{const rows=await prisma.billboard.findMany({select:{id:true,currentBid:true}});res.json(rows.map(b=>({id:b.id,bid:Number(b.currentBid||0),footfall:billboardFootfall.get(b.id)||0})))}catch{res.json([...billboardFootfall.entries()].map(([id,footfall])=>({id,bid:0,footfall})))}});
-app.get('/api/live/player-growth',(_req,res)=>{const now=Date.now();res.set('Cache-Control','no-store');res.json([...players.values()].map(player=>({id:player.id,name:player.name,height:Number(playerGrowthHeight(player,now).toFixed(3)),maxHeight:PLAYER_MAX_HEIGHT})))});
+app.get('/api/live/player-growth',(_req,res)=>{const now=Date.now();res.set('Cache-Control','no-store');res.json([...players.values()].map(player=>({id:player.id,name:player.name,position:player.position,height:Number(playerGrowthHeight(player,now).toFixed(3)),maxHeight:PLAYER_MAX_HEIGHT})))});
 const isDev=process.env.NODE_ENV!=='production';
 app.use('/api/auth',isDev?authRouter:jsonRateLimit(Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS||60000),Number(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS||60)),authRouter);
 app.use('/api/billboards',billboardRouter);app.use('/api/bookings',bookingRouter);app.use('/api/advertisements',advertisementRouter);app.use('/api/admin',adminRouter);app.use('/api/analytics',analyticsRouter);app.use('/api/payments',paymentRouter);
