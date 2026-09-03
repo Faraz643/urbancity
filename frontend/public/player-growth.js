@@ -13,13 +13,15 @@
   let pollTimer = 0;
 
   function getScene() {
-    const bridged = window.__urbanCityScene;
-    if (bridged) {
-      scene = bridged;
+    // player-growth-bridge.ts publishes the actual R3F scene here. This is
+    // the primary path; it fixes the previous bug where the bridge existed
+    // but this script never consumed it.
+    if (window.__urbanCityScene) {
+      scene = window.__urbanCityScene;
       return scene;
     }
 
-    // Fallback for builds where the bridge has not mounted yet.
+    // Fallback for older builds where the bridge is not available yet.
     const canvas = document.querySelector('canvas');
     const r3f = canvas && canvas.__r3f;
     const root = r3f && r3f.root;
@@ -50,7 +52,7 @@
     const parent = label && label.parent;
     if (!parent || !growthRows.length || typeof parent.getWorldPosition !== 'function') return null;
 
-    const world = new THREE.Vector3();
+    const world = { x: 0, y: 0, z: 0 };
     parent.getWorldPosition(world);
 
     let best = null;
@@ -83,9 +85,7 @@
       const avatar = findAvatarSibling(object);
       if (!avatar) return;
 
-      if (!avatar.userData.__urbanGrowthBaseScale) {
-        avatar.userData.__urbanGrowthBaseScale = avatar.scale.clone();
-      }
+      if (!avatar.userData.__urbanGrowthBaseScale) avatar.userData.__urbanGrowthBaseScale = avatar.scale.clone();
 
       const base = avatar.userData.__urbanGrowthBaseScale;
       const scale = Math.max(SCALE_MIN, Math.min(info.height / BASE_HEIGHT, MAX_HEIGHT / BASE_HEIGHT));
@@ -97,8 +97,7 @@
   async function pollGrowth() {
     try {
       const response = await fetch(API, { cache: 'no-store' });
-      if (!response.ok) throw new Error(`growth endpoint ${response.status}`);
-
+      if (!response.ok) throw new Error('growth endpoint unavailable');
       const rows = await response.json();
       if (!Array.isArray(rows)) throw new Error('invalid growth response');
 
@@ -116,8 +115,7 @@
       applyGrowth();
       schedulePoll(1000);
     } catch (_) {
-      // Backend can start after Vite. Retry quietly with backoff instead of
-      // hammering the proxy while the server is still listening on port 3001.
+      // Vite can be ready before the backend. Back off quietly until it is.
       schedulePoll(retryDelay);
       retryDelay = Math.min(retryDelay * 2, 10000);
     }
