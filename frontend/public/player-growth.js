@@ -10,18 +10,9 @@
   const MATCH_RADIUS = 5;
 
   let growthRows = [];
-  let scene = null;
 
   function getScene() {
-    if (scene) return scene;
-    const canvas = document.querySelector('canvas');
-    const root = canvas && canvas.__r3f && canvas.__r3f.root;
-    try {
-      scene = root && root.getState ? root.getState().scene : null;
-    } catch (_) {
-      scene = null;
-    }
-    return scene;
+    return window.__urbanCityScene || null;
   }
 
   function findLabelText(object) {
@@ -41,7 +32,7 @@
 
   function nearestGrowthRow(label) {
     const parent = label && label.parent;
-    if (!parent || !growthRows.length) return null;
+    if (!parent || !growthRows.length || typeof parent.getWorldPosition !== 'function') return null;
     const world = {
       x: 0,
       y: 0,
