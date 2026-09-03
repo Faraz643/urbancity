@@ -755,7 +755,7 @@ function App(){
  return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} onFootfallEnter={(id)=>socket.current?.emit('billboard:footfall-enter',{id})} onFootfallLeave={(id)=>socket.current?.emit('billboard:footfall-leave',{id})} timeMode={timeMode} visitorStats={visitorStats} onLocalPosition={setLocalPosition} bidders={bidders}/>
   {paymentNotice&&<div role="status" style={{position:'fixed',top:72,left:'50%',transform:'translateX(-50%)',zIndex:200,maxWidth:'min(560px,90vw)',padding:'12px 16px',borderRadius:10,background:paymentNotice.ok?'#123d2b':'#4a1f27',color:'#fff',boxShadow:'0 12px 40px rgba(0,0,0,.35)',cursor:'pointer'}} onClick={()=>setPaymentNotice(null)}>{paymentNotice.message}</div>}
   <div className="game-topbar">
-    <div className="hud top"><div><b>● ONLINE</b><span>{totalVisitors}</span></div><div><b>◉ TOTAL VISITORS</b><span>{siteTotalVisitors}</span></div></div>
+    <div className="hud top"><div><b>● ONLINE</b><span>{totalVisitors}</span></div></div>
     <button className="game-menu-button" onClick={()=>setGameMenuOpen(true)} aria-label="Open UrbanCity menu">☰ <span>MENU</span></button>
   {gameMenuOpen&&<div className="game-menu-overlay" onWheel={e=>e.stopPropagation()} onTouchMove={e=>e.stopPropagation()} onClick={()=>setGameMenuOpen(false)}>
     <aside className="game-menu" onWheel={e=>e.stopPropagation()} onTouchMove={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
