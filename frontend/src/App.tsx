@@ -340,7 +340,7 @@ function PlayerAvatar({moving}:{moving:boolean}) {
  </group>;
 }
 
-function Player({onNearby,onMove,onPosition}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void;onPosition:(p:[number,number,number])=>void}) {
+function Player({onNearby,onMove,onPosition,onFootfallEnter}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void;onPosition:(p:[number,number,number])=>void;onFootfallEnter:(id:string)=>void}) {
  const body = useRef<RapierRigidBody>(null!);
  const pressed = useRef<Record<string, boolean>>({});
  useEffect(()=>{
@@ -353,6 +353,7 @@ function Player({onNearby,onMove,onPosition}:{onNearby:(b:Billboard|null)=>void;
  const velocity = useRef(new THREE.Vector3());
  const target = useRef(new THREE.Vector3());
  const networkAt = useRef(0);
+ const lastFootfallBoardId = useRef<string|null>(null);
  useFrame((_,dt)=>{
    const k=pressed.current;
    const inputX=((k.KeyD||k.ArrowRight)?1:0)-((k.KeyA||k.ArrowLeft)?1:0);
@@ -372,6 +373,11 @@ function Player({onNearby,onMove,onPosition}:{onNearby:(b:Billboard|null)=>void;
    for(const b of MAP_BILLBOARDS){const d=Math.hypot(p.x-b.position[0],p.z-b.position[2]);if(d<5&&d<dist){nearest=b;dist=d}}
    onNearby(nearest);
    (window as any).__urbanNearbyBillboard=nearest;
+   const nextFootfallId=nearest?.id||null;
+   if(nextFootfallId!==lastFootfallBoardId.current){
+     if(nextFootfallId) onFootfallEnter(nextFootfallId);
+     lastFootfallBoardId.current=nextFootfallId;
+   }
    networkAt.current+=dt;if(networkAt.current>.08){networkAt.current=0;onMove({position:[p.x,p.y,p.z],rotation:Math.atan2(velocity.current.x,velocity.current.z),moving:velocity.current.lengthSq()>.1})}
  });
  return <RigidBody ref={body} colliders={false} position={[0,1.4,8]} enabledRotations={[false,false,false]} angularDamping={12} linearDamping={8} friction={0} mass={1}>
@@ -561,7 +567,7 @@ function World({ setNearby, players, setSelected, onMove, onFootfallEnter, timeM
        <Suspense fallback={null}>
          <GameCamera/><Physics gravity={[0,-20,0]}>
            <City timeMode={timeMode}/>
-           <Player onNearby={setNearby} onMove={onMove} onPosition={onLocalPosition}/>
+           <Player onNearby={setNearby} onMove={onMove} onPosition={onLocalPosition} onFootfallEnter={onFootfallEnter}/>
            {MAP_BILLBOARDS.map(b=><group key={b.id}><BillboardPad b={b}/><BillboardMesh b={b} onSelect={setSelected} nearCount={visitorStats[b.id] ?? 0} totalVisitors={players.length+1} bidder={bidders[b.id]}/></group>)}
            <RemotePlayers players={players}/>
          </Physics>
