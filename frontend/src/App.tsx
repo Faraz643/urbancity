@@ -539,11 +539,12 @@ function RemoteAvatar({p}:{p:Remote}) {
 }
 function RemotePlayers({players}:{players:Remote[]}) { return <>{players.map(p=><RemoteAvatar key={p.id} p={p}/>)}</> }
 
-function World({ setNearby, players, setSelected, onMove, timeMode, visitorStats, onLocalPosition, bidders }: {
+function World({ setNearby, players, setSelected, onMove, onFootfallEnter, timeMode, visitorStats, onLocalPosition, bidders }: {
   setNearby: (b: Billboard | null) => void;
   players: Remote[];
   setSelected: (b: Billboard) => void;
   onMove: (state: { position: [number, number, number]; rotation: number; moving: boolean }) => void;
+  onFootfallEnter: (id:string) => void;
   timeMode: TimeMode;
   visitorStats: Record<string, number>;
   onLocalPosition: (p: [number, number, number]) => void;
@@ -715,7 +716,7 @@ function App(){
  const saveCreative=async()=>{if(!selected||!user)return;setBookingError('');const link=adUrl.trim();if(link){try{const u=new URL(link);if(!['http:','https:'].includes(u.protocol))throw new Error()}catch{setBookingError('Please enter a valid website URL including https:// (for example: https://yourcompany.com).');return;}}setEditBusy(true);try{const imageUrl=removePhoto?null:await uploadImageOnly();const body:any={companyName:bookingCompanyName.trim()||undefined,description:adTitle.trim(),targetUrl:adUrl.trim()};if(removePhoto)body.imageUrl=null;else if(imageUrl)body.imageUrl=imageUrl;const r=await fetch(api+'/api/bookings/'+encodeURIComponent(selected.id)+'/creative',{method:'PATCH',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify(body)});const data=await readApi(r);if(!r.ok)throw new Error(data.error||'Could not update creative');setActiveBookings(v=>({...v,[selected.id]:data}));setBidders(v=>({...v,[selected.id]:{name:data.companyName,amount:Number(data.amount||0),siteUrl:data.targetUrl||data.siteUrl||undefined,imageUrl:toAssetUrl(data.imageUrl),description:data.description||undefined}}));setAdFile(null);setRemovePhoto(false);setEditMode(false);await loadAllActiveBillboards();}catch(e:any){setBookingError(e.message||'Could not update creative')}finally{setEditBusy(false)}};
  const bid=async()=>{if(!selected)return;if(!user){setAuthOpen(true);setAuthError('Login or register to place a real bid.');return;}try{const ar=await fetch(api+'/api/auctions/billboard/'+selected.id+'/active');const auction=await readApi(ar);if(!ar.ok)throw new Error(auction.error||'Auction unavailable');const next=Math.max(selected.bid+500,Number(auction.currentPrice||0)+500);const r=await fetch(api+'/api/auctions/'+auction.id+'/bids',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({amount:next})});const data=await readApi(r);if(!r.ok)throw new Error(data.error||'Bid failed');selected.bid=next;const bidder={name:data.bidder?.displayName||data.bidder?.username||user.displayName||user.username,amount:next};setBidders(v=>({...v,[selected.id]:bidder}));setSelected({...selected});socket.current?.emit('billboard:bid',{id:selected.id,amount:next,bidder});await loadMe();}catch(e:any){alert(e.message||'Could not place bid');}};
 
- return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} timeMode={timeMode} visitorStats={visitorStats} onLocalPosition={setLocalPosition} bidders={bidders}/>
+ return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} onFootfallEnter={(id)=>socket.current?.emit('billboard:footfall-enter',{id})} timeMode={timeMode} visitorStats={visitorStats} onLocalPosition={setLocalPosition} bidders={bidders}/>
   {paymentNotice&&<div role="status" style={{position:'fixed',top:72,left:'50%',transform:'translateX(-50%)',zIndex:200,maxWidth:'min(560px,90vw)',padding:'12px 16px',borderRadius:10,background:paymentNotice.ok?'#123d2b':'#4a1f27',color:'#fff',boxShadow:'0 12px 40px rgba(0,0,0,.35)',cursor:'pointer'}} onClick={()=>setPaymentNotice(null)}>{paymentNotice.message}</div>}
   <div className="game-topbar">
     <div className="hud top"><div><b>● ONLINE</b><span>{totalVisitors}</span></div></div>
