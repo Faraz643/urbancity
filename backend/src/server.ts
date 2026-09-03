@@ -54,6 +54,7 @@ type Player = {
 
 const billboardFootfall = new Map<string, number>();
 const billboardFootfallPositions = new Map<string, {x:number;z:number}>();
+const playerFootfallInside = new Map<string, Set<string>>();
 
 // Footfall is event-based, not movement-polling based. The client emits exactly one
 // event when its character transitions from outside a board's interaction range to inside.
@@ -168,10 +169,19 @@ io.on('connection', (socket) => {
 
   socket.on('billboard:footfall-enter',(data:{id?:string})=>{
     const id=String(data?.id||'');
-    if(!id)return;
-    // Only accept IDs that actually exist in the current billboard inventory.
-    if(!billboardFootfallPositions.has(id))return;
+    if(!id || !billboardFootfallPositions.has(id))return;
+    const inside=playerFootfallInside.get(socket.id)||new Set<string>();
+    // Server-side guard: duplicate enter events cannot increment again.
+    if(inside.has(id))return;
+    inside.add(id);
+    playerFootfallInside.set(socket.id,inside);
     recordFootfallEnter(socket.id,id);
+  });
+
+  socket.on('billboard:footfall-leave',(data:{id?:string})=>{
+    const id=String(data?.id||'');
+    if(!id)return;
+    playerFootfallInside.get(socket.id)?.delete(id);
   });
   socket.on('billboard:bid', async (data: { id: string; amount: number; bidder?: { name: string; amount: number } }) => {
     const billboard = liveBillboards.get(data?.id);
@@ -210,7 +220,7 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     players.delete(socket.id);
-    // No per-movement footfall state is stored on the server.
+    playerFootfallInside.delete(socket.id);
     io.emit('player:left', socket.id);
     io.emit('online:count', players.size);
   });
