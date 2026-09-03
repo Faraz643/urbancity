@@ -2,7 +2,10 @@
   const sync = () => {
     document.querySelectorAll('.panel').forEach((panel) => {
       const buttons = Array.from(panel.querySelectorAll('button'));
-      const ownerEdit = buttons.find((button) => button.textContent?.trim() === 'Edit My Board');
+      const ownerEdit = buttons.find((button) => {
+        const text = button.textContent?.trim();
+        return text === 'Edit My Board' || text === 'Save Changes' || text === 'Cancel';
+      });
       if (!ownerEdit) {
         panel.removeAttribute('data-owned-board');
         panel.querySelectorAll('[data-hidden-for-owner]').forEach((el) => {
