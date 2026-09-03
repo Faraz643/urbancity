@@ -1,10 +1,12 @@
 (() => {
   'use strict';
 
+  // Temporary diagnostic overlay for the player-growth feature.
+  // It intentionally changes the existing head label to the authoritative
+  // server height so we can verify the complete data path before restoring names.
   const API = '/api/live/player-growth';
   const BASE_HEIGHT = 2.8;
   const MAX_HEIGHT = 44;
-  const SCALE_MIN = 1;
   const MATCH_RADIUS = 5;
 
   let growthRows = [];
@@ -13,15 +15,10 @@
   let pollTimer = 0;
 
   function getScene() {
-    // player-growth-bridge.ts publishes the actual R3F scene here. This is
-    // the primary path; it fixes the previous bug where the bridge existed
-    // but this script never consumed it.
     if (window.__urbanCityScene) {
       scene = window.__urbanCityScene;
       return scene;
     }
-
-    // Fallback for older builds where the bridge is not available yet.
     const canvas = document.querySelector('canvas');
     const r3f = canvas && canvas.__r3f;
     const root = r3f && r3f.root;
@@ -32,20 +29,6 @@
       scene = null;
     }
     return scene;
-  }
-
-  function findLabelText(object) {
-    return typeof object.text === 'string' ? object.text.trim() : '';
-  }
-
-  function findAvatarSibling(label) {
-    const parent = label && label.parent;
-    if (!parent) return null;
-    for (const child of parent.children || []) {
-      if (child === label) continue;
-      if (child && child.isGroup) return child;
-    }
-    return null;
   }
 
   function nearestGrowthRow(label) {
@@ -70,27 +53,37 @@
     return best;
   }
 
+  function findAvatarSibling(label) {
+    const parent = label && label.parent;
+    if (!parent) return null;
+    for (const child of parent.children || []) {
+      if (child !== label && child && child.isGroup) return child;
+    }
+    return null;
+  }
+
   function applyGrowth() {
     const rootScene = getScene();
     if (!rootScene || !growthRows.length) return;
 
     rootScene.updateMatrixWorld(true);
     rootScene.traverse((object) => {
-      const label = findLabelText(object);
-      if (!label) return;
-
+      if (typeof object.text !== 'string') return;
       const info = nearestGrowthRow(object);
       if (!info) return;
 
       const avatar = findAvatarSibling(object);
-      if (!avatar) return;
+      if (avatar) {
+        if (!avatar.userData.__urbanGrowthBaseScale) avatar.userData.__urbanGrowthBaseScale = avatar.scale.clone();
+        const base = avatar.userData.__urbanGrowthBaseScale;
+        const scale = Math.max(1, Math.min(info.height / BASE_HEIGHT, MAX_HEIGHT / BASE_HEIGHT));
+        avatar.scale.set(base.x * scale, base.y * scale, base.z * scale);
+        avatar.userData.__urbanGrowthHeight = info.height;
+      }
 
-      if (!avatar.userData.__urbanGrowthBaseScale) avatar.userData.__urbanGrowthBaseScale = avatar.scale.clone();
-
-      const base = avatar.userData.__urbanGrowthBaseScale;
-      const scale = Math.max(SCALE_MIN, Math.min(info.height / BASE_HEIGHT, MAX_HEIGHT / BASE_HEIGHT));
-      avatar.scale.set(base.x * scale, base.y * scale, base.z * scale);
-      avatar.userData.__urbanGrowthHeight = info.height;
+      // Diagnostic: replace the name above the head with the live authoritative height.
+      object.text = `HEIGHT ${info.height.toFixed(2)}m`;
+      object.sync?.();
     });
   }
 
@@ -115,7 +108,6 @@
       applyGrowth();
       schedulePoll(1000);
     } catch (_) {
-      // Vite can be ready before the backend. Back off quietly until it is.
       schedulePoll(retryDelay);
       retryDelay = Math.min(retryDelay * 2, 10000);
     }
