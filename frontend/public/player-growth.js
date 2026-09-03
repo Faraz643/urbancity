@@ -1,7 +1,6 @@
 (() => {
   'use strict';
 
-  // Player growth is driven by the server so every visitor sees the same size.
   const API = '/api/live/player-growth';
   const BASE_HEIGHT = 2.8;
   const MAX_HEIGHT = 44;
@@ -10,26 +9,26 @@
 
   let growthRows = [];
   let scene = null;
+  let retryDelay = 1000;
+  let pollTimer = 0;
 
   function getScene() {
-    if (scene) return scene;
+    const bridged = window.__urbanCityScene;
+    if (bridged) {
+      scene = bridged;
+      return scene;
+    }
 
-    // React Three Fiber exposes its root on the canvas. This is used only as a
-    // lightweight bridge because this standalone script is loaded outside React.
+    // Fallback for builds where the bridge has not mounted yet.
     const canvas = document.querySelector('canvas');
     const r3f = canvas && canvas.__r3f;
     const root = r3f && r3f.root;
-
     try {
-      if (root && typeof root.getState === 'function') {
-        scene = root.getState().scene || null;
-      } else if (root && root.current && typeof root.current.getState === 'function') {
-        scene = root.current.getState().scene || null;
-      }
+      if (root && typeof root.getState === 'function') scene = root.getState().scene || null;
+      else if (root && root.current && typeof root.current.getState === 'function') scene = root.current.getState().scene || null;
     } catch (_) {
       scene = null;
     }
-
     return scene;
   }
 
@@ -51,7 +50,7 @@
     const parent = label && label.parent;
     if (!parent || !growthRows.length || typeof parent.getWorldPosition !== 'function') return null;
 
-    const world = { x: 0, y: 0, z: 0 };
+    const world = new THREE.Vector3();
     parent.getWorldPosition(world);
 
     let best = null;
@@ -73,6 +72,7 @@
     const rootScene = getScene();
     if (!rootScene || !growthRows.length) return;
 
+    rootScene.updateMatrixWorld(true);
     rootScene.traverse((object) => {
       const label = findLabelText(object);
       if (!label) return;
@@ -88,21 +88,19 @@
       }
 
       const base = avatar.userData.__urbanGrowthBaseScale;
-      const scale = Math.max(
-        SCALE_MIN,
-        Math.min(info.height / BASE_HEIGHT, MAX_HEIGHT / BASE_HEIGHT)
-      );
+      const scale = Math.max(SCALE_MIN, Math.min(info.height / BASE_HEIGHT, MAX_HEIGHT / BASE_HEIGHT));
       avatar.scale.set(base.x * scale, base.y * scale, base.z * scale);
+      avatar.userData.__urbanGrowthHeight = info.height;
     });
   }
 
   async function pollGrowth() {
     try {
       const response = await fetch(API, { cache: 'no-store' });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error(`growth endpoint ${response.status}`);
 
       const rows = await response.json();
-      if (!Array.isArray(rows)) return;
+      if (!Array.isArray(rows)) throw new Error('invalid growth response');
 
       growthRows = rows
         .filter((row) => row && Array.isArray(row.position) && row.position.length === 3 && Number.isFinite(Number(row.height)))
@@ -113,24 +111,28 @@
           height: Number(row.height),
         }));
 
-      // The R3F scene may not exist on the first poll, so retrying here and in
-      // the animation interval ensures growth starts as soon as the canvas mounts.
-      scene = null;
+      scene = window.__urbanCityScene || null;
+      retryDelay = 1000;
       applyGrowth();
+      schedulePoll(1000);
     } catch (_) {
-      // Growth is cosmetic; never interfere with the game if the endpoint is unavailable.
+      // Backend can start after Vite. Retry quietly with backoff instead of
+      // hammering the proxy while the server is still listening on port 3001.
+      schedulePoll(retryDelay);
+      retryDelay = Math.min(retryDelay * 2, 10000);
     }
+  }
+
+  function schedulePoll(delay) {
+    window.clearTimeout(pollTimer);
+    pollTimer = window.setTimeout(pollGrowth, delay);
   }
 
   function start() {
     pollGrowth();
-    window.setInterval(pollGrowth, 1000);
     window.setInterval(applyGrowth, 250);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start, { once: true });
-  } else {
-    start();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
+  else start();
 })();
