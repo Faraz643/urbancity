@@ -70,4 +70,38 @@ router.post('/traffic', async (req, res, next) => {
   }
 });
 
+// Record one visit per browser session and identify unique visitors with a persistent
+// anonymous browser ID. The unique sessionId makes this idempotent under React StrictMode,
+// retries and duplicate requests.
+router.post('/site-visit', async (req,res,next)=>{
+  try{
+    const visitorId=typeof req.body?.visitorId==='string'?req.body.visitorId.trim():'';
+    const sessionId=typeof req.body?.sessionId==='string'?req.body.sessionId.trim():'';
+    if(!/^[a-zA-Z0-9_-]{16,128}$/.test(visitorId)||!/^[a-zA-Z0-9_-]{16,128}$/.test(sessionId)){
+      return res.status(400).json({error:'Invalid analytics visitor session.'});
+    }
+    try{
+      await prisma.siteVisit.create({data:{visitorId,sessionId}});
+    }catch(error:any){
+      // A duplicate session is a successful idempotent retry, not a new visit.
+      if(error?.code!=='P2002')throw error;
+    }
+    const [totalVisits,uniqueRows]=await Promise.all([
+      prisma.siteVisit.count(),
+      prisma.siteVisit.findMany({distinct:['visitorId'],select:{visitorId:true}}),
+    ]);
+    res.status(201).json({totalVisits,uniqueVisitors:uniqueRows.length});
+  }catch(error){next(error)}
+});
+
+router.get('/site', async (_req,res,next)=>{
+  try{
+    const [totalVisits,uniqueRows]=await Promise.all([
+      prisma.siteVisit.count(),
+      prisma.siteVisit.findMany({distinct:['visitorId'],select:{visitorId:true}}),
+    ]);
+    res.json({totalVisits,uniqueVisitors:uniqueRows.length});
+  }catch(error){next(error)}
+});
+
 export { router as analyticsRouter };
