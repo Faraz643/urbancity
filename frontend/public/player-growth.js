@@ -7,8 +7,9 @@
   const BASE_HEIGHT = 2.8;
   const MAX_HEIGHT = 44;
   const SCALE_MIN = 1;
+  const MATCH_RADIUS = 5;
 
-  const growthCache = new Map();
+  let growthRows = [];
   let scene = null;
 
   function getScene() {
@@ -38,14 +39,34 @@
     return null;
   }
 
+  function nearestGrowthRow(label) {
+    const parent = label && label.parent;
+    if (!parent || !growthRows.length) return null;
+    const world = new THREE.Vector3();
+    parent.getWorldPosition(world);
+    let best = null;
+    let bestDistance = MATCH_RADIUS;
+    for (const row of growthRows) {
+      const dx = world.x - row.position[0];
+      const dy = world.y - row.position[1];
+      const dz = world.z - row.position[2];
+      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = row;
+      }
+    }
+    return best;
+  }
+
   function applyGrowth() {
     const rootScene = getScene();
-    if (!rootScene) return;
+    if (!rootScene || !growthRows.length) return;
 
     rootScene.traverse((object) => {
       const label = findLabelText(object);
       if (!label) return;
-      const info = growthCache.get(label);
+      const info = nearestGrowthRow(object);
       if (!info) return;
       const avatar = findAvatarSibling(object);
       if (!avatar) return;
@@ -65,12 +86,14 @@
       if (!response.ok) return;
       const rows = await response.json();
       if (!Array.isArray(rows)) return;
-      growthCache.clear();
-      for (const row of rows) {
-        if (row && typeof row.name === 'string' && Number.isFinite(Number(row.height))) {
-          growthCache.set(row.name.trim(), { height: Number(row.height) });
-        }
-      }
+      growthRows = rows
+        .filter((row) => row && Array.isArray(row.position) && row.position.length === 3 && Number.isFinite(Number(row.height)))
+        .map((row) => ({
+          id: String(row.id || ''),
+          name: String(row.name || ''),
+          position: [Number(row.position[0]), Number(row.position[1]), Number(row.position[2])],
+          height: Number(row.height),
+        }));
       applyGrowth();
     } catch (_) {
       // Growth is cosmetic; never interfere with the game if the endpoint is unavailable.
