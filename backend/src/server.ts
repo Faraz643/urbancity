@@ -54,6 +54,7 @@ type Player = {
 
 const billboardFootfall = new Map<string, number>();
 const playerBillboardRanges = new Map<string, Set<string>>();
+const playerFootfallLastEntered = new Map<string, Map<string, number>>();
 const billboardFootfallPositions = new Map<string, {x:number;z:number}>();
 
 const footfallRadiusFor = (id:string) => id.startsWith('W') ? 10 : (id.includes('-') ? 9 : (id==='102'||id==='207'||id==='501'||id==='502'||id==='503'||id==='504' ? 12 : 9));
@@ -62,23 +63,39 @@ const footfallRadiusFor = (id:string) => id.startsWith('W') ? 10 : (id.includes(
 // be synchronous and state must be updated immediately, otherwise overlapping async calls
 // can all see the player as "outside" and increment repeatedly.
 function recordFootfall(playerId:string, position:[number,number,number]) {
-  const previous=playerBillboardRanges.get(playerId)||new Set<string>();
-  const current=new Set<string>();
+  const inside=playerBillboardRanges.get(playerId)||new Set<string>();
+  const enteredAt=playerFootfallLastEntered.get(playerId)||new Map<string,number>();
+  const now=Date.now();
 
   for(const [id,board] of billboardFootfallPositions) {
-    if(Math.hypot(position[0]-board.x,position[2]-board.z)<=footfallRadiusFor(id)) {
-      current.add(id);
-      if(!previous.has(id)) {
+    const radius=footfallRadiusFor(id);
+    const distance=Math.hypot(position[0]-board.x,position[2]-board.z);
+    const wasInside=inside.has(id);
+
+    // Hysteresis is intentional: a player must move clearly outside the range before
+    // another entry can be counted. Physics/network jitter around the boundary therefore
+    // cannot create dozens of false footfall events.
+    if(wasInside) {
+      if(distance>radius+2) inside.delete(id);
+      continue;
+    }
+
+    if(distance<=radius) {
+      const last=enteredAt.get(id)||0;
+      // Extra safety against duplicate/reconnect bursts. This does not block normal
+      // leave-and-return behaviour; a genuine exit is still required above.
+      if(now-last>=2000) {
         const total=(billboardFootfall.get(id)||0)+1;
         billboardFootfall.set(id,total);
+        enteredAt.set(id,now);
         io.emit('billboard:footfall',{id,total});
       }
+      inside.add(id);
     }
   }
 
-  // Set state synchronously on every movement update. Staying in range cannot increment
-  // again; only leave -> enter produces another footfall event.
-  playerBillboardRanges.set(playerId,current);
+  playerBillboardRanges.set(playerId,inside);
+  playerFootfallLastEntered.set(playerId,enteredAt);
 }
 
 
@@ -219,6 +236,7 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     players.delete(socket.id);
     playerBillboardRanges.delete(socket.id);
+    playerFootfallLastEntered.delete(socket.id);
     io.emit('player:left', socket.id);
     io.emit('online:count', players.size);
   });
