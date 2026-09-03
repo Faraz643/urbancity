@@ -18,6 +18,8 @@ router.get('/stats', authenticate, requireAdmin, async (_req, res, next) => {
       totalTransactions,
       activeAuctions,
       pendingAds,
+      totalSiteVisits,
+      uniqueVisitorRows,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.billboard.count(),
@@ -29,6 +31,8 @@ router.get('/stats', authenticate, requireAdmin, async (_req, res, next) => {
       prisma.transaction.count(),
       prisma.auction.count({ where: { status: 'ACTIVE' } }),
       prisma.advertisement.count({ where: { status: 'PENDING' } }),
+      prisma.siteVisit.count(),
+      prisma.siteVisit.findMany({ distinct:['visitorId'], select:{visitorId:true} }),
     ]);
 
     res.json({
@@ -42,6 +46,8 @@ router.get('/stats', authenticate, requireAdmin, async (_req, res, next) => {
       totalTransactions,
       activeAuctions,
       pendingAds,
+      totalSiteVisits,
+      uniqueVisitors: uniqueVisitorRows.length,
     });
   } catch (error) {
     next(error);
