@@ -262,3 +262,16 @@ model Payment {
   @@index([userId, status])
   @@map("payments")
 }
+
+
+// Anonymous site analytics. visitorId persists in localStorage; sessionId is unique per browser session.
+model SiteVisit {
+  id        String   @id @default(uuid())
+  visitorId String
+  sessionId String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([visitorId])
+  @@index([createdAt])
+  @@map("site_visits")
+}
