@@ -1,8 +1,9 @@
 (() => {
   'use strict';
 
-  // Diagnostic overlay for player growth. This deliberately uses a DOM panel
-  // so we can diagnose the data/scene path without depending on Drei Text APIs.
+  // Temporary diagnostic/runtime layer for the player-growth feature.
+  // The server supplies authoritative height; this script applies that height
+  // to the existing avatar groups without changing the multiplayer movement code.
   const API = '/api/live/player-growth';
   const BASE_HEIGHT = 2.8;
   const MAX_HEIGHT = 44;
@@ -46,18 +47,35 @@
   }
 
   function getScene() {
-    if (window.__urbanCityScene) {
-      scene = window.__urbanCityScene;
-      return scene;
-    }
+    if (window.__urbanCityScene) scene = window.__urbanCityScene;
     return scene;
+  }
+
+  // Three.js Object3D#getWorldPosition expects a real Vector3 and calls
+  // target.setFromMatrixPosition(). Use a tiny compatible target so this
+  // standalone script does not need its own Three.js dependency.
+  function makeWorldTarget() {
+    return {
+      x: 0,
+      y: 0,
+      z: 0,
+      setFromMatrixPosition(matrix) {
+        const e = matrix.elements;
+        this.x = e[12];
+        this.y = e[13];
+        this.z = e[14];
+        return this;
+      }
+    };
   }
 
   function nearestGrowthRow(label) {
     const parent = label && label.parent;
     if (!parent || !growthRows.length || typeof parent.getWorldPosition !== 'function') return null;
-    const world = { x: 0, y: 0, z: 0 };
+
+    const world = makeWorldTarget();
     parent.getWorldPosition(world);
+
     let best = null;
     let bestDistance = 5;
     for (const row of growthRows) {
@@ -91,30 +109,37 @@
       return;
     }
 
-    rootScene.updateMatrixWorld(true);
-    rootScene.traverse((object) => {
-      if (typeof object.text !== 'string') return;
-      labelsFound++;
-      const info = nearestGrowthRow(object);
-      if (!info) return;
-      matched++;
+    try {
+      rootScene.updateMatrixWorld(true);
+      rootScene.traverse((object) => {
+        if (typeof object.text !== 'string') return;
+        labelsFound++;
 
-      const avatar = findAvatarSibling(object);
-      if (avatar) {
-        if (!avatar.userData.__urbanGrowthBaseScale) {
-          avatar.userData.__urbanGrowthBaseScale = avatar.scale.clone();
+        const info = nearestGrowthRow(object);
+        if (!info) return;
+        matched++;
+
+        const avatar = findAvatarSibling(object);
+        if (avatar && avatar.scale && avatar.userData) {
+          if (!avatar.userData.__urbanGrowthBaseScale) {
+            avatar.userData.__urbanGrowthBaseScale = avatar.scale.clone();
+          }
+          const base = avatar.userData.__urbanGrowthBaseScale;
+          const scale = Math.max(1, Math.min(info.height / BASE_HEIGHT, MAX_HEIGHT / BASE_HEIGHT));
+          avatar.scale.set(base.x * scale, base.y * scale, base.z * scale);
         }
-        const base = avatar.userData.__urbanGrowthBaseScale;
-        const scale = Math.max(1, Math.min(info.height / BASE_HEIGHT, MAX_HEIGHT / BASE_HEIGHT));
-        avatar.scale.set(base.x * scale, base.y * scale, base.z * scale);
-      }
 
-      // Diagnostic: keep the live server height on the label if Drei exposes it.
-      try {
-        object.text = `HEIGHT ${info.height.toFixed(2)}m`;
-        if (typeof object.sync === 'function') object.sync();
-      } catch (_) {}
-    });
+        // Keep the live authoritative value visible while debugging.
+        try {
+          object.text = `HEIGHT ${info.height.toFixed(2)}m`;
+          if (typeof object.sync === 'function') object.sync();
+        } catch (_) {}
+      });
+      lastError = '';
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+
     updatePanel();
   }
 
@@ -124,6 +149,7 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const rows = await response.json();
       if (!Array.isArray(rows)) throw new Error('invalid response');
+
       growthRows = rows
         .filter((row) => row && Array.isArray(row.position) && row.position.length === 3 && Number.isFinite(Number(row.height)))
         .map((row) => ({
@@ -132,6 +158,7 @@
           position: [Number(row.position[0]), Number(row.position[1]), Number(row.position[2])],
           height: Math.min(MAX_HEIGHT, Number(row.height))
         }));
+
       apiStatus = 'OK';
       lastError = '';
       scene = window.__urbanCityScene || scene;
@@ -159,6 +186,9 @@
     window.setInterval(applyGrowth, 250);
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
-  else start();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', start, { once: true });
+  } else {
+    start();
+  }
 })();
