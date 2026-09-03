@@ -634,8 +634,23 @@ function App(){
  const [activeBookings,setActiveBookings]=useState<Record<string,any>>({});
  const [clock,setClock]=useState(Date.now());
  const [footfallTotals,setFootfallTotals]=useState<Record<string,number>>({});
+ const [siteTotalVisitors,setSiteTotalVisitors]=useState<number>(0);
  const authInputRef=useRef<HTMLInputElement|null>(null);
  const totalVisitors=players.length+1;
+ // One persistent anonymous visitor ID and one session ID. The backend deduplicates
+ // session IDs, so refreshes/retries/StrictMode cannot inflate totals.
+ useEffect(()=>{
+   const makeId=()=>crypto.randomUUID().replace(/-/g,'');
+   let visitorId=localStorage.getItem('urbancity_visitor_id');
+   if(!visitorId){visitorId=makeId();localStorage.setItem('urbancity_visitor_id',visitorId);}
+   let sessionId=sessionStorage.getItem('urbancity_visit_session');
+   if(!sessionId){sessionId=makeId();sessionStorage.setItem('urbancity_visit_session',sessionId);}
+   fetch(api+'/api/analytics/site-visit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({visitorId,sessionId})})
+     .then(r=>r.ok?r.json():null).then(d=>{if(d)setSiteTotalVisitors(Number(d.totalVisits||0));}).catch(()=>{});
+   const refresh=()=>fetch(api+'/api/analytics/site').then(r=>r.ok?r.json():null).then(d=>{if(d)setSiteTotalVisitors(Number(d.totalVisits||0));}).catch(()=>{});
+   const timer=window.setInterval(refresh,60_000);
+   return()=>window.clearInterval(timer);
+ },[api]);
  const formatInr=(value:number)=>'₹'+Number(value||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
  useEffect(()=>{fetch(api+'/api/live/billboards').then(r=>r.ok?r.json():[]).then((rows:any[])=>{const next:Record<string,number>={};for(const row of rows)next[row.id]=Number(row.footfall||0);setFootfallTotals(next)}).catch(()=>{});},[api]);
  const visitorStats=useMemo(()=>{
@@ -740,7 +755,7 @@ function App(){
  return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} onFootfallEnter={(id)=>socket.current?.emit('billboard:footfall-enter',{id})} onFootfallLeave={(id)=>socket.current?.emit('billboard:footfall-leave',{id})} timeMode={timeMode} visitorStats={visitorStats} onLocalPosition={setLocalPosition} bidders={bidders}/>
   {paymentNotice&&<div role="status" style={{position:'fixed',top:72,left:'50%',transform:'translateX(-50%)',zIndex:200,maxWidth:'min(560px,90vw)',padding:'12px 16px',borderRadius:10,background:paymentNotice.ok?'#123d2b':'#4a1f27',color:'#fff',boxShadow:'0 12px 40px rgba(0,0,0,.35)',cursor:'pointer'}} onClick={()=>setPaymentNotice(null)}>{paymentNotice.message}</div>}
   <div className="game-topbar">
-    <div className="hud top"><div><b>● ONLINE</b><span>{totalVisitors}</span></div></div>
+    <div className="hud top"><div><b>● ONLINE</b><span>{totalVisitors}</span></div><div><b>◉ TOTAL VISITORS</b><span>{siteTotalVisitors}</span></div></div>
     <button className="game-menu-button" onClick={()=>setGameMenuOpen(true)} aria-label="Open UrbanCity menu">☰ <span>MENU</span></button>
   {gameMenuOpen&&<div className="game-menu-overlay" onWheel={e=>e.stopPropagation()} onTouchMove={e=>e.stopPropagation()} onClick={()=>setGameMenuOpen(false)}>
     <aside className="game-menu" onWheel={e=>e.stopPropagation()} onTouchMove={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
