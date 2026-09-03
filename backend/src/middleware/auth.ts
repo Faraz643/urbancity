@@ -6,6 +6,13 @@ interface AuthRequest extends Request {
   user?: any;
 }
 
+export function getJwtSecret(){
+  const secret=process.env.JWT_SECRET;
+  if(secret && secret.length>=32)return secret;
+  if(process.env.NODE_ENV==='production')throw new Error('JWT_SECRET must be set to a strong value (at least 32 characters) in production.');
+  return 'development-only-change-me';
+}
+
 export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
@@ -14,7 +21,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       return res.status(401).json({ error: 'Authentication required' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'development-only-change-me') as any;
+    const decoded = jwt.verify(token, getJwtSecret()) as any;
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: { id: true, email: true, username: true, role: true, displayName: true, isActive: true },
