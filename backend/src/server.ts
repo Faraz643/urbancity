@@ -10,7 +10,6 @@ import jwt from 'jsonwebtoken';
 import { prisma } from './db';
 import { authRouter } from './routes/auth';
 import { billboardRouter } from './routes/billboards';
-import { auctionRouter } from './routes/auctions';
 import { bookingRouter } from './routes/bookings';
 import { advertisementRouter } from './routes/advertisements';
 import { adminRouter } from './routes/admin';
@@ -104,7 +103,6 @@ app.get('/api/live/billboards', async (_req, res) => {
 const isDev=process.env.NODE_ENV!=='production';
 app.use('/api/auth', isDev?authRouter:jsonRateLimit(Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 60_000), Number(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || 60)), authRouter);
 app.use('/api/billboards', billboardRouter);
-app.use('/api/auctions', auctionRouter);
 app.use('/api/bookings', bookingRouter);
 app.use('/api/advertisements', advertisementRouter);
 app.use('/api/admin', adminRouter);
