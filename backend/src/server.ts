@@ -178,7 +178,7 @@ io.on('connection', (socket) => {
 
     if (typeof data.moving === 'boolean') current.moving = data.moving;
     socket.broadcast.emit('player:update', current);
-    if(databaseReady) recordFootfall(socket.id,current.position).catch(()=>{});
+    if(databaseReady) recordFootfall(socket.id,current.position);
   });
 
   socket.on('billboard:bid', async (data: { id: string; amount: number; bidder?: { name: string; amount: number } }) => {
