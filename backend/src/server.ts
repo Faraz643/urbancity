@@ -53,6 +53,7 @@ type Player = {
 };
 
 const billboardFootfall = new Map<string, number>();
+const billboardFootfallPositions = new Map<string, {x:number;z:number}>();
 
 // Footfall is event-based, not movement-polling based. The client emits exactly one
 // event when its character transitions from outside a board's interaction range to inside.
