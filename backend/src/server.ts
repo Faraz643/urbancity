@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { randomUUID } from 'crypto';
+import jwt from 'jsonwebtoken';
 import { prisma } from './db';
 import { authRouter } from './routes/auth';
 import { billboardRouter } from './routes/billboards';
@@ -16,6 +17,7 @@ import { adminRouter } from './routes/admin';
 import { analyticsRouter } from './routes/analytics';
 import { paymentRouter } from './routes/payments';
 import { errorHandler } from './middleware/errorHandler';
+import { getJwtSecret } from './middleware/auth';
 
 dotenv.config();
 
@@ -66,28 +68,6 @@ function recordFootfallEnter(playerId:string, billboardId:string) {
 }
 
 
-type LiveBillboard = {
-  id: string;
-  bid: number;
-  history: { playerId: string; amount: number; at: string }[];
-};
-
-const players = new Map<string, Player>();
-const liveBillboards = new Map<string, LiveBillboard>([
-  ['102', { id: '102', bid: 5000, history: [] }],
-  ['207', { id: '207', bid: 8200, history: [] }],
-  ['311', { id: '311', bid: 1800, history: [] }],
-  ['412', { id: '412', bid: 2200, history: [] }],
-  ['501', { id: '501', bid: 2400, history: [] }],
-  ['502', { id: '502', bid: 2400, history: [] }],
-  ['503', { id: '503', bid: 2400, history: [] }],
-  ['504', { id: '504', bid: 2400, history: [] }],
-  ['W01', { id: 'W01', bid: 3200, history: [] }],
-  ['W02', { id: 'W02', bid: 4500, history: [] }],
-  ['W03', { id: 'W03', bid: 3600, history: [] }],
-  ['W04', { id: 'W04', bid: 2800, history: [] }],
-  ['W05', { id: 'W05', bid: 2600, history: [] }],
-]);
 
 let databaseReady = false;
 
@@ -111,8 +91,13 @@ app.get('/health', (_req, res) => {
   });
 });
 
-app.get('/api/live/billboards', (_req, res) => {
-  res.json([...liveBillboards.values()].map(b=>({...b,footfall:billboardFootfall.get(b.id)||0})));
+app.get('/api/live/billboards', async (_req, res) => {
+  try{
+    const rows=await prisma.billboard.findMany({select:{id:true,currentBid:true}});
+    res.json(rows.map(b=>({id:b.id,bid:Number(b.currentBid||0),footfall:billboardFootfall.get(b.id)||0})));
+  }catch{
+    res.json([...billboardFootfall.entries()].map(([id,footfall])=>({id,bid:0,footfall})));
+  }
 });
 
 // Authentication gets its own limiter; this prevents repeated login attempts while keeping gameplay APIs responsive.
@@ -130,10 +115,23 @@ const io = new Server(httpServer, {
   cors: { origin: FRONTEND_URL, credentials: true },
 });
 
+// Guests may play anonymously, but authenticated users are verified during the
+// handshake. Client-supplied user IDs are never trusted.
+io.use((socket,next)=>{
+  const token=typeof socket.handshake.auth?.token==='string'?socket.handshake.auth.token:'';
+  if(!token)return next();
+  try{
+    const decoded=jwt.verify(token,getJwtSecret()) as {userId?:string};
+    if(!decoded.userId)return next(new Error('Invalid socket token'));
+    socket.data.userId=decoded.userId;
+    next();
+  }catch{next(new Error('Invalid socket token'))}
+});
+
 io.on('connection', (socket) => {
   const player: Player = {
     id: socket.id,
-    name: 'Visitor-' + randomUUID().slice(0, 4),
+    name: socket.data.userId ? 'Player-' + String(socket.data.userId).slice(0,4) : 'Visitor-' + randomUUID().slice(0, 4),
     position: [0, 1, 8],
     rotation: 0,
     moving: false,
@@ -153,7 +151,15 @@ io.on('connection', (socket) => {
       data.position.length === 3 &&
       data.position.every((value) => typeof value === 'number' && Number.isFinite(value))
     ) {
-      current.position = data.position as [number, number, number];
+      const nextPosition=data.position as [number,number,number];
+      const dx=nextPosition[0]-current.position[0];
+      const dy=nextPosition[1]-current.position[1];
+      const dz=nextPosition[2]-current.position[2];
+      const distance=Math.hypot(dx,dy,dz);
+      // Reject teleports and impossible world coordinates. This protects realtime
+      // presence and billboard proximity from manipulated socket packets.
+      const withinWorld=Math.abs(nextPosition[0])<=80&&nextPosition[1]>=-2&&nextPosition[1]<=30&&Math.abs(nextPosition[2])<=80;
+      if(distance<=8&&withinWorld) current.position=nextPosition;
     }
 
     if (typeof data.rotation === 'number' && Number.isFinite(data.rotation)) {
@@ -182,40 +188,6 @@ io.on('connection', (socket) => {
     const id=String(data?.id||'');
     if(!id)return;
     playerFootfallInside.get(socket.id)?.delete(id);
-  });
-  socket.on('billboard:bid', async (data: { id: string; amount: number; bidder?: { name: string; amount: number } }) => {
-    const billboard = liveBillboards.get(data?.id);
-    if (!billboard || !Number.isFinite(data?.amount) || data.amount <= billboard.bid) return;
-
-    billboard.bid = data.amount;
-    (billboard as any).bidder = data.bidder;
-    billboard.history.push({
-      playerId: socket.id,
-      amount: data.amount,
-      at: new Date().toISOString(),
-    });
-
-    // Persist the visible current price when the matching billboard exists in Prisma.
-    if (databaseReady) {
-      try {
-        await prisma.billboard.update({
-          where: { id: data.id },
-          data: { currentBid: data.amount },
-        });
-      } catch (error) {
-        console.warn('Could not persist live bid:', data.id);
-      }
-    }
-
-    io.emit('billboard:update', billboard);
-  });
-
-  socket.on('billboard:book', (data: { id: string; amount: number; bidder: { name: string; amount: number } }) => {
-    const billboard = liveBillboards.get(data?.id);
-    if (!billboard || !Number.isFinite(data?.amount)) return;
-    billboard.bid = data.amount;
-    (billboard as any).bidder = data.bidder;
-    io.emit('billboard:update', billboard);
   });
 
   socket.on('disconnect', () => {
@@ -265,10 +237,8 @@ async function expireBookings() {
       }
     });
     for(const booking of expired){
-      const live=liveBillboards.get(booking.billboardId);
-      if(live){(live as any).bidder=undefined;live.bid=0;}
       io.emit('billboard:expired',{id:booking.billboardId,companyName:booking.companyName,endedAt:booking.endDate.toISOString()});
-      io.emit('billboard:update',{...(live||{id:booking.billboardId,bid:0,history:[]}),bidder:null,available:true});
+      io.emit('billboard:update',{id:booking.billboardId,bid:0,bidder:null,available:true});
     }
     console.log('Expired '+expired.length+' advertising booking(s)');
   }catch(error){console.warn('Booking expiry check failed:',error);}
@@ -276,42 +246,41 @@ async function expireBookings() {
 
 setInterval(()=>void expireBookings(),15_000);
 
-// Persist proximity snapshots every 15 seconds without affecting gameplay.
+// Persist proximity snapshots every 15 seconds. These are kept for the existing
+// admin traffic view; snapshot writes are based only on real database billboards.
 setInterval(async () => {
   if (!databaseReady) return;
-
-  const activePlayers = [...players.values()];
-  const records = [...liveBillboards.values()].map(async (billboard) => {
-    try {
-      const dbBillboard = await prisma.billboard.findUnique({
-        where: { id: billboard.id },
-        select: { id: true, positionX: true, positionY: true, positionZ: true, trafficRadius: true },
-      });
-      if (!dbBillboard) return;
-
-      const nearbyVisitors = activePlayers.filter((player) => {
-        const dx = player.position[0] - dbBillboard.positionX;
-        const dy = player.position[1] - dbBillboard.positionY;
-        const dz = player.position[2] - dbBillboard.positionZ;
-        return dx * dx + dy * dy + dz * dz <= dbBillboard.trafficRadius * dbBillboard.trafficRadius;
+  try{
+    const [activePlayers,boards]=await Promise.all([
+      Promise.resolve([...players.values()]),
+      prisma.billboard.findMany({where:{isActive:true},select:{id:true,positionX:true,positionY:true,positionZ:true,trafficRadius:true}})
+    ]);
+    await Promise.all(boards.map(async (board)=>{
+      const nearbyVisitors=activePlayers.filter(player=>{
+        const dx=player.position[0]-board.positionX,dy=player.position[1]-board.positionY,dz=player.position[2]-board.positionZ;
+        return dx*dx+dy*dy+dz*dz<=board.trafficRadius*board.trafficRadius;
       }).length;
-
-      await prisma.trafficAnalytics.create({
-        data: { billboardId: dbBillboard.id, nearbyVisitors },
-      });
-    } catch {
-      // Analytics must never interrupt realtime gameplay.
-    }
-  });
-
-  await Promise.all(records);
-}, 15_000);
-
+      await prisma.trafficAnalytics.create({data:{billboardId:board.id,nearbyVisitors}});
+    }));
+  }catch{
+    // Analytics must never interrupt realtime gameplay.
+  }
+},15_000);
 app.use(errorHandler);
 
 const PORT = Number(process.env.PORT || 3001);
 
+function validateProductionEnvironment(){
+  if(process.env.NODE_ENV!=='production')return;
+  getJwtSecret();
+  const required=['DATABASE_URL','FRONTEND_URL'];
+  if((process.env.CASHFREE_ENV||'sandbox').toLowerCase()==='production')required.push('CASHFREE_CLIENT_ID','CASHFREE_CLIENT_SECRET','CASHFREE_CUSTOMER_PHONE','CASHFREE_NOTIFY_URL');
+  const missing=required.filter(key=>!process.env[key]);
+  if(missing.length)throw new Error('Missing required production environment variables: '+missing.join(', '));
+}
+
 async function start() {
+  validateProductionEnvironment();
   await checkDatabase();
   await loadFootfallTotals();
   await expireBookings();
