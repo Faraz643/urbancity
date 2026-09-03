@@ -80,12 +80,13 @@ router.post('/site-visit', async (req,res,next)=>{
     if(!/^[a-zA-Z0-9_-]{16,128}$/.test(visitorId)||!/^[a-zA-Z0-9_-]{16,128}$/.test(sessionId)){
       return res.status(400).json({error:'Invalid analytics visitor session.'});
     }
-    try{
-      await prisma.siteVisit.create({data:{visitorId,sessionId}});
-    }catch(error:any){
-      // A duplicate session is a successful idempotent retry, not a new visit.
-      if(error?.code!=='P2002')throw error;
-    }
+    // Upsert makes duplicate tracking calls completely idempotent without
+    // triggering Prisma unique-constraint errors or noisy server logs.
+    await prisma.siteVisit.upsert({
+      where:{sessionId},
+      create:{visitorId,sessionId},
+      update:{},
+    });
     const [totalVisits,uniqueRows]=await Promise.all([
       prisma.siteVisit.count(),
       prisma.siteVisit.findMany({distinct:['visitorId'],select:{visitorId:true}}),
