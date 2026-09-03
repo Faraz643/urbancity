@@ -2,7 +2,6 @@
   'use strict';
 
   // Player growth is driven by the server so every visitor sees the same size.
-  // The scene already contains each avatar as a Group next to its name Text.
   const API = '/api/live/player-growth';
   const BASE_HEIGHT = 2.8;
   const MAX_HEIGHT = 44;
@@ -10,9 +9,28 @@
   const MATCH_RADIUS = 5;
 
   let growthRows = [];
+  let scene = null;
 
   function getScene() {
-    return window.__urbanCityScene || null;
+    if (scene) return scene;
+
+    // React Three Fiber exposes its root on the canvas. This is used only as a
+    // lightweight bridge because this standalone script is loaded outside React.
+    const canvas = document.querySelector('canvas');
+    const r3f = canvas && canvas.__r3f;
+    const root = r3f && r3f.root;
+
+    try {
+      if (root && typeof root.getState === 'function') {
+        scene = root.getState().scene || null;
+      } else if (root && root.current && typeof root.current.getState === 'function') {
+        scene = root.current.getState().scene || null;
+      }
+    } catch (_) {
+      scene = null;
+    }
+
+    return scene;
   }
 
   function findLabelText(object) {
@@ -22,7 +40,6 @@
   function findAvatarSibling(label) {
     const parent = label && label.parent;
     if (!parent) return null;
-    // PlayerAvatar is the group sibling of the name Text. Avoid scaling the name.
     for (const child of parent.children || []) {
       if (child === label) continue;
       if (child && child.isGroup) return child;
@@ -33,18 +50,10 @@
   function nearestGrowthRow(label) {
     const parent = label && label.parent;
     if (!parent || !growthRows.length || typeof parent.getWorldPosition !== 'function') return null;
-    const world = {
-      x: 0,
-      y: 0,
-      z: 0,
-      setFromMatrixPosition(matrix) {
-        this.x = matrix.elements[12];
-        this.y = matrix.elements[13];
-        this.z = matrix.elements[14];
-        return this;
-      },
-    };
+
+    const world = { x: 0, y: 0, z: 0 };
     parent.getWorldPosition(world);
+
     let best = null;
     let bestDistance = MATCH_RADIUS;
     for (const row of growthRows) {
@@ -67,16 +76,22 @@
     rootScene.traverse((object) => {
       const label = findLabelText(object);
       if (!label) return;
+
       const info = nearestGrowthRow(object);
       if (!info) return;
+
       const avatar = findAvatarSibling(object);
       if (!avatar) return;
 
       if (!avatar.userData.__urbanGrowthBaseScale) {
         avatar.userData.__urbanGrowthBaseScale = avatar.scale.clone();
       }
+
       const base = avatar.userData.__urbanGrowthBaseScale;
-      const scale = Math.max(SCALE_MIN, Math.min(info.height / BASE_HEIGHT, MAX_HEIGHT / BASE_HEIGHT));
+      const scale = Math.max(
+        SCALE_MIN,
+        Math.min(info.height / BASE_HEIGHT, MAX_HEIGHT / BASE_HEIGHT)
+      );
       avatar.scale.set(base.x * scale, base.y * scale, base.z * scale);
     });
   }
@@ -85,8 +100,10 @@
     try {
       const response = await fetch(API, { cache: 'no-store' });
       if (!response.ok) return;
+
       const rows = await response.json();
       if (!Array.isArray(rows)) return;
+
       growthRows = rows
         .filter((row) => row && Array.isArray(row.position) && row.position.length === 3 && Number.isFinite(Number(row.height)))
         .map((row) => ({
@@ -95,6 +112,10 @@
           position: [Number(row.position[0]), Number(row.position[1]), Number(row.position[2])],
           height: Number(row.height),
         }));
+
+      // The R3F scene may not exist on the first poll, so retrying here and in
+      // the animation interval ensures growth starts as soon as the canvas mounts.
+      scene = null;
       applyGrowth();
     } catch (_) {
       // Growth is cosmetic; never interfere with the game if the endpoint is unavailable.
