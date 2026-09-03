@@ -42,7 +42,17 @@
   function nearestGrowthRow(label) {
     const parent = label && label.parent;
     if (!parent || !growthRows.length) return null;
-    const world = new THREE.Vector3();
+    const world = {
+      x: 0,
+      y: 0,
+      z: 0,
+      setFromMatrixPosition(matrix) {
+        this.x = matrix.elements[12];
+        this.y = matrix.elements[13];
+        this.z = matrix.elements[14];
+        return this;
+      },
+    };
     parent.getWorldPosition(world);
     let best = null;
     let bestDistance = MATCH_RADIUS;
