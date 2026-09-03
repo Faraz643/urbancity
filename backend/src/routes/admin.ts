@@ -24,7 +24,7 @@ router.get('/stats', authenticate, requireAdmin, async (_req, res, next) => {
       prisma.user.count(),
       prisma.billboard.count(),
       prisma.booking.count({where:{status:'ACTIVE',endDate:{gt:new Date()}}}),
-      prisma.booking.aggregate({where:{status:{in:['ACTIVE','EXPIRED']}},_sum:{amount:true}}),
+      prisma.payment.aggregate({where:{status:'SUCCEEDED'},_sum:{amount:true}}),
       prisma.auction.count(),
       prisma.bid.count(),
       prisma.advertisement.count(),
@@ -32,7 +32,7 @@ router.get('/stats', authenticate, requireAdmin, async (_req, res, next) => {
       prisma.auction.count({ where: { status: 'ACTIVE' } }),
       prisma.advertisement.count({ where: { status: 'PENDING' } }),
       prisma.siteVisit.count(),
-      prisma.siteVisit.findMany({ distinct:['visitorId'], select:{visitorId:true} }),
+      prisma.$queryRaw<Array<{count:bigint}>>`SELECT COUNT(DISTINCT visitor_id) AS count FROM public.site_visits`,
     ]);
 
     res.json({
@@ -47,7 +47,7 @@ router.get('/stats', authenticate, requireAdmin, async (_req, res, next) => {
       activeAuctions,
       pendingAds,
       totalSiteVisits,
-      uniqueVisitors: uniqueVisitorRows.length,
+      uniqueVisitors: Number(uniqueVisitorRows[0]?.count||0),
     });
   } catch (error) {
     next(error);
@@ -123,10 +123,23 @@ router.get('/bookings', authenticate, requireAdmin, async (_req,res,next)=>{
  }catch(error){next(error)}
 });
 
-router.patch('/bookings/:id/cancel', authenticate, requireAdmin, async (_req,res,next)=>{
+router.patch('/bookings/:id/cancel', authenticate, requireAdmin, async (req,res,next)=>{
  try{
-  const booking=await prisma.booking.update({where:{id:_req.params.id},data:{status:'CANCELLED'}});
-  res.json(booking);
+  const result=await prisma.$transaction(async tx=>{
+   const booking=await tx.booking.findUnique({where:{id:req.params.id}});
+   if(!booking)throw Object.assign(new Error('Booking not found'),{status:404});
+   if(['CANCELLED','EXPIRED'].includes(booking.status))return booking;
+   const cancelled=await tx.booking.update({where:{id:booking.id},data:{status:'CANCELLED'}});
+   // A cancelled booking must never leave an active campaign running.
+   if(booking.advertisementId)await tx.advertisingCampaign.updateMany({where:{advertisementId:booking.advertisementId,isActive:true},data:{isActive:false}});
+   const now=new Date();
+   const nextActive=await tx.booking.findFirst({where:{billboardId:booking.billboardId,status:'ACTIVE',endDate:{gt:now},id:{not:booking.id}}});
+   if(!nextActive){
+    await tx.billboard.update({where:{id:booking.billboardId},data:{isAvailable:true,currentBid:null,currentBidderId:null}});
+   }
+   return cancelled;
+  });
+  res.json(result);
  }catch(error){next(error)}
 });
 
