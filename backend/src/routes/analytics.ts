@@ -92,9 +92,9 @@ router.post('/site-visit', async (req,res,next)=>{
 
     const [totalVisits,uniqueRows]=await Promise.all([
       prisma.siteVisit.count(),
-      prisma.siteVisit.findMany({distinct:['visitorId'],select:{visitorId:true}}),
+      prisma.$queryRaw<Array<{count:bigint}>>`SELECT COUNT(DISTINCT visitor_id) AS count FROM public.site_visits`,
     ]);
-    res.status(201).json({totalVisits,uniqueVisitors:uniqueRows.length});
+    res.status(201).json({totalVisits,uniqueVisitors:Number(uniqueRows[0]?.count||0)});
   }catch(error){next(error)}
 });
 
@@ -102,9 +102,9 @@ router.get('/site', async (_req,res,next)=>{
   try{
     const [totalVisits,uniqueRows]=await Promise.all([
       prisma.siteVisit.count(),
-      prisma.siteVisit.findMany({distinct:['visitorId'],select:{visitorId:true}}),
+      prisma.$queryRaw<Array<{count:bigint}>>`SELECT COUNT(DISTINCT visitor_id) AS count FROM public.site_visits`,
     ]);
-    res.json({totalVisits,uniqueVisitors:uniqueRows.length});
+    res.json({totalVisits,uniqueVisitors:Number(uniqueRows[0]?.count||0)});
   }catch(error){next(error)}
 });
 
