@@ -518,7 +518,7 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;
        {bidder?.imageUrl?<AdCreative url={bidder.imageUrl} w={w} h={h}/>:<mesh position={[0,0,.095]}><planeGeometry args={[w,h]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#214b14'} emissive={b.occupied?'#3b0c21':'#1c5d12'} emissiveIntensity={0.65}/></mesh>}
        {!bidder?.imageUrl && <>{bidder?<><Text position={[0,.28,.12]} fontSize={Math.min(h*.16,.62)} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{bidder.name}</Text><Text position={[0,-Math.min(h*.18,.7),.12]} fontSize={Math.min(h*.075,.24)} color="#c7d5e8" anchorX="center" maxWidth={w*.78} textAlign="center">{bidder.description||''}</Text></>:<Text position={[0,.1,.12]} fontSize={Math.min(h*.18,.72)} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{b.ad}</Text>}</>}
      <Text position={[0,h/2+1.02,.15]} fontSize={.58} color="white" anchorX="center" anchorY="middle" outlineWidth={0.04} outlineColor="#07111e">{String(nearCount)}</Text>
-     <Text position={[0,h/2+.62,.15]} fontSize={.22} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.018} outlineColor="#07111e">footfall</Text>
+     <Text position={[0,h/2+.62,.15]} fontSize={.22} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.018} outlineColor="#07111e">Nearby</Text>
        <mesh position={[0,h/2+.22,0]}><boxGeometry args={[w+.5,.08,.22]}/><meshStandardMaterial color="#49d17d" emissive="#1b6f43" emissiveIntensity={1.1}/></mesh>
      </group>
      {isVertical && <mesh position={[0,-h/2-2,0]}><boxGeometry args={[.3,4,.3]}/><meshStandardMaterial color="#171c25"/></mesh>}
@@ -532,7 +532,7 @@ function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;
      {bidder?.imageUrl?<AdCreative url={bidder.imageUrl} w={w-.35} h={h-.35} z={.231}/>:<mesh position={[0,0,.24]}><planeGeometry args={[w-.35,h-.35]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#294c0b'} emissive={b.occupied?'#3b0c21':'#234d03'} emissiveIntensity={0.7}/></mesh>}
      {!bidder?.imageUrl && <>{bidder?<><Text position={[0,.28,.48]} fontSize={Math.min(h*.16,.62)} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{bidder.name}</Text><Text position={[0,-Math.min(h*.18,.7),.48]} fontSize={Math.min(h*.075,.24)} color="#c7d5e8" anchorX="center" maxWidth={w*.78} textAlign="center">{bidder.description||''}</Text></>:<Text position={[0,.1,.48]} fontSize={h*.18} color="white" anchorX="center" maxWidth={w*.82} textAlign="center">{b.ad}</Text>}</>}
      <Text position={[0,h/2+1.02,.5]} fontSize={.58} color="white" anchorX="center" anchorY="middle" outlineWidth={0.04} outlineColor="#07111e">{String(nearCount)}</Text>
-     <Text position={[0,h/2+.62,.5]} fontSize={.22} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.018} outlineColor="#07111e">footfall</Text>
+     <Text position={[0,h/2+.62,.5]} fontSize={.22} color="#8ff0b3" anchorX="center" anchorY="middle" outlineWidth={0.018} outlineColor="#07111e">Nearby</Text>
    </group>
    <mesh position={[-w*.28,-h/2-2,0]}><boxGeometry args={[.25,4,.25]}/><meshStandardMaterial color="#171c25"/></mesh>
    <mesh position={[w*.28,-h/2-2,0]}><boxGeometry args={[.25,4,.25]}/><meshStandardMaterial color="#171c25"/></mesh>
