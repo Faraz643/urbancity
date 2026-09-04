@@ -7,8 +7,8 @@ import { clampPlayerHeight, playerScaleFromHeight, PLAYER_BASE_HEIGHT } from './
 export { PLAYER_BASE_HEIGHT };
 
 /**
- * Visual-only growth wrapper. The Rapier body/collider must remain outside this
- * group and at its normal size; only the rendered avatar is scaled.
+ * Visual-only growth wrapper. The Rapier body/collider remains at its normal
+ * size; only the rendered avatar is scaled.
  */
 export function GrowingPlayerAvatar({ height, children }: { height: number; children: ReactNode }) {
   const ref = useRef<THREE.Group>(null);
@@ -19,15 +19,15 @@ export function GrowingPlayerAvatar({ height, children }: { height: number; chil
     const target = playerScaleFromHeight(height);
     scale.current = THREE.MathUtils.damp(scale.current, target, 7, dt);
     ref.current.scale.setScalar(scale.current);
-    // PlayerAvatar's origin is at the feet. Move the visual group upward by
-    // half of the added height so the feet remain planted on the floor.
+    // PlayerAvatar's visual origin is below its head. This offset keeps the
+    // bottom of the visual avatar planted while its upper body grows.
     ref.current.position.y = (scale.current - 1) * 1.208;
   });
 
   return <group ref={ref}>{children}</group>;
 }
 
-/** Name tag that is part of the same visual player presentation. */
+/** Name tag tracks the actual top of the growing visual avatar. */
 export function GrowthNameTag({ name, height }: { name: string; height: number }) {
   const ref = useRef<THREE.Group>(null);
   const scale = useRef(1);
@@ -44,7 +44,12 @@ export function GrowthNameTag({ name, height }: { name: string; height: number }
     );
     scale.current = THREE.MathUtils.damp(scale.current, targetScale, 8, dt);
     ref.current.scale.setScalar(scale.current);
-    ref.current.position.y = 2.02 * playerScale + 0.28 * Math.min(playerScale, 8);
+
+    // PlayerAvatar is rendered from a -1.12 local Y origin. Its head reaches
+    // approximately 2.2 units above that origin, while the growth wrapper
+    // adds 1.208 units per scale step. Keep the label just above that point.
+    const avatarTopY = 0.272 + 3.408 * playerScale;
+    ref.current.position.y = avatarTopY + 0.34 + 0.06 * Math.min(playerScale, 8);
     ref.current.quaternion.copy(camera.quaternion);
   });
 
@@ -68,5 +73,5 @@ export function GrowthNameTag({ name, height }: { name: string; height: number }
 
 export function growthLabelY(height: number) {
   const scale = playerScaleFromHeight(height);
-  return 2.02 * scale + 0.28 * Math.min(scale, 8);
+  return 0.272 + 3.408 * scale + 0.34 + 0.06 * Math.min(scale, 8);
 }
