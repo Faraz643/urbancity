@@ -1,132 +1,15 @@
 (() => {
   'use strict';
-
-  const API = '/api/live/player-growth';
-  const BASE_HEIGHT = 2.8;
-  const MAX_HEIGHT = 44;
-  let growthRows = [];
-  let scene = null;
-  let retryDelay = 1000;
-  let pollTimer = 0;
-  let apiStatus = 'checking';
-  let lastError = '';
-  let labelsFound = 0;
-  let matched = 0;
-
-  function panel() {
-    let el = document.getElementById('urban-growth-debug');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'urban-growth-debug';
-      Object.assign(el.style, {position:'fixed',top:'12px',left:'12px',zIndex:'99999',padding:'10px 12px',background:'rgba(0,0,0,.82)',color:'#fff',font:'12px/1.45 monospace',borderRadius:'8px',pointerEvents:'none',whiteSpace:'pre',minWidth:'250px'});
-      document.body.appendChild(el);
-    }
-    return el;
-  }
-
-  function updatePanel() {
-    const max = growthRows.reduce((m,r)=>Math.max(m,r.height),0);
-    panel().textContent = [
-      'URBANCITY GROWTH DEBUG',
-      `API: ${apiStatus}`,
-      `Players from server: ${growthRows.length}`,
-      `Scene: ${scene ? 'YES' : 'NO'}`,
-      `Text labels found: ${labelsFound}`,
-      `Matched labels: ${matched}`,
-      `Max server height: ${max ? max.toFixed(2)+'m' : '—'}`,
-      lastError ? `Error: ${lastError}` : 'Error: —'
-    ].join('\n');
-  }
-
-  function getScene() {
-    if (window.__urbanCityScene) scene = window.__urbanCityScene;
-    return scene;
-  }
-
-  function worldPosition(object) {
-    if (!object || !object.matrixWorld || !object.matrixWorld.elements) return null;
-    const e = object.matrixWorld.elements;
-    return {x:e[12], y:e[13], z:e[14]};
-  }
-
-  function findNearestRow(label) {
-    if (!growthRows.length) return null;
-    let object = label;
-    let best = null;
-    let bestDistance = Infinity;
-    // Walk up through Text's wrapper hierarchy. One of these ancestors is the
-    // actual player/RigidBody group. This avoids getWorldPosition entirely.
-    for (let depth=0; object && depth<8; depth++, object=object.parent) {
-      const p = worldPosition(object);
-      if (!p) continue;
-      for (const row of growthRows) {
-        const dx=p.x-row.position[0], dy=p.y-row.position[1], dz=p.z-row.position[2];
-        const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
-        if (d<bestDistance) { bestDistance=d; best=row; }
-      }
-    }
-    return bestDistance <= 15 ? best : null;
-  }
-
-  function findPlayerRoot(label) {
-    let object = label;
-    let candidate = null;
-    for (let depth=0; object && depth<8; depth++, object=object.parent) {
-      if (object.children && object.children.some(c => c !== label && c && c.isGroup)) candidate = object;
-    }
-    return candidate || (label && label.parent) || null;
-  }
-
-  function applyGrowth() {
-    const rootScene=getScene();
-    labelsFound=0; matched=0;
-    if (!rootScene || !growthRows.length) { updatePanel(); return; }
-
-    try {
-      rootScene.updateMatrixWorld(true);
-      rootScene.traverse((object)=>{
-        if (typeof object.text !== 'string') return;
-        labelsFound++;
-        const info=findNearestRow(object);
-        if (!info) return;
-        matched++;
-
-        const playerRoot=findPlayerRoot(object);
-        if (playerRoot && playerRoot.scale && playerRoot.userData) {
-          if (!playerRoot.userData.__urbanGrowthBaseScale) playerRoot.userData.__urbanGrowthBaseScale=playerRoot.scale.clone();
-          const base=playerRoot.userData.__urbanGrowthBaseScale;
-          const scale=Math.max(1,Math.min(info.height/BASE_HEIGHT,MAX_HEIGHT/BASE_HEIGHT));
-          playerRoot.scale.set(base.x*scale,base.y*scale,base.z*scale);
-        }
-
-        try {
-          object.text=`HEIGHT ${info.height.toFixed(2)}m`;
-          if (typeof object.sync==='function') object.sync();
-        } catch (_) {}
-      });
-      lastError='';
-    } catch (error) {
-      lastError=error instanceof Error ? error.message : String(error);
-    }
-    updatePanel();
-  }
-
-  async function pollGrowth() {
-    try {
-      const response=await fetch(API,{cache:'no-store'});
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const rows=await response.json();
-      if (!Array.isArray(rows)) throw new Error('invalid response');
-      growthRows=rows.filter(r=>r&&Array.isArray(r.position)&&r.position.length===3&&Number.isFinite(Number(r.height))).map(r=>({id:String(r.id||''),name:String(r.name||''),position:[Number(r.position[0]),Number(r.position[1]),Number(r.position[2])],height:Math.min(MAX_HEIGHT,Number(r.height))}));
-      apiStatus='OK'; lastError=''; scene=window.__urbanCityScene||scene; retryDelay=1000;
-      applyGrowth(); schedulePoll(1000);
-    } catch(error) {
-      apiStatus='FAIL'; lastError=error instanceof Error ? error.message : String(error); updatePanel();
-      schedulePoll(retryDelay); retryDelay=Math.min(retryDelay*2,10000);
-    }
-  }
-
-  function schedulePoll(delay) { window.clearTimeout(pollTimer); pollTimer=window.setTimeout(pollGrowth,delay); }
-  function start() { panel(); updatePanel(); pollGrowth(); window.setInterval(applyGrowth,250); }
-  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded',start,{once:true}); else start();
+  const API='/api/live/player-growth', BASE_HEIGHT=2.8, MAX_HEIGHT=44;
+  let rows=[], scene=null, retry=1000, timer=0, api='checking', error='', labels=0, matched=0;
+  function panel(){let e=document.getElementById('urban-growth-debug');if(!e){e=document.createElement('div');e.id='urban-growth-debug';Object.assign(e.style,{position:'fixed',top:'12px',left:'12px',zIndex:'99999',padding:'10px 12px',background:'rgba(0,0,0,.82)',color:'#fff',font:'12px/1.45 monospace',borderRadius:'8px',pointerEvents:'none',whiteSpace:'pre',minWidth:'245px'});document.body.appendChild(e)}return e}
+  function status(){const max=rows.reduce((m,r)=>Math.max(m,r.height),0);panel().textContent=['URBANCITY GROWTH DEBUG',`API: ${api}`,`Players from server: ${rows.length}`,`Scene: ${scene?'YES':'NO'}`,`Text labels found: ${labels}`,`Matched labels: ${matched}`,`Max server height: ${max?max.toFixed(2)+'m':'—'}`,error?`Error: ${error}`:'Error: —'].join('\n')}
+  function worldPos(o){const t={x:0,y:0,z:0,setFromMatrixPosition(m){const e=m.elements;this.x=e[12];this.y=e[13];this.z=e[14];return this}};o.getWorldPosition(t);return t}
+  function nearest(label){let a=label&&label.parent;if(!a||!rows.length||typeof a.getWorldPosition!=='function')return null;const p=worldPos(a);let best=null,d0=12;for(const r of rows){const dx=p.x-r.position[0],dy=p.y-r.position[1],dz=p.z-r.position[2],d=Math.hypot(dx,dy,dz);if(d<d0){d0=d;best=r}}return best}
+  function avatar(label){let n=label&&label.parent;while(n){const v=(n.children||[]).find(c=>c&&c.userData&&c.userData.urbanPlayerAvatar);if(v)return v;n=n.parent}return null}
+  function apply(){scene=window.__urbanCityScene||scene;labels=0;matched=0;if(!scene||!rows.length){status();return}scene.updateMatrixWorld(true);scene.traverse(o=>{if(typeof o.text!=='string')return;labels++;const r=nearest(o);if(!r)return;matched++;const v=avatar(o);if(v){if(!v.userData.__urbanGrowthBaseScale)v.userData.__urbanGrowthBaseScale=v.scale.clone();const b=v.userData.__urbanGrowthBaseScale,s=Math.max(1,Math.min(r.height/BASE_HEIGHT,MAX_HEIGHT/BASE_HEIGHT));v.scale.set(b.x*s,b.y*s,b.z*s)}try{o.text=`HEIGHT ${r.height.toFixed(2)}m`;if(typeof o.sync==='function')o.sync()}catch(_){}});status()}
+  async function poll(){try{const res=await fetch(API,{cache:'no-store'});if(!res.ok)throw new Error(`HTTP ${res.status}`);const data=await res.json();if(!Array.isArray(data))throw new Error('invalid response');rows=data.filter(r=>r&&Array.isArray(r.position)&&r.position.length===3&&Number.isFinite(Number(r.height))).map(r=>({id:String(r.id||''),name:String(r.name||''),position:[+r.position[0],+r.position[1],+r.position[2]],height:Math.min(MAX_HEIGHT,+r.height)}));api='OK';error='';retry=1000;apply();schedule(1000)}catch(e){api='FAIL';error=e instanceof Error?e.message:String(e);status();schedule(retry);retry=Math.min(retry*2,10000)}}
+  function schedule(ms){clearTimeout(timer);timer=setTimeout(poll,ms)}
+  function start(){panel();status();poll();setInterval(apply,250)}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
