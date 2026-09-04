@@ -17,9 +17,9 @@ export function playerScaleFromHeight(height: number) {
 }
 
 /**
- * Smoothly scales an existing avatar while keeping its feet on y=0.
- * The child avatar is assumed to have its visual feet at its local origin.
- * No Rapier body, velocity, collider, or position is modified here.
+ * Smoothly scales the avatar. The avatar mesh is centered around its body,
+ * so the group is lifted by half of the added visual height. This keeps the
+ * feet planted instead of letting them sink through the floor.
  */
 export function GrowingPlayerAvatar({ height, children }: { height: number; children: ReactNode }) {
   const group = useRef<THREE.Group>(null);
@@ -27,19 +27,20 @@ export function GrowingPlayerAvatar({ height, children }: { height: number; chil
 
   useFrame((_, dt) => {
     if (!group.current) return;
-    const s = playerScaleFromHeight(height);
-    scale.current = THREE.MathUtils.damp(scale.current, s, 8, dt);
+    const targetScale = playerScaleFromHeight(height);
+    scale.current = THREE.MathUtils.damp(scale.current, targetScale, 3.5, dt);
     group.current.scale.setScalar(scale.current);
-    // The child avatar's feet are at local y=0, so no vertical translation is needed.
+
+    // PlayerAvatar's visual center is approximately 1.2m above its feet.
+    // Compensate for scaling around that center so the bottom stays on the floor.
+    const visualHalfHeight = 1.208;
+    group.current.position.y = (scale.current - 1) * visualHalfHeight;
   });
 
   return <group ref={group}>{children}</group>;
 }
 
-/**
- * Name tag belongs to the same visual player hierarchy, but is intentionally
- * counter-scaled only by a capped amount so tall players remain readable.
- */
+/** Name tag rises with the head and grows gradually, with a readability cap. */
 export function GrowthNameTag({ name, height }: { name: string; height: number }) {
   const group = useRef<THREE.Group>(null);
   const scale = useRef(1);
@@ -48,15 +49,15 @@ export function GrowthNameTag({ name, height }: { name: string; height: number }
     if (!group.current) return;
     const playerScale = playerScaleFromHeight(height);
     const targetScale = THREE.MathUtils.clamp(
-      1 + Math.log2(Math.max(1, playerScale)) * 0.34,
+      1 + Math.log2(Math.max(1, playerScale)) * 0.28,
       1,
-      2.8,
+      2.5,
     );
-    scale.current = THREE.MathUtils.damp(scale.current, targetScale, 9, dt);
+    scale.current = THREE.MathUtils.damp(scale.current, targetScale, 5, dt);
     group.current.scale.setScalar(scale.current);
-    // Keep the tag above the actual visual head. The formula grows sub-linearly
-    // after the first few scale units so it doesn't disappear far above the player.
-    group.current.position.y = 2.05 * playerScale + 0.32 * Math.min(playerScale, 8);
+
+    // Keep the label above the head without letting it drift excessively far away.
+    group.current.position.y = 2.05 * playerScale + 0.22 * Math.min(playerScale, 8);
     group.current.quaternion.copy(camera.quaternion);
   });
 
@@ -76,8 +77,11 @@ export function GrowthNameTag({ name, height }: { name: string; height: number }
   );
 }
 
-/** Height progression: 1 unit is added every interval seconds. */
+/**
+ * Slow continuous progression: 0.1 height units every 10 seconds
+ * (0.01 units/second), rather than jumping by a full unit.
+ */
 export function playerHeightFromSession(startedAtMs: number, nowMs = Date.now(), intervalSeconds = 10) {
   const elapsedSeconds = Math.max(0, (nowMs - startedAtMs) / 1000);
-  return clampPlayerHeight(PLAYER_BASE_HEIGHT + Math.floor(elapsedSeconds / intervalSeconds));
+  return clampPlayerHeight(PLAYER_BASE_HEIGHT + (elapsedSeconds / intervalSeconds) * 0.1);
 }
