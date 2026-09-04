@@ -60,7 +60,7 @@ function RoadModel({
 
   return (
     <group position={position} rotation={[0, rotationY, 0]}>
-      <group rotation={[0, bounds.longAxis === 'z' ? -Math.PI / 2 : 0]}>
+      <group rotation={[0, bounds.longAxis === 'z' ? -Math.PI / 2 : 0, 0]}>
         <group scale={scale}>
           <Clone
             object={scene}

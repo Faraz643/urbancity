@@ -41,7 +41,9 @@ export function Billboard({
 
   useFrame((state) => {
     if (meshRef.current && hovered) {
-      meshRef.current.material.emissiveIntensity = 0.1 + Math.sin(state.clock.elapsedTime * 3) * 0.05;
+      const material = meshRef.current.material as THREE.MeshStandardMaterial;
+material.emissiveIntensity =
+  0.1 + Math.sin(state.clock.elapsedTime * 3) * 0.05;
     }
   });
 

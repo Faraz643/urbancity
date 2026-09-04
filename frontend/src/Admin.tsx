@@ -3,7 +3,17 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import './admin.css';
 
 const API=import.meta.env.VITE_API_URL||'http://localhost:3001';
-const auth=()=>{const t=localStorage.getItem('urbancity_token');return t?{Authorization:'Bearer '+t}:{}};
+const auth = (): Record<string, string> => {
+  const token = localStorage.getItem('urbancity_token');
+
+  if (!token) {
+    return {};
+  }
+
+  return {
+    Authorization: `Bearer ${token}`,
+  };
+};
 const money=(v:any)=>'$'+Number(v||0).toLocaleString(undefined,{maximumFractionDigits:2});
 const date=(v:string)=>new Date(v).toLocaleString();
 
