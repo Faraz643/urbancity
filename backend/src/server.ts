@@ -31,13 +31,23 @@ app.use(express.json({ limit: '2mb', verify: (req:any,_res,buf) => { req.rawBody
 app.use('/uploads',express.static('uploads'));
 
 const jsonRateLimit = (windowMs:number, max:number) => rateLimit({ windowMs, max, standardHeaders:true, legacyHeaders:false, handler:(_req,res)=>res.status(429).json({error:'Too many requests. Please wait a moment and try again.',code:'RATE_LIMITED',retryAfterSeconds:Math.ceil(windowMs/1000)}) });
-// Global gameplay/read endpoints are intentionally not rate-limited here.
 
-type Player = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean };
+type Player = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean; joinedAt:number; height:number };
+const PLAYER_BASE_HEIGHT = 2.8;
+const PLAYER_MAX_HEIGHT = 44;
+const PLAYER_GROWTH_METERS_PER_MINUTE = Math.max(0, Number(process.env.PLAYER_GROWTH_METERS_PER_MINUTE || 0.1));
 const players = new Map<string, Player>();
 const billboardFootfall = new Map<string, number>();
 const billboardFootfallPositions = new Map<string, {x:number;z:number}>();
 const playerFootfallInside = new Map<string, Set<string>>();
+
+function playerHeight(player: Player, now = Date.now()) {
+  const elapsedMinutes = Math.max(0, now - player.joinedAt) / 60000;
+  return Math.min(PLAYER_MAX_HEIGHT, PLAYER_BASE_HEIGHT + elapsedMinutes * PLAYER_GROWTH_METERS_PER_MINUTE);
+}
+function snapshotPlayer(player: Player): Player {
+  return { ...player, height: playerHeight(player) };
+}
 
 function recordFootfallEnter(playerId:string,billboardId:string){
   if(!billboardId)return;
@@ -58,13 +68,20 @@ app.use('/api/billboards',billboardRouter);app.use('/api/bookings',bookingRouter
 const io=new Server(httpServer,{cors:{origin:FRONTEND_URL,credentials:true}});
 io.use((socket,next)=>{const token=typeof socket.handshake.auth?.token==='string'?socket.handshake.auth.token:'';if(!token)return next();try{const decoded=jwt.verify(token,getJwtSecret()) as {userId?:string};if(!decoded.userId)return next(new Error('Invalid socket token'));socket.data.userId=decoded.userId;next()}catch{next(new Error('Invalid socket token'))}});
 io.on('connection',(socket)=>{
-  const player:Player={id:socket.id,name:socket.data.userId?'Player-'+String(socket.data.userId).slice(0,4):'Visitor-'+randomUUID().slice(0,4),position:[0,1,8],rotation:0,moving:false};
-  players.set(socket.id,player);socket.emit('players:list',[...players.values()]);socket.broadcast.emit('player:joined',player);io.emit('online:count',players.size);
-  socket.on('player:update',(data:Partial<Player>)=>{const current=players.get(socket.id);if(!current)return;if(Array.isArray(data.position)&&data.position.length===3&&data.position.every(v=>typeof v==='number'&&Number.isFinite(v))){const next=data.position as [number,number,number];const dx=next[0]-current.position[0],dy=next[1]-current.position[1],dz=next[2]-current.position[2];if(Math.hypot(dx,dy,dz)<=8&&Math.abs(next[0])<=80&&next[1]>=-2&&next[1]<=30&&Math.abs(next[2])<=80)current.position=next}if(typeof data.rotation==='number'&&Number.isFinite(data.rotation))current.rotation=data.rotation;if(typeof data.moving==='boolean')current.moving=data.moving;socket.broadcast.emit('player:update',current)});
+  const now=Date.now();
+  const player:Player={id:socket.id,name:socket.data.userId?'Player-'+String(socket.data.userId).slice(0,4):'Visitor-'+randomUUID().slice(0,4),position:[0,1,8],rotation:0,moving:false,joinedAt:now,height:PLAYER_BASE_HEIGHT};
+  players.set(socket.id,player);
+  socket.emit('player:self',snapshotPlayer(player));
+  socket.emit('players:list',[...players.values()].map(snapshotPlayer));
+  socket.broadcast.emit('player:joined',snapshotPlayer(player));
+  io.emit('online:count',players.size);
+  socket.on('player:update',(data:Partial<Player>)=>{const current=players.get(socket.id);if(!current)return;if(Array.isArray(data.position)&&data.position.length===3&&data.position.every(v=>typeof v==='number'&&Number.isFinite(v))){const next=data.position as [number,number,number];const dx=next[0]-current.position[0],dy=next[1]-current.position[1],dz=next[2]-current.position[2];if(Math.hypot(dx,dy,dz)<=8&&Math.abs(next[0])<=80&&next[1]>=-2&&next[1]<=30&&Math.abs(next[2])<=80)current.position=next}if(typeof data.rotation==='number'&&Number.isFinite(data.rotation))current.rotation=data.rotation;if(typeof data.moving==='boolean')current.moving=data.moving;socket.broadcast.emit('player:update',snapshotPlayer(current));});
   socket.on('billboard:footfall-enter',(data:{id?:string})=>{const id=String(data?.id||'');if(!id||!billboardFootfallPositions.has(id))return;const inside=playerFootfallInside.get(socket.id)||new Set<string>();if(inside.has(id))return;inside.add(id);playerFootfallInside.set(socket.id,inside);recordFootfallEnter(socket.id,id)});
   socket.on('billboard:footfall-leave',(data:{id?:string})=>{const id=String(data?.id||'');if(id)playerFootfallInside.get(socket.id)?.delete(id)});
   socket.on('disconnect',()=>{players.delete(socket.id);playerFootfallInside.delete(socket.id);io.emit('player:left',socket.id);io.emit('online:count',players.size)});
 });
+
+setInterval(()=>{if(!players.size)return;io.emit('players:heights',[...players.values()].map(snapshotPlayer));},1000);
 
 async function loadFootfallTotals(){if(!databaseReady)return;try{const [totals,billboards]=await Promise.all([prisma.billboardFootfall.findMany(),prisma.billboard.findMany({select:{id:true,positionX:true,positionZ:true}})]);billboardFootfall.clear();for(const row of totals)billboardFootfall.set(row.billboardId,row.total);billboardFootfallPositions.clear();for(const row of billboards)billboardFootfallPositions.set(row.id,{x:row.positionX,z:row.positionZ});console.log('Footfall totals loaded; '+billboardFootfallPositions.size+' active database billboard(s) available for validation')}catch(e){console.warn('Could not load footfall totals',e)}}
 setInterval(async()=>{if(!databaseReady)return;try{for(const [billboardId,total] of billboardFootfall)await prisma.billboardFootfall.upsert({where:{billboardId},update:{total},create:{billboardId,total}})}catch(e){console.warn('Footfall persistence failed',e)}},30000);
