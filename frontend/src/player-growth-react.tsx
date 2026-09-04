@@ -1,5 +1,5 @@
 import { ReactNode, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -14,35 +14,60 @@ export function playerScaleFromHeight(height: number) {
   return clampPlayerHeight(height) / PLAYER_BASE_HEIGHT;
 }
 
-/**
- * Visual-only growth wrapper. Its origin is the avatar foot anchor, so scaling
- * changes visual size without changing the Rapier body/collider.
- */
 export function GrowingPlayerAvatar({ height, children }: { height: number; children: ReactNode }) {
   const ref = useRef<THREE.Group>(null);
   const currentScale = useRef(1);
+  const { camera } = useThree();
 
-  useFrame((_, dt) => {
+  useFrame((state, dt) => {
     if (!ref.current) return;
-    const targetScale = playerScaleFromHeight(height);
+    const safeHeight = clampPlayerHeight(height);
+    const targetScale = safeHeight / PLAYER_BASE_HEIGHT;
     currentScale.current = THREE.MathUtils.damp(currentScale.current, targetScale, 7, dt);
     const s = currentScale.current;
 
     ref.current.scale.setScalar(s);
-    // This compensates for PlayerAvatar's existing -1.12 local visual offset.
-    // The feet therefore stay on the same world-space floor while the body grows upward.
     ref.current.position.y = (s - 1) * 1.208;
 
-    // Shared debug/runtime state. App's camera can consume this without another
-    // growth polling script or a second Three.js scene traversal system.
-    (window as any).__urbanPlayerHeight = clampPlayerHeight(height);
+    // Publish the same authoritative height/visual scale used by this component.
+    // This is intentionally a passive bridge for the existing camera/player code;
+    // it does not alter Rapier physics or search the Three.js scene.
+    (window as any).__urbanPlayerHeight = safeHeight;
     (window as any).__urbanPlayerScale = s;
+
+    // Non-invasive camera safety/framing assist. GameCamera remains responsible
+    // for yaw/pitch/zoom; this only prevents a growing avatar from filling the
+    // frame or allowing the camera to dip below the city floor.
+    const player = (window as any).__urbanPlayerPosition as THREE.Vector3 | undefined;
+    if (player) {
+      const targetY = THREE.MathUtils.clamp(1.8 + safeHeight * 0.42, 3.1, 18.5);
+      const target = new THREE.Vector3(player.x, targetY, player.z);
+      const offset = camera.position.clone().sub(target);
+      const horizontalDistance = Math.max(0.001, Math.hypot(offset.x, offset.z));
+      const minDistance = THREE.MathUtils.clamp(8 + safeHeight * 0.28, 8, 20.5);
+
+      if (horizontalDistance < minDistance) {
+        const scale = minDistance / horizontalDistance;
+        camera.position.x = target.x + offset.x * scale;
+        camera.position.z = target.z + offset.z * scale;
+      }
+
+      // Ground safety: never allow the camera eye below the playable floor.
+      camera.position.y = Math.max(1.15, camera.position.y);
+
+      // For large players, gently bias the look target upward. This is only
+      // applied once the avatar is tall enough that the normal 3.1m target would
+      // frame the player badly.
+      if (safeHeight > 5) {
+        camera.lookAt(target);
+      }
+    }
   });
 
   return <group ref={ref}>{children}</group>;
 }
 
-/** Camera-facing, depth-independent player name tag. */
+/** Name tag intended to be rendered beside the same player presentation group. */
 export function GrowthNameTag({ name, height, local = false }: { name: string; height: number; local?: boolean }) {
   const ref = useRef<THREE.Group>(null);
   const currentScale = useRef(1);
@@ -54,12 +79,8 @@ export function GrowthNameTag({ name, height, local = false }: { name: string; h
     currentScale.current = THREE.MathUtils.damp(currentScale.current, tagScale, 8, dt);
     ref.current.scale.setScalar(currentScale.current);
 
-    // The tag follows the actual visual growth curve and is deliberately kept
-    // above the head rather than using a fixed world-space Y position.
+    // Keep the tag above the visible head using the same height input as the avatar.
     ref.current.position.y = 2.02 * s + 0.28 * Math.min(s, 8);
-
-    // Camera-facing billboard without forcing camera.lookAt or otherwise
-    // interfering with the game's existing camera controller.
     ref.current.quaternion.copy(state.camera.quaternion);
   });
 
