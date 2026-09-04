@@ -2,25 +2,35 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-// Development-time runtime guard for the existing player movement call and
-// a small bridge that exposes the live R3F scene to player-growth.js.
+// Development-time compatibility layer for the current App.tsx. This keeps
+// the gameplay source untouched while exposing the real R3F scene and marking
+// the actual avatar visual so the growth debugger can scale the correct object.
 const urbanRuntimeGuard = () => ({
   name: 'urban-runtime-guard',
   enforce: 'pre' as const,
   transform(code: string, id: string) {
     if (!id.endsWith('/src/App.tsx')) return null
-
     let next = code
 
-    // Never call Rapier through the velocity vector. The existing gameplay
-    // velocity is a plain THREE vector; only the rigid body has linvel().
-    const movementNeedle = 'body.current.setLinvel({x:velocity.current.x,y:body.current.linvel().y,z:velocity.current.z},true);'
-    const movementReplacement = 'if(!body.current)return;body.current.setLinvel({x:velocity.current.x,y:body.current.linvel().y,z:velocity.current.z},true);'
-    if (next.includes(movementNeedle)) next = next.replace(movementNeedle, movementReplacement)
+    // Protect Rapier during the short interval in which the rigid-body ref is null.
+    // velocity.current is a THREE.Vector3; linvel() belongs only to the Rapier body.
+    next = next.replace(
+      /body\.current\.setLinvel\(\{x:velocity\.current\.x,y:body\.current\.linvel\(\)\.y,z:velocity\.current\.linvel\(\)\.z\},true\);/g,
+      'if(!body.current)return;body.current.setLinvel({x:velocity.current.x,y:body.current.linvel().y,z:velocity.current.z},true);'
+    )
+    next = next.replace(
+      /body\.current\.setLinvel\(\{x:velocity\.current\.x,y:body\.current\.linvel\(\)\.y,z:velocity\.current\.z\},true\);/g,
+      'if(!body.current)return;body.current.setLinvel({x:velocity.current.x,y:body.current.linvel().y,z:velocity.current.z},true);'
+    )
 
-    // Match the current Canvas callback exactly and expose the R3F scene.
-    // The growth script only reads this reference; it does not alter the
-    // renderer or the React tree.
+    // Mark the real visual avatar. The growth script scales this wrapper only,
+    // leaving the physics capsule at its original dimensions.
+    next = next.replace(
+      /<PlayerAvatar moving=\{velocity\.current\.lengthSq\(\)>\.1\}\s*\/>/g,
+      '<group userData={{urbanPlayerAvatar:true}}><PlayerAvatar moving={velocity.current.lengthSq()>.1}/></group>'
+    )
+
+    // Expose the exact R3F scene from Canvas creation.
     const createdNeedle = 'onCreated={({gl})=>gl.setPixelRatio(Math.min(window.devicePixelRatio,1.5))}'
     const createdReplacement = 'onCreated={({gl,scene})=>{gl.setPixelRatio(Math.min(window.devicePixelRatio,1.5));window.__urbanCityScene=scene}}'
     if (next.includes(createdNeedle)) next = next.replace(createdNeedle, createdReplacement)
