@@ -1,9 +1,6 @@
 (() => {
   'use strict';
 
-  // Temporary diagnostic/runtime layer for the player-growth feature.
-  // The server supplies authoritative height; this script applies that height
-  // to the existing avatar groups without changing the multiplayer movement code.
   const API = '/api/live/player-growth';
   const BASE_HEIGHT = 2.8;
   const MAX_HEIGHT = 44;
@@ -21,19 +18,14 @@
     if (!el) {
       el = document.createElement('div');
       el.id = 'urban-growth-debug';
-      Object.assign(el.style, {
-        position: 'fixed', top: '12px', left: '12px', zIndex: '99999',
-        padding: '10px 12px', background: 'rgba(0,0,0,.82)', color: '#fff',
-        font: '12px/1.45 monospace', borderRadius: '8px',
-        pointerEvents: 'none', whiteSpace: 'pre', minWidth: '230px'
-      });
+      Object.assign(el.style, {position:'fixed',top:'12px',left:'12px',zIndex:'99999',padding:'10px 12px',background:'rgba(0,0,0,.82)',color:'#fff',font:'12px/1.45 monospace',borderRadius:'8px',pointerEvents:'none',whiteSpace:'pre',minWidth:'250px'});
       document.body.appendChild(el);
     }
     return el;
   }
 
   function updatePanel() {
-    const max = growthRows.reduce((m, r) => Math.max(m, r.height), 0);
+    const max = growthRows.reduce((m,r)=>Math.max(m,r.height),0);
     panel().textContent = [
       'URBANCITY GROWTH DEBUG',
       `API: ${apiStatus}`,
@@ -41,7 +33,7 @@
       `Scene: ${scene ? 'YES' : 'NO'}`,
       `Text labels found: ${labelsFound}`,
       `Matched labels: ${matched}`,
-      `Max server height: ${max ? max.toFixed(2) + 'm' : '—'}`,
+      `Max server height: ${max ? max.toFixed(2)+'m' : '—'}`,
       lastError ? `Error: ${lastError}` : 'Error: —'
     ].join('\n');
   }
@@ -51,144 +43,90 @@
     return scene;
   }
 
-  // Three.js Object3D#getWorldPosition expects a real Vector3 and calls
-  // target.setFromMatrixPosition(). Use a tiny compatible target so this
-  // standalone script does not need its own Three.js dependency.
-  function makeWorldTarget() {
-    return {
-      x: 0,
-      y: 0,
-      z: 0,
-      setFromMatrixPosition(matrix) {
-        const e = matrix.elements;
-        this.x = e[12];
-        this.y = e[13];
-        this.z = e[14];
-        return this;
-      }
-    };
+  function worldPosition(object) {
+    if (!object || !object.matrixWorld || !object.matrixWorld.elements) return null;
+    const e = object.matrixWorld.elements;
+    return {x:e[12], y:e[13], z:e[14]};
   }
 
-  function nearestGrowthRow(label) {
-    const parent = label && label.parent;
-    if (!parent || !growthRows.length || typeof parent.getWorldPosition !== 'function') return null;
-
-    const world = makeWorldTarget();
-    parent.getWorldPosition(world);
-
+  function findNearestRow(label) {
+    if (!growthRows.length) return null;
+    let object = label;
     let best = null;
-    let bestDistance = 5;
-    for (const row of growthRows) {
-      const dx = world.x - row.position[0];
-      const dy = world.y - row.position[1];
-      const dz = world.z - row.position[2];
-      const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        best = row;
+    let bestDistance = Infinity;
+    // Walk up through Text's wrapper hierarchy. One of these ancestors is the
+    // actual player/RigidBody group. This avoids getWorldPosition entirely.
+    for (let depth=0; object && depth<8; depth++, object=object.parent) {
+      const p = worldPosition(object);
+      if (!p) continue;
+      for (const row of growthRows) {
+        const dx=p.x-row.position[0], dy=p.y-row.position[1], dz=p.z-row.position[2];
+        const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
+        if (d<bestDistance) { bestDistance=d; best=row; }
       }
     }
-    return best;
+    return bestDistance <= 15 ? best : null;
   }
 
-  function findAvatarSibling(label) {
-    const parent = label && label.parent;
-    if (!parent) return null;
-    for (const child of parent.children || []) {
-      if (child !== label && child && child.isGroup) return child;
+  function findPlayerRoot(label) {
+    let object = label;
+    let candidate = null;
+    for (let depth=0; object && depth<8; depth++, object=object.parent) {
+      if (object.children && object.children.some(c => c !== label && c && c.isGroup)) candidate = object;
     }
-    return null;
+    return candidate || (label && label.parent) || null;
   }
 
   function applyGrowth() {
-    const rootScene = getScene();
-    labelsFound = 0;
-    matched = 0;
-    if (!rootScene || !growthRows.length) {
-      updatePanel();
-      return;
-    }
+    const rootScene=getScene();
+    labelsFound=0; matched=0;
+    if (!rootScene || !growthRows.length) { updatePanel(); return; }
 
     try {
       rootScene.updateMatrixWorld(true);
-      rootScene.traverse((object) => {
+      rootScene.traverse((object)=>{
         if (typeof object.text !== 'string') return;
         labelsFound++;
-
-        const info = nearestGrowthRow(object);
+        const info=findNearestRow(object);
         if (!info) return;
         matched++;
 
-        const avatar = findAvatarSibling(object);
-        if (avatar && avatar.scale && avatar.userData) {
-          if (!avatar.userData.__urbanGrowthBaseScale) {
-            avatar.userData.__urbanGrowthBaseScale = avatar.scale.clone();
-          }
-          const base = avatar.userData.__urbanGrowthBaseScale;
-          const scale = Math.max(1, Math.min(info.height / BASE_HEIGHT, MAX_HEIGHT / BASE_HEIGHT));
-          avatar.scale.set(base.x * scale, base.y * scale, base.z * scale);
+        const playerRoot=findPlayerRoot(object);
+        if (playerRoot && playerRoot.scale && playerRoot.userData) {
+          if (!playerRoot.userData.__urbanGrowthBaseScale) playerRoot.userData.__urbanGrowthBaseScale=playerRoot.scale.clone();
+          const base=playerRoot.userData.__urbanGrowthBaseScale;
+          const scale=Math.max(1,Math.min(info.height/BASE_HEIGHT,MAX_HEIGHT/BASE_HEIGHT));
+          playerRoot.scale.set(base.x*scale,base.y*scale,base.z*scale);
         }
 
-        // Keep the live authoritative value visible while debugging.
         try {
-          object.text = `HEIGHT ${info.height.toFixed(2)}m`;
-          if (typeof object.sync === 'function') object.sync();
+          object.text=`HEIGHT ${info.height.toFixed(2)}m`;
+          if (typeof object.sync==='function') object.sync();
         } catch (_) {}
       });
-      lastError = '';
+      lastError='';
     } catch (error) {
-      lastError = error instanceof Error ? error.message : String(error);
+      lastError=error instanceof Error ? error.message : String(error);
     }
-
     updatePanel();
   }
 
   async function pollGrowth() {
     try {
-      const response = await fetch(API, { cache: 'no-store' });
+      const response=await fetch(API,{cache:'no-store'});
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const rows = await response.json();
+      const rows=await response.json();
       if (!Array.isArray(rows)) throw new Error('invalid response');
-
-      growthRows = rows
-        .filter((row) => row && Array.isArray(row.position) && row.position.length === 3 && Number.isFinite(Number(row.height)))
-        .map((row) => ({
-          id: String(row.id || ''),
-          name: String(row.name || ''),
-          position: [Number(row.position[0]), Number(row.position[1]), Number(row.position[2])],
-          height: Math.min(MAX_HEIGHT, Number(row.height))
-        }));
-
-      apiStatus = 'OK';
-      lastError = '';
-      scene = window.__urbanCityScene || scene;
-      retryDelay = 1000;
-      applyGrowth();
-      schedulePoll(1000);
-    } catch (error) {
-      apiStatus = 'FAIL';
-      lastError = error instanceof Error ? error.message : String(error);
-      updatePanel();
-      schedulePoll(retryDelay);
-      retryDelay = Math.min(retryDelay * 2, 10000);
+      growthRows=rows.filter(r=>r&&Array.isArray(r.position)&&r.position.length===3&&Number.isFinite(Number(r.height))).map(r=>({id:String(r.id||''),name:String(r.name||''),position:[Number(r.position[0]),Number(r.position[1]),Number(r.position[2])],height:Math.min(MAX_HEIGHT,Number(r.height))}));
+      apiStatus='OK'; lastError=''; scene=window.__urbanCityScene||scene; retryDelay=1000;
+      applyGrowth(); schedulePoll(1000);
+    } catch(error) {
+      apiStatus='FAIL'; lastError=error instanceof Error ? error.message : String(error); updatePanel();
+      schedulePoll(retryDelay); retryDelay=Math.min(retryDelay*2,10000);
     }
   }
 
-  function schedulePoll(delay) {
-    window.clearTimeout(pollTimer);
-    pollTimer = window.setTimeout(pollGrowth, delay);
-  }
-
-  function start() {
-    panel();
-    updatePanel();
-    pollGrowth();
-    window.setInterval(applyGrowth, 250);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', start, { once: true });
-  } else {
-    start();
-  }
+  function schedulePoll(delay) { window.clearTimeout(pollTimer); pollTimer=window.setTimeout(pollGrowth,delay); }
+  function start() { panel(); updatePanel(); pollGrowth(); window.setInterval(applyGrowth,250); }
+  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded',start,{once:true}); else start();
 })();
