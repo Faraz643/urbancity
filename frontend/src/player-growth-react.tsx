@@ -6,43 +6,60 @@ import * as THREE from 'three';
 export const PLAYER_BASE_HEIGHT = 2.8;
 export const PLAYER_MAX_HEIGHT = 44;
 
-/** Visual-only growth wrapper. Feet stay planted while the avatar grows upward. */
-export function GrowingPlayerAvatar({ height, label, children }: { height: number; label?: string; children: ReactNode }) {
+export function clampPlayerHeight(height: number) {
+  return THREE.MathUtils.clamp(Number(height) || PLAYER_BASE_HEIGHT, PLAYER_BASE_HEIGHT, PLAYER_MAX_HEIGHT);
+}
+
+export function playerScaleFromHeight(height: number) {
+  return clampPlayerHeight(height) / PLAYER_BASE_HEIGHT;
+}
+
+/**
+ * Visual-only growth wrapper. Its origin is the avatar foot anchor, so scaling
+ * changes visual size without changing the Rapier body/collider.
+ */
+export function GrowingPlayerAvatar({ height, children }: { height: number; children: ReactNode }) {
   const ref = useRef<THREE.Group>(null);
-  const current = useRef(1);
+  const currentScale = useRef(1);
 
-  useFrame((state, dt) => {
-    const safeHeight = THREE.MathUtils.clamp(Number(height) || PLAYER_BASE_HEIGHT, PLAYER_BASE_HEIGHT, PLAYER_MAX_HEIGHT);
-    const targetScale = safeHeight / PLAYER_BASE_HEIGHT;
-    current.current = THREE.MathUtils.damp(current.current, targetScale, 7, dt);
-    const s = current.current;
+  useFrame((_, dt) => {
     if (!ref.current) return;
+    const targetScale = playerScaleFromHeight(height);
+    currentScale.current = THREE.MathUtils.damp(currentScale.current, targetScale, 7, dt);
+    const s = currentScale.current;
 
-    // The wrapper origin is at the avatar's original foot anchor. Scale around
-    // that anchor and compensate the measured local foot offset so the soles
-    // remain on the same world-space ground plane.
     ref.current.scale.setScalar(s);
+    // This compensates for PlayerAvatar's existing -1.12 local visual offset.
+    // The feet therefore stay on the same world-space floor while the body grows upward.
     ref.current.position.y = (s - 1) * 1.208;
+
+    // Shared debug/runtime state. App's camera can consume this without another
+    // growth polling script or a second Three.js scene traversal system.
+    (window as any).__urbanPlayerHeight = clampPlayerHeight(height);
+    (window as any).__urbanPlayerScale = s;
   });
 
   return <group ref={ref}>{children}</group>;
 }
 
+/** Camera-facing, depth-independent player name tag. */
 export function GrowthNameTag({ name, height, local = false }: { name: string; height: number; local?: boolean }) {
   const ref = useRef<THREE.Group>(null);
-  const targetScale = useRef(1);
+  const currentScale = useRef(1);
 
   useFrame((state, dt) => {
     if (!ref.current) return;
-    const s = THREE.MathUtils.clamp(Number(height) || PLAYER_BASE_HEIGHT, PLAYER_BASE_HEIGHT, PLAYER_MAX_HEIGHT) / PLAYER_BASE_HEIGHT;
-    // Keep the tag comfortably above the head and grow readability without
-    // allowing a giant 44m player to create an enormous tag.
-    const tagScale = THREE.MathUtils.clamp(1 + Math.log2(Math.max(1, s)) * 0.34, 1, 2.8);
-    targetScale.current = THREE.MathUtils.damp(targetScale.current, tagScale, 8, dt);
-    ref.current.scale.setScalar(targetScale.current);
-    ref.current.position.y = 1.92 * s + 0.18 * Math.min(s, 8);
+    const s = playerScaleFromHeight(height);
+    const tagScale = THREE.MathUtils.clamp(1 + Math.log2(Math.max(1, s)) * 0.30, 1, 2.6);
+    currentScale.current = THREE.MathUtils.damp(currentScale.current, tagScale, 8, dt);
+    ref.current.scale.setScalar(currentScale.current);
 
-    // Billboard: face the camera while retaining the tag's world-space height.
+    // The tag follows the actual visual growth curve and is deliberately kept
+    // above the head rather than using a fixed world-space Y position.
+    ref.current.position.y = 2.02 * s + 0.28 * Math.min(s, 8);
+
+    // Camera-facing billboard without forcing camera.lookAt or otherwise
+    // interfering with the game's existing camera controller.
     ref.current.quaternion.copy(state.camera.quaternion);
   });
 
@@ -66,6 +83,6 @@ export function GrowthNameTag({ name, height, local = false }: { name: string; h
 }
 
 export function growthLabelY(height: number) {
-  const s = THREE.MathUtils.clamp(Number(height) || PLAYER_BASE_HEIGHT, PLAYER_BASE_HEIGHT, PLAYER_MAX_HEIGHT) / PLAYER_BASE_HEIGHT;
-  return 1.92 * s + 0.18 * Math.min(s, 8);
+  const s = playerScaleFromHeight(height);
+  return 2.02 * s + 0.28 * Math.min(s, 8);
 }
