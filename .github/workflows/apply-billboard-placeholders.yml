@@ -1,0 +1,55 @@
+name: Apply billboard placeholder images
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: "${{ !contains(github.event.head_commit.message, 'Add billboard placeholder images') }}"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Replace static billboard text with placeholder creatives
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+
+          path = Path('frontend/src/App.tsx')
+          s = path.read_text(encoding='utf-8-sig')
+
+          marker = '// URBANCITY_BILLBOARD_PLACEHOLDER_V1'
+          if marker in s:
+              raise SystemExit(0)
+
+          marker_block = '''\n{marker}\nconst BILLBOARD_PLACEHOLDER_HORIZONTAL = '/billboards/place-your-ad-horizontal.svg';\nconst BILLBOARD_PLACEHOLDER_VERTICAL = '/billboards/place-your-ad-vertical.svg';\n\n'''.format(marker=marker)
+          anchor = "function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;onSelect:(b:Billboard)=>void;nearCount:number;totalVisitors:number;bidder?:BidderInfo}) {"
+          if anchor not in s:
+              raise SystemExit('BillboardMesh anchor not found')
+          s = s.replace(anchor, marker_block + anchor, 1)
+
+          old_vertical = """{bidder?.imageUrl?<AdCreative url={bidder.imageUrl} w={w} h={h}/>:<mesh position={[0,0,.095]}><planeGeometry args={[w,h]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#214b14'} emissive={b.occupied?'#3b0c21':'#1c5d12'} emissiveIntensity={0.65}/></mesh>}\n       {!bidder?.imageUrl && <>{bidder?<><Text position={[0,.28,.12]} fontSize={Math.min(h*.16,.62)} color=\"white\" anchorX=\"center\" maxWidth={w*.82} textAlign=\"center\">{bidder.name}</Text><Text position={[0,-Math.min(h*.18,.7),.12]} fontSize={Math.min(h*.075,.24)} color=\"#c7d5e8\" anchorX=\"center\" maxWidth={w*.78} textAlign=\"center\">{bidder.description||''}</Text></>:<Text position={[0,.1,.12]} fontSize={Math.min(h*.18,.72)} color=\"white\" anchorX=\"center\" maxWidth={w*.82} textAlign=\"center\">{b.ad}</Text>}</>}"""
+          new_vertical = """{bidder?.imageUrl?<AdCreative url={bidder.imageUrl} w={w} h={h}/>:<AdCreative url={BILLBOARD_PLACEHOLDER_VERTICAL} w={w} h={h}/>}\n       {!bidder?.imageUrl && bidder && <><Text position={[0,.28,.12]} fontSize={Math.min(h*.16,.62)} color=\"white\" anchorX=\"center\" maxWidth={w*.82} textAlign=\"center\">{bidder.name}</Text><Text position={[0,-Math.min(h*.18,.7),.12]} fontSize={Math.min(h*.075,.24)} color=\"#c7d5e8\" anchorX=\"center\" maxWidth={w*.78} textAlign=\"center\">{bidder.description||''}</Text></>}"""
+          if old_vertical not in s:
+              raise SystemExit('Vertical billboard block not found')
+          s = s.replace(old_vertical, new_vertical, 1)
+
+          old_main = """{bidder?.imageUrl?<AdCreative url={bidder.imageUrl} w={w-.35} h={h-.35} z={.231}/>:<mesh position={[0,0,.24]}><planeGeometry args={[w-.35,h-.35]}/><meshStandardMaterial color={b.occupied?'#5b2038':'#294c0b'} emissive={b.occupied?'#3b0c21':'#234d03'} emissiveIntensity={0.7}/></mesh>}\n     {!bidder?.imageUrl && <>{bidder?<><Text position={[0,.28,.48]} fontSize={Math.min(h*.16,.62)} color=\"white\" anchorX=\"center\" maxWidth={w*.82} textAlign=\"center\">{bidder.name}</Text><Text position={[0,-Math.min(h*.18,.7),.48]} fontSize={Math.min(h*.075,.24)} color=\"#c7d5e8\" anchorX=\"center\" maxWidth={w*.78} textAlign=\"center\">{bidder.description||''}</Text></>:<Text position={[0,.1,.48]} fontSize={h*.18} color=\"white\" anchorX=\"center\" maxWidth={w*.82} textAlign=\"center\">{b.ad}</Text>}</>}"""
+          new_main = """{bidder?.imageUrl?<AdCreative url={bidder.imageUrl} w={w-.35} h={h-.35} z={.231}/>:<AdCreative url={BILLBOARD_PLACEHOLDER_HORIZONTAL} w={w-.35} h={h-.35} z={.231}/>}\n     {!bidder?.imageUrl && bidder && <><Text position={[0,.28,.48]} fontSize={Math.min(h*.16,.62)} color=\"white\" anchorX=\"center\" maxWidth={w*.82} textAlign=\"center\">{bidder.name}</Text><Text position={[0,-Math.min(h*.18,.7),.48]} fontSize={Math.min(h*.075,.24)} color=\"#c7d5e8\" anchorX=\"center\" maxWidth={w*.78} textAlign=\"center\">{bidder.description||''}</Text></>}"""
+          if old_main not in s:
+              raise SystemExit('Main billboard block not found')
+          s = s.replace(old_main, new_main, 1)
+
+          path.write_text(s, encoding='utf-8')
+          subprocess.run(['git','config','user.name','github-actions[bot]'], check=True)
+          subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'], check=True)
+          subprocess.run(['git','add','frontend/src/App.tsx'], check=True)
+          subprocess.run(['git','commit','-m','Add billboard placeholder images'], check=True)
+          subprocess.run(['git','push'], check=True)
