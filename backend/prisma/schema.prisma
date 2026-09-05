@@ -88,7 +88,7 @@ model Billboard {
   trafficRadius     Float    @default(50)
   trafficRating     String   @default("MEDIUM")
   visibilityRating  String   @default("GOOD")
-  minBid            Decimal  @default(1000)
+  minBid            Decimal  @default(0.21)
   currentBid        Decimal?
   currentBidderId   String?
   isAvailable       Boolean  @default(true)
@@ -229,7 +229,6 @@ model Booking {
   @@map("bookings")
 }
 
-
 model CheckoutLock {
   id          String   @id @default(uuid())
   billboardId String   @unique
@@ -263,8 +262,6 @@ model Payment {
   @@map("payments")
 }
 
-
-// Anonymous site analytics. visitorId persists in localStorage; sessionId is unique per browser session.
 model SiteVisit {
   id        String   @id @default(uuid())
   visitorId String   @map("visitor_id")
