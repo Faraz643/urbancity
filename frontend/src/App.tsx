@@ -4,7 +4,6 @@ import { Physics, RigidBody, CuboidCollider, CapsuleCollider, RapierRigidBody } 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { io, Socket } from 'socket.io-client';
-import { GrowingPlayerAvatar, GrowthNameTag, PLAYER_BASE_HEIGHT, playerHeightFromSession } from './player-growth-react';
 type AdSlotKind = 'billboard' | 'wall-ad' | 'vertical-ad';
 type BidderInfo = {name:string;amount:number;siteUrl?:string;imageUrl?:string;description?:string};
 type Billboard = { id:string; type:'Premium Road'|'Street'|'Building Wall'|'Vertical'; position:[number,number,number]; traffic:'High'|'Medium'; bid:number; occupied:boolean; ad:string; rotationY?:number; kind?:AdSlotKind; size?:[number,number] };
@@ -17,7 +16,7 @@ function billboardTrafficRadius(b: Billboard) {
 }
 
 const MAP_BILLBOARDS: Billboard[] = [
-  { id:'102', type:'Premium Road', position:[0,4,-22], traffic:'High', bid:5000, occupied:false, ad:'ZEST â€¢ meal delivery' },
+  { id:'102', type:'Premium Road', position:[0,4,-22], traffic:'High', bid:5000, occupied:false, ad:'ZEST • meal delivery' },
   { id:'207', type:'Premium Road', position:[0,4,22], rotationY:Math.PI, traffic:'High', bid:8200, occupied:true, ad:'URBAN FINANCE' },
   // Portrait inventory flanking the two premium main boards. Each is independently bookable.
   { id:'102-L', type:'Vertical', kind:'vertical-ad', position:[-6.4,4,-22], traffic:'High', bid:4200, occupied:false, ad:'VERTICAL AD', size:[2.8,4.6] },
@@ -346,70 +345,223 @@ function PlayerAvatar({moving}:{moving:boolean}) {
  </group>;
 }
 
-function Player({onNearby,onMove,onPosition,onFootfallEnter,onFootfallLeave}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean;height:number})=>void;onPosition:(p:[number,number,number])=>void;onFootfallEnter:(id:string)=>void;onFootfallLeave:(id:string)=>void}) {
- const growthSessionStartedAt = useRef(Date.now()).current;
- const [playerHeight, setPlayerHeight] = useState(PLAYER_BASE_HEIGHT);
- useEffect(()=>{
-   const updateHeight=()=>setPlayerHeight(playerHeightFromSession(growthSessionStartedAt));
-   updateHeight();
-   const timer=window.setInterval(updateHeight,250);
-   return()=>window.clearInterval(timer);
- },[growthSessionStartedAt]);
- const body = useRef<RapierRigidBody>(null!);
- const pressed = useRef<Record<string, boolean>>({});
- useEffect(()=>{
-   const down=(e:KeyboardEvent)=>{if((window as any).__urbanModalOpen)return;if(['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','ShiftLeft','ShiftRight'].includes(e.code)){pressed.current[e.code]=true;e.preventDefault()};if(e.code==='KeyE'){const b=(window as any).__urbanNearbyBillboard as Billboard|null;if(b){e.preventDefault();onNearby(b);(window as any).__urbanInteractBillboard?.(b)}}};
-   const up=(e:KeyboardEvent)=>{pressed.current[e.code]=false};
-   window.addEventListener('keydown',down,{passive:false});
-   window.addEventListener('keyup',up);
-   return()=>{window.removeEventListener('keydown',down);window.removeEventListener('keyup',up)};
- },[]);
- const velocity = useRef(new THREE.Vector3());
- const target = useRef(new THREE.Vector3());
- const networkAt = useRef(0);
- const footfallInsideIds = useRef<Set<string>>(new Set());
- useFrame((_,dt)=>{
-   const k=pressed.current;
-   const inputX=((k.KeyD||k.ArrowRight)?1:0)-((k.KeyA||k.ArrowLeft)?1:0);
-   const inputZ=((k.KeyS||k.ArrowDown)?1:0)-((k.KeyW||k.ArrowUp)?1:0);
-   const dir=new THREE.Vector3(inputX,0,inputZ);
-   const yaw=(window as any).__urbanCameraYaw ?? 0;
-   if(dir.lengthSq()>0){dir.normalize();dir.applyAxisAngle(new THREE.Vector3(0,1,0),yaw);}
-   const sprint=!!k.ShiftLeft||!!k.ShiftRight;
-   const speed=sprint?11:7; velocity.current.lerp(dir.multiplyScalar(speed),Math.min(1,dt*12));
-   body.current.setLinvel({x:velocity.current.x,y:body.current.linvel().y,z:velocity.current.z},true);
-   const p=body.current.translation();
-   if(velocity.current.lengthSq()>0.1){ const angle=Math.atan2(velocity.current.x,velocity.current.z); body.current.setRotation({x:0,y:Math.sin(angle/2),z:0,w:Math.cos(angle/2)},true); }
-   target.current.set(p.x,p.y,p.z);
-   (window as any).__urbanPlayerPosition=target.current.clone();
-   onPosition([p.x,p.y,p.z]);
-   let nearest:Billboard|null=null,dist=Infinity;
-   for(const b of MAP_BILLBOARDS){const d=Math.hypot(p.x-b.position[0],p.z-b.position[2]);if(d<5&&d<dist){nearest=b;dist=d}}
-   onNearby(nearest);
-   (window as any).__urbanNearbyBillboard=nearest;
+function Player({
+  onNearby,
+  onMove,
+  onPosition,
+  onFootfallEnter,
+  onFootfallLeave,
+}: {
+  onNearby: (b: Billboard | null) => void;
+  onMove: (state: {
+  position: [number, number, number];
+  rotation: number;
+  moving: boolean;
+}) => void;
+  onPosition: (p: [number, number, number]) => void;
+  onFootfallEnter: (id: string) => void;
+  onFootfallLeave: (id: string) => void;
+}) {
+  const body = useRef<RapierRigidBody>(null!);
+  const pressed = useRef<Record<string, boolean>>({});
 
-   // Standing Nearby deliberately uses the EXACT same radius as the live real-time
-   // number displayed above each board. A player is counted once per board on
-   // OUTSIDE -> INSIDE, then must leave that board's traffic radius before
-   // another entry can count.
-   const nextInside=new Set<string>();
-   for(const b of MAP_BILLBOARDS){
-     const d=Math.hypot(p.x-b.position[0],p.z-b.position[2]);
-     if(d<=billboardTrafficRadius(b)) nextInside.add(b.id);
-   }
-   const previousInside=footfallInsideIds.current;
-   for(const id of nextInside) if(!previousInside.has(id)) onFootfallEnter(id);
-   for(const id of previousInside) if(!nextInside.has(id)) onFootfallLeave(id);
-   footfallInsideIds.current=nextInside;
-   networkAt.current+=dt;if(networkAt.current>.08){networkAt.current=0;onMove({position:[p.x,p.y,p.z],rotation:Math.atan2(velocity.current.x,velocity.current.z),moving:velocity.current.lengthSq()>.1,height:(window as any).__urbanPlayerHeight || PLAYER_BASE_HEIGHT})}
- });
- return <RigidBody ref={body} colliders={false} position={[0,1.4,8]} enabledRotations={[false,false,false]} angularDamping={12} linearDamping={8} friction={0} mass={1}>
-   <CapsuleCollider args={[0.75,0.42]}/>
-   <GrowingPlayerAvatar height={playerHeight}>
-     <PlayerAvatar moving={velocity.current.lengthSq()>.1}/>
-   </GrowingPlayerAvatar>
-   <GrowthNameTag name="You" height={playerHeight}/>
- </RigidBody>
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if ((window as any).__urbanModalOpen) return;
+
+      if (
+        [
+          "KeyW",
+          "KeyA",
+          "KeyS",
+          "KeyD",
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight",
+          "ShiftLeft",
+          "ShiftRight",
+        ].includes(e.code)
+      ) {
+        pressed.current[e.code] = true;
+        e.preventDefault();
+      }
+
+      if (e.code === "KeyE") {
+        const b = (window as any).__urbanNearbyBillboard as Billboard | null;
+
+        if (b) {
+          e.preventDefault();
+          onNearby(b);
+          (window as any).__urbanInteractBillboard?.(b);
+        }
+      }
+    };
+
+    const up = (e: KeyboardEvent) => {
+      pressed.current[e.code] = false;
+    };
+
+    window.addEventListener("keydown", down, { passive: false });
+    window.addEventListener("keyup", up);
+
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, [onNearby]);
+
+  const velocity = useRef(new THREE.Vector3());
+  const target = useRef(new THREE.Vector3());
+  const networkAt = useRef(0);
+  const footfallInsideIds = useRef<Set<string>>(new Set());
+
+  useFrame((_, dt) => {
+    if (!body.current) return;
+
+    const k = pressed.current;
+
+    const inputX =
+      ((k.KeyD || k.ArrowRight) ? 1 : 0) -
+      ((k.KeyA || k.ArrowLeft) ? 1 : 0);
+
+    const inputZ =
+      ((k.KeyS || k.ArrowDown) ? 1 : 0) -
+      ((k.KeyW || k.ArrowUp) ? 1 : 0);
+
+    const dir = new THREE.Vector3(inputX, 0, inputZ);
+
+    const yaw = (window as any).__urbanCameraYaw ?? 0;
+
+    if (dir.lengthSq() > 0) {
+      dir.normalize();
+      dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+    }
+
+    const sprint = !!k.ShiftLeft || !!k.ShiftRight;
+    const speed = sprint ? 11 : 7;
+
+    velocity.current.lerp(
+      dir.multiplyScalar(speed),
+      Math.min(1, dt * 12)
+    );
+
+    body.current.setLinvel(
+      {
+        x: velocity.current.x,
+        y: body.current.linvel().y,
+        z: velocity.current.z,
+      },
+      true
+    );
+
+    const p = body.current.translation();
+
+    if (velocity.current.lengthSq() > 0.1) {
+      const angle = Math.atan2(
+        velocity.current.x,
+        velocity.current.z
+      );
+
+      body.current.setRotation(
+        {
+          x: 0,
+          y: Math.sin(angle / 2),
+          z: 0,
+          w: Math.cos(angle / 2),
+        },
+        true
+      );
+    }
+
+    target.current.set(p.x, p.y, p.z);
+
+    (window as any).__urbanPlayerPosition =
+      target.current.clone();
+
+    onPosition([p.x, p.y, p.z]);
+
+    // Find nearest billboard
+    let nearest: Billboard | null = null;
+    let dist = Infinity;
+
+    for (const b of MAP_BILLBOARDS) {
+      const d = Math.hypot(
+        p.x - b.position[0],
+        p.z - b.position[2]
+      );
+
+      if (d < 5 && d < dist) {
+        nearest = b;
+        dist = d;
+      }
+    }
+
+    onNearby(nearest);
+    (window as any).__urbanNearbyBillboard = nearest;
+
+    // Footfall tracking
+    const nextInside = new Set<string>();
+
+    for (const b of MAP_BILLBOARDS) {
+      const d = Math.hypot(
+        p.x - b.position[0],
+        p.z - b.position[2]
+      );
+
+      if (d <= billboardTrafficRadius(b)) {
+        nextInside.add(b.id);
+      }
+    }
+
+    const previousInside = footfallInsideIds.current;
+
+    for (const id of nextInside) {
+      if (!previousInside.has(id)) {
+        onFootfallEnter(id);
+      }
+    }
+
+    for (const id of previousInside) {
+      if (!nextInside.has(id)) {
+        onFootfallLeave(id);
+      }
+    }
+
+    footfallInsideIds.current = nextInside;
+
+    // Multiplayer position update
+    networkAt.current += dt;
+
+    if (networkAt.current > 0.08) {
+      networkAt.current = 0;
+
+      onMove({
+  position: [p.x, p.y, p.z],
+  rotation: Math.atan2(velocity.current.x, velocity.current.z),
+  moving: velocity.current.lengthSq() > 0.1
+});
+    }
+  });
+
+  return (
+    <RigidBody
+      ref={body}
+      colliders={false}
+      position={[0, 1.4, 8]}
+      enabledRotations={[false, false, false]}
+      angularDamping={12}
+      linearDamping={8}
+      friction={0}
+      mass={1}
+    >
+      <CapsuleCollider args={[0.75, 0.42]} />
+
+      <PlayerAvatar
+        moving={velocity.current.lengthSq() > 0.1}
+      />
+    </RigidBody>
+  );
 }
 
 function BillboardPad({b}:{b:Billboard}) {
@@ -574,7 +726,7 @@ function World({ setNearby, players, setSelected, onMove, onFootfallEnter, onFoo
   setNearby: (b: Billboard | null) => void;
   players: Remote[];
   setSelected: (b: Billboard) => void;
-  onMove: (state: { position: [number, number, number]; rotation: number; moving: boolean; height: number }) => void;
+  onMove: (state: { position: [number, number, number]; rotation: number; moving: boolean;  }) => void;
   onFootfallEnter: (id:string) => void;
   onFootfallLeave: (id:string) => void;
   timeMode: TimeMode;
@@ -616,7 +768,7 @@ function MiniMap({players}:{players:Remote[]}) {
    {MAP_BILLBOARDS.map(b=><i key={b.id} className="map-billboard" title={`Billboard #${b.id}`} style={toPct(b.position[0],b.position[2])}/>)}
    {players.map(p=><i key={p.id} className="map-player" style={toPct(p.position[0],p.position[2])}/>)}
    <i className="map-me" style={{...toPct(me[0],me[2]),transform:`translate(-50%,-50%) rotate(${yaw}rad)`}}/>
- </div><small>ðŸŸ¡ billboards</small></div>
+ </div><small>• billboards</small></div>
 }
 
 type AuthUser={id:string;email:string;username:string;displayName:string;role:string;websiteUrl?:string|null;companyDescription?:string|null;wallet?:{balance:number}|null};
@@ -661,7 +813,7 @@ function App(){
    const timer=window.setInterval(refresh,60_000);
    return()=>window.clearInterval(timer);
  },[api]);
- const formatInr=(value:number)=>'â‚¹'+Number(value||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+ const formatInr=(value:number)=>'₹'+Number(value||0).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
  useEffect(()=>{fetch(api+'/api/live/billboards').then(r=>r.ok?r.json():[]).then((rows:any[])=>{const next:Record<string,number>={};for(const row of rows)next[row.id]=Number(row.footfall||0);setFootfallTotals(next)}).catch(()=>{});},[api]);
  const visitorStats=useMemo(()=>{
    const stats:Record<string,number>={};
@@ -763,7 +915,7 @@ function App(){
  const formatDuration=(m:number)=>{if(m<60)return '30 min';const hours=m/60;return Number.isInteger(hours)?hours+' hour'+(hours===1?'':'s'):hours+' hours'};
  const loadHistory=async()=>{try{const r=await fetch(api+'/api/bookings/history',{headers:authHeaders()});const d=await readApi(r);if(r.ok)setBookingHistory(d)}catch{}};
  const loadLeaderboard=async()=>{try{const r=await fetch(api+'/api/bookings/leaderboard');const d=await readApi(r);if(r.ok)setLeaderboard(Array.isArray(d)?d:[])}catch{}};
- const shortDate=(value:string)=>{const d=new Date(value),now=new Date();const same=d.toDateString()===now.toDateString();return (same?'Today':d.toLocaleDateString(undefined,{day:'numeric',month:'short'}))+' Â· '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})};
+ const shortDate=(value:string)=>{const d=new Date(value),now=new Date();const same=d.toDateString()===now.toDateString();return (same?'Today':d.toLocaleDateString(undefined,{day:'numeric',month:'short'}))+' •· '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'})};
  const durationLabel=(minutes:number)=>{if(minutes>=1440){const days=Math.round(minutes/1440);return days+' day'+(days===1?'':'s')}if(minutes>=60){const hours=Math.round(minutes/60);return hours+' hour'+(hours===1?'':'s')}return minutes+' min'};
  const uploadCreative=async()=>{if(!adFile)return null;setUploadBusy(true);try{const fd=new FormData();fd.append('file',adFile);const r=await fetch(api+'/api/advertisements/upload',{method:'POST',headers:authHeaders(),body:fd});const d=await readApi(r);if(!r.ok)throw new Error(d.error||'Upload failed');const cr=await fetch(api+'/api/advertisements',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({title:bookingCompanyName||adFile.name,description:adTitle||undefined,imageUrl:d.imageUrl,targetUrl:adUrl||user?.websiteUrl||undefined})});const ad=await readApi(cr);if(!cr.ok)throw new Error(ad.error||'Could not create advertisement');return ad.id;}finally{setUploadBusy(false)}};
  const book=async()=>{if(!selected)return;if(!user){setAuthOpen(true);setAuthError('Login or register to book advertising space.');return;}setBookingError('');const link=adUrl.trim();if(link){try{const u=new URL(link);if(!['http:','https:'].includes(u.protocol))throw new Error()}catch{setBookingError('Please enter a valid website URL including https:// (for example: https://yourcompany.com).');return;}}if(adFile&&adFile.size>5*1024*1024){setBookingError('Your image is too large. Please choose a PNG, JPG or WEBP image smaller than 5 MB.');return;}setBookingBusy(true);try{const advertisementId=await uploadCreative();const r=await fetch(api+'/api/payments/checkout',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:JSON.stringify({billboardId:selected.id,durationMinutes:bookingMinutes,companyName:bookingCompanyName||user.displayName||user.username,description:adTitle.trim()||undefined,advertisementId:advertisementId||undefined})});const data=await readApi(r);if(!r.ok)throw new Error(data.error||'Could not start secure checkout');if(!data.paymentSessionId)throw new Error('Cashfree payment session was not returned');const Cashfree=(window as any).Cashfree;if(typeof Cashfree!=='function')throw new Error('Cashfree checkout is still loading. Please wait a moment and try again.');const cashfree=Cashfree({mode:data.environment==='production'?'production':'sandbox'});cashfree.checkout({paymentSessionId:data.paymentSessionId,redirectTarget:'_self'});return;}catch(e:any){setBookingError(e.message||'Booking failed')}finally{setBookingBusy(false)}};
@@ -775,11 +927,11 @@ function App(){
  return <div className="app"><World setNearby={setNearby} players={players} setSelected={setSelected} onMove={(state)=>socket.current?.emit('player:update',state)} onFootfallEnter={(id)=>socket.current?.emit('billboard:footfall-enter',{id})} onFootfallLeave={(id)=>socket.current?.emit('billboard:footfall-leave',{id})} timeMode={timeMode} visitorStats={visitorStats} onLocalPosition={setLocalPosition} bidders={bidders}/>
   {paymentNotice&&<div role="status" style={{position:'fixed',top:72,left:'50%',transform:'translateX(-50%)',zIndex:200,maxWidth:'min(560px,90vw)',padding:'12px 16px',borderRadius:10,background:paymentNotice.ok?'#123d2b':'#4a1f27',color:'#fff',boxShadow:'0 12px 40px rgba(0,0,0,.35)',cursor:'pointer'}} onClick={()=>setPaymentNotice(null)}>{paymentNotice.message}</div>}
   <div className="game-topbar">
-    <div className="hud top"><div><b>â— ONLINE</b><span>{totalVisitors}</span></div></div>
-    <button className="game-menu-button" onClick={()=>setGameMenuOpen(true)} aria-label="Open UrbanCity menu">â˜° <span>MENU</span></button>
+    <div className="hud top"><div><b>• ONLINE</b><span>{totalVisitors}</span></div></div>
+    <button className="game-menu-button" onClick={()=>setGameMenuOpen(true)} aria-label="Open UrbanCity menu">•<span>MENU</span></button>
   {gameMenuOpen&&<div className="game-menu-overlay" onWheel={e=>e.stopPropagation()} onTouchMove={e=>e.stopPropagation()} onClick={()=>setGameMenuOpen(false)}>
     <aside className="game-menu" onWheel={e=>e.stopPropagation()} onTouchMove={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()}>
-      <div className="game-menu-head"><div><b>URBANCITY</b><small>INFORMATION & SUPPORT</small></div><button onClick={()=>setGameMenuOpen(false)} aria-label="Close menu">Ã—</button></div>
+      <div className="game-menu-head"><div><b>URBANCITY</b><small>INFORMATION & SUPPORT</small></div><button onClick={()=>setGameMenuOpen(false)} aria-label="Close menu">×</button></div>
       <div className="game-menu-links">
         <a href="/about">About UrbanCity</a><a href="/how-it-works">How It Works</a><a href="/faq">FAQ</a><a href="/rules">Rules</a><a href="/pricing">Pricing</a>
       </div>
@@ -795,11 +947,11 @@ function App(){
   <div className="time-switcher">{(["morning","evening","night"] as TimeMode[]).map(m=><button key={m} className={timeMode===m?"active":""} onClick={()=>setTimeMode(m)}>{m}</button>)}</div>
   <div className="hud controls"><b>Controls</b><small><kbd>W A S D</kbd> move</small><small><kbd>E</kbd> interact</small></div>
   <button className="leaderboard-button" onClick={()=>{setHistoryOpen(true);loadLeaderboard()}}>Leaderboard</button>
-  <MiniMap players={players}/><div className="billcount"><div>ðŸ‘¥ Total Visitors <b>{siteTotalVisitors}</b></div><div>ðŸª§ Billboards <b>{MAP_BILLBOARDS.length}</b> total</div></div>
+  <MiniMap players={players}/><div className="billcount"><div>• Total Visitors <b>{siteTotalVisitors}</b></div><div>• Billboards <b>{MAP_BILLBOARDS.length}</b> total</div></div>
   {nearby&&!selected&&<button className="interact" onClick={()=>{setSelected(nearby);loadAllActiveBillboards()}}><kbd>E</kbd><span>Interact</span></button>}
-  {selected&&<div className="panel"><button className="close" onClick={()=>setSelected(null)}>Ã—</button>{(()=>{const active=activeBookings[selected.id];const bidder=bidders[selected.id];const companyName=bidder?.name||active?.companyName||'Company name';const rawSiteUrl=bidder?.siteUrl||active?.targetUrl||active?.siteUrl||active?.user?.websiteUrl;const siteUrl=rawSiteUrl?(rawSiteUrl.startsWith('http://')||rawSiteUrl.startsWith('https://')?rawSiteUrl:'https://'+rawSiteUrl):undefined;const description=bidder?.description||active?.description||active?.advertisement?.description||active?.user?.companyDescription||'Company description here.';return <><h2>{siteUrl?<a href={siteUrl} target="_blank" rel="noreferrer" className="company-link">{companyName} <span aria-hidden="true">â†—</span></a>:companyName}</h2><p>{description}</p></>})()}<div className="tag">{selected.traffic} Traffic</div><div className="stat"><span>Footfall Till Date</span><b>{footfallTotals[selected.id]||0}</b></div>{activeBookings[selected.id]&&<><div className="stat"><span>Ends</span><b>{shortDate(activeBookings[selected.id].endDate)}</b></div><div className="stat"><span>Time remaining</span><b>{remaining(activeBookings[selected.id].endDate)}</b></div></>}{user?.id&&activeBookings[selected.id]?.userId&&activeBookings[selected.id].userId===user.id&&<div style={{margin:'12px 0'}}>{!editMode?<button className="bid" onClick={()=>setEditMode(true)}>Edit My Board</button>:<div style={{padding:'10px',border:'1px solid rgba(143,240,179,.35)',borderRadius:10}}><b>Edit your active advertisement</b><input value={bookingCompanyName} onChange={e=>setBookingCompanyName(e.target.value)} placeholder="Company name (shown in popup)" style={{width:'100%',boxSizing:'border-box',marginTop:8,padding:9,borderRadius:7,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input value={adTitle} onChange={e=>setAdTitle(e.target.value)} placeholder="Company description (optional)" style={{width:'100%',boxSizing:'border-box',marginTop:8,padding:9,borderRadius:7,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input value={adUrl} onChange={e=>setAdUrl(e.target.value)} placeholder="Website link (optional) â€” https://example.com" type="url" style={{width:'100%',boxSizing:'border-box',marginTop:8,padding:9,borderRadius:7,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{setAdFile(e.target.files?.[0]||null);setRemovePhoto(false)}} style={{width:'100%',marginTop:8}}/><label style={{display:'flex',gap:8,alignItems:'center',marginTop:8}}><input type="checkbox" checked={removePhoto} onChange={e=>{setRemovePhoto(e.target.checked);if(e.target.checked)setAdFile(null)}}/> Remove photo and show text only</label><div style={{display:'flex',gap:8,marginTop:10}}><button className="bid" onClick={saveCreative} disabled={editBusy}>{editBusy?'Saving...':'Save Changes'}</button><button className="duration-step" onClick={()=>setEditMode(false)}>Cancel</button></div></div>}</div>}<div style={{margin:'12px 0'}}><b>Booking duration</b><div className="duration-presets">{[60,300,540,1440].map(minutes=><button key={minutes} className={'duration-preset '+(bookingMinutes===minutes?'active':'')} onClick={()=>setBookingMinutes(minutes)}><strong>{minutes===1440?'1 day':minutes/60+' hour'+(minutes===60?'':'s')}</strong><small>{formatInr(bookingPrice(selected,minutes))}</small></button>)}</div><div className="duration-manual"><button className="duration-step" onClick={()=>setBookingMinutes(m=>Math.max(30,m-30))} aria-label="Decrease by 30 minutes">âˆ’</button><b>{formatDuration(bookingMinutes)}</b><button className="duration-step" onClick={()=>setBookingMinutes(m=>Math.min(2880,m+30))} aria-label="Increase by 30 minutes">+</button></div><small>Use presets or fine-tune in 30-minute steps. Day discounts apply only at exactly 24 hours and above.</small></div><div style={{margin:'12px 0',padding:'10px',border:'1px solid rgba(255,255,255,.12)',borderRadius:10}}><b>Advertisement creative</b><input value={bookingCompanyName} onChange={e=>setBookingCompanyName(e.target.value)} placeholder="Company name (shown in popup)" style={{width:'100%',boxSizing:'border-box',marginTop:8,padding:9,borderRadius:7,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input value={adTitle} onChange={e=>setAdTitle(e.target.value)} placeholder="Company description (optional)" style={{width:'100%',boxSizing:'border-box',marginTop:8,padding:9,borderRadius:7,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input value={adUrl} onChange={e=>setAdUrl(e.target.value)} placeholder="Website link (optional) â€” https://example.com" type="url" style={{width:'100%',boxSizing:'border-box',marginTop:6,padding:9,borderRadius:7,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>setAdFile(e.target.files?.[0]||null)} style={{width:'100%',marginTop:8}}/><small>{adFile?adFile.name:'PNG, JPG or WEBP â€¢ max 5 MB'}</small></div><div className="stat"><span>Fixed price</span><b>{formatInr(bookingPrice(selected,bookingMinutes))}</b></div><small>{pricingCategory(selected)==='MAIN'?'Main boards (wide + vertical): â‚¹49 / 30 min':pricingCategory(selected)==='WALL'?'Wall boards: â‚¹29 / 30 min':'Corner boards: â‚¹19 / 30 min'}</small>{bookingError&&<p style={{color:'#ff8f8f'}}>{bookingError}</p>}<button className="bid" onClick={book} disabled={bookingBusy||uploadBusy}>{user?((bookingBusy||uploadBusy)?(uploadBusy?'Uploading...':'Opening checkout...'):'Book & Pay'):'Login to Book'}</button><div style={{display:'flex',justifyContent:'center',gap:9,flexWrap:'wrap',marginTop:10,fontSize:11}}><a href="/rules" style={{color:'#9fb0c8'}}>Rules</a><span style={{color:'#526074'}}>Â·</span><a href="/faq" style={{color:'#9fb0c8'}}>FAQ</a><span style={{color:'#526074'}}>Â·</span><a href="/terms" style={{color:'#9fb0c8'}}>Terms & Conditions</a><span style={{color:'#526074'}}>Â·</span><a href="/privacy" style={{color:'#9fb0c8'}}>Privacy</a><span style={{color:'#526074'}}>Â·</span><a href="/refund-policy" style={{color:'#9fb0c8'}}>Refunds</a></div></div>}
-  {historyOpen&&<div className="leaderboard-overlay"><section className="leaderboard-window"><button className="leaderboard-close" onClick={()=>setHistoryOpen(false)}>Ã—</button><div className="leaderboard-head"><span>URBANCITY</span><h1>Leaderboard</h1><p>Top advertisers by total spend</p></div><div className="leaderboard-list">{leaderboard.length===0?<div className="empty-state">No advertisers yet.</div>:leaderboard.map((x:any)=><article className="leaderboard-row" key={x.username+'-'+x.name}><div className="rank">#{x.rank}</div><div className="company-logo"><img src={x.logo||'/company-placeholder.svg'} alt={x.name+' logo'}/></div><div className="company-main"><b>{x.name}</b><small>@{x.username}</small></div><div className="leaderboard-metric"><small>Total paid</small><b>{formatInr(Number(x.totalPayment))}</b></div><div className="leaderboard-metric"><small>Total time</small><b>{durationLabel(x.totalMinutes)}</b></div><a className="site-link" href={x.siteUrl}>Site â†—</a></article>)}</div></section></div>}
-  {authOpen&&<div data-urban-modal onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={{position:'fixed',inset:0,zIndex:100,background:'rgba(3,7,14,.78)',display:'grid',placeItems:'center',backdropFilter:'blur(8px)',pointerEvents:'auto'}}><div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={{width:360,maxWidth:'90vw',background:'#111a28',border:'1px solid #4c5d74',borderRadius:16,padding:24,color:'#fff',boxShadow:'0 20px 70px #000'}}><button onClick={()=>setAuthOpen(false)} style={{float:'right',background:'transparent',border:0,color:'#fff',fontSize:22,cursor:'pointer'}}>Ã—</button><h2 style={{marginTop:0}}>UrbanCity Account</h2><p style={{color:'#aeb9c8'}}>{authMode==='login'?'Login to bid on real advertising inventory.':'Create an account and receive a $1,000 virtual advertising balance.'}</p>{authMode==='register'&&<><input ref={authInputRef} onPointerDown={e=>e.stopPropagation()} onMouseDown={e=>e.stopPropagation()} value={authUsername} onChange={e=>setAuthUsername(e.target.value)} placeholder="Company name" style={{width:'100%',boxSizing:'border-box',padding:12,margin:'6px 0',borderRadius:8,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input value={authWebsite} onChange={e=>setAuthWebsite(e.target.value)} placeholder="Company website (optional) â€” https://example.com" type="url" style={{width:'100%',boxSizing:'border-box',padding:12,margin:'6px 0',borderRadius:8,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/></>}<input ref={authMode==='login'?authInputRef:undefined} onPointerDown={e=>e.stopPropagation()} onMouseDown={e=>e.stopPropagation()} value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="Email" type="email" style={{width:'100%',boxSizing:'border-box',padding:12,margin:'6px 0',borderRadius:8,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input onPointerDown={e=>e.stopPropagation()} onMouseDown={e=>e.stopPropagation()} value={authPassword} onChange={e=>setAuthPassword(e.target.value)} placeholder="Password" type="password" style={{width:'100%',boxSizing:'border-box',padding:12,margin:'6px 0',borderRadius:8,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/>{authError&&<p style={{color:'#ff8f8f'}}>{authError}</p>}<button onClick={submitAuth} disabled={authBusy} style={{width:'100%',padding:12,marginTop:10,border:0,borderRadius:8,background:'#e5b75b',fontWeight:800,cursor:'pointer'}}>{authBusy?'Please wait...':authMode==='login'?'Login':'Create Account'}</button><button onClick={()=>{setAuthMode(authMode==='login'?'register':'login');setAuthError('')}} style={{width:'100%',padding:10,marginTop:8,border:'1px solid #51627b',borderRadius:8,background:'transparent',color:'#dbe5f3',cursor:'pointer'}}>{authMode==='login'?'Need an account? Register':'Already have an account? Login'}</button></div></div>}
+  {selected&&<div className="panel"><button className="close" onClick={()=>setSelected(null)}>×</button>{(()=>{const active=activeBookings[selected.id];const bidder=bidders[selected.id];const companyName=bidder?.name||active?.companyName||'Company name';const rawSiteUrl=bidder?.siteUrl||active?.targetUrl||active?.siteUrl||active?.user?.websiteUrl;const siteUrl=rawSiteUrl?(rawSiteUrl.startsWith('http://')||rawSiteUrl.startsWith('https://')?rawSiteUrl:'https://'+rawSiteUrl):undefined;const description=bidder?.description||active?.description||active?.advertisement?.description||active?.user?.companyDescription||'Company description here.';return <><h2>{siteUrl?<a href={siteUrl} target="_blank" rel="noreferrer" className="company-link">{companyName} <span aria-hidden="true">↗</span></a>:companyName}</h2><p>{description}</p></>})()}<div className="tag">{selected.traffic} Traffic</div><div className="stat"><span>Footfall Till Date</span><b>{footfallTotals[selected.id]||0}</b></div>{activeBookings[selected.id]&&<><div className="stat"><span>Ends</span><b>{shortDate(activeBookings[selected.id].endDate)}</b></div><div className="stat"><span>Time remaining</span><b>{remaining(activeBookings[selected.id].endDate)}</b></div></>}{user?.id&&activeBookings[selected.id]?.userId&&activeBookings[selected.id].userId===user.id&&<div style={{margin:'12px 0'}}>{!editMode?<button className="bid" onClick={()=>setEditMode(true)}>Edit My Board</button>:<div style={{padding:'10px',border:'1px solid rgba(143,240,179,.35)',borderRadius:10}}><b>Edit your active advertisement</b><input value={bookingCompanyName} onChange={e=>setBookingCompanyName(e.target.value)} placeholder="Company name (shown in popup)" style={{width:'100%',boxSizing:'border-box',marginTop:8,padding:9,borderRadius:7,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input value={adTitle} onChange={e=>setAdTitle(e.target.value)} placeholder="Company description (optional)" style={{width:'100%',boxSizing:'border-box',marginTop:8,padding:9,borderRadius:7,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input value={adUrl} onChange={e=>setAdUrl(e.target.value)} placeholder="Website link (optional) https://example.com" type="url" style={{width:'100%',boxSizing:'border-box',marginTop:8,padding:9,borderRadius:7,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>{setAdFile(e.target.files?.[0]||null);setRemovePhoto(false)}} style={{width:'100%',marginTop:8}}/><label style={{display:'flex',gap:8,alignItems:'center',marginTop:8}}><input type="checkbox" checked={removePhoto} onChange={e=>{setRemovePhoto(e.target.checked);if(e.target.checked)setAdFile(null)}}/> Remove photo and show text only</label><div style={{display:'flex',gap:8,marginTop:10}}><button className="bid" onClick={saveCreative} disabled={editBusy}>{editBusy?'Saving...':'Save Changes'}</button><button className="duration-step" onClick={()=>setEditMode(false)}>Cancel</button></div></div>}</div>}<div style={{margin:'12px 0'}}><b>Booking duration</b><div className="duration-presets">{[60,300,540,1440].map(minutes=><button key={minutes} className={'duration-preset '+(bookingMinutes===minutes?'active':'')} onClick={()=>setBookingMinutes(minutes)}><strong>{minutes===1440?'1 day':minutes/60+' hour'+(minutes===60?'':'s')}</strong><small>{formatInr(bookingPrice(selected,minutes))}</small></button>)}</div><div className="duration-manual"><button className="duration-step" onClick={()=>setBookingMinutes(m=>Math.max(30,m-30))} aria-label="Decrease by 30 minutes">−</button><b>{formatDuration(bookingMinutes)}</b><button className="duration-step" onClick={()=>setBookingMinutes(m=>Math.min(2880,m+30))} aria-label="Increase by 30 minutes">+</button></div><small>Use presets or fine-tune in 30-minute steps. Day discounts apply only at exactly 24 hours and above.</small></div><div style={{margin:'12px 0',padding:'10px',border:'1px solid rgba(255,255,255,.12)',borderRadius:10}}><b>Advertisement creative</b><input value={bookingCompanyName} onChange={e=>setBookingCompanyName(e.target.value)} placeholder="Company name (shown in popup)" style={{width:'100%',boxSizing:'border-box',marginTop:8,padding:9,borderRadius:7,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input value={adTitle} onChange={e=>setAdTitle(e.target.value)} placeholder="Company description (optional)" style={{width:'100%',boxSizing:'border-box',marginTop:8,padding:9,borderRadius:7,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input value={adUrl} onChange={e=>setAdUrl(e.target.value)} placeholder="Website link (optional) https://example.com" type="url" style={{width:'100%',boxSizing:'border-box',marginTop:6,padding:9,borderRadius:7,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>setAdFile(e.target.files?.[0]||null)} style={{width:'100%',marginTop:8}}/><small>{adFile?adFile.name:'PNG, JPG or WEBP • max 5 MB'}</small></div><div className="stat"><span>Fixed price</span><b>{formatInr(bookingPrice(selected,bookingMinutes))}</b></div><small>{pricingCategory(selected)==='MAIN'?'Main boards (wide + vertical): • ₹49 / 30 min':pricingCategory(selected)==='WALL'?'Wall boards: •‚¹29 / 30 min':'Corner boards: •‚¹19 / 30 min'}</small>{bookingError&&<p style={{color:'#ff8f8f'}}>{bookingError}</p>}<button className="bid" onClick={book} disabled={bookingBusy||uploadBusy}>{user?((bookingBusy||uploadBusy)?(uploadBusy?'Uploading...':'Opening checkout...'):'Book & Pay'):'Login to Book'}</button><div style={{display:'flex',justifyContent:'center',gap:9,flexWrap:'wrap',marginTop:10,fontSize:11}}><a href="/rules" style={{color:'#9fb0c8'}}>Rules</a><span style={{color:'#526074'}}>•·</span><a href="/faq" style={{color:'#9fb0c8'}}>FAQ</a><span style={{color:'#526074'}}>•·</span><a href="/terms" style={{color:'#9fb0c8'}}>Terms & Conditions</a><span style={{color:'#526074'}}>•·</span><a href="/privacy" style={{color:'#9fb0c8'}}>Privacy</a><span style={{color:'#526074'}}>•·</span><a href="/refund-policy" style={{color:'#9fb0c8'}}>Refunds</a></div></div>}
+  {historyOpen&&<div className="leaderboard-overlay"><section className="leaderboard-window"><button className="leaderboard-close" onClick={()=>setHistoryOpen(false)}>×</button><div className="leaderboard-head"><span>URBANCITY</span><h1>Leaderboard</h1><p>Top advertisers by total spend</p></div><div className="leaderboard-list">{leaderboard.length===0?<div className="empty-state">No advertisers yet.</div>:leaderboard.map((x:any)=><article className="leaderboard-row" key={x.username+'-'+x.name}><div className="rank">#{x.rank}</div><div className="company-logo"><img src={x.logo||'/company-placeholder.svg'} alt={x.name+' logo'}/></div><div className="company-main"><b>{x.name}</b><small>@{x.username}</small></div><div className="leaderboard-metric"><small>Total paid</small><b>{formatInr(Number(x.totalPayment))}</b></div><div className="leaderboard-metric"><small>Total time</small><b>{durationLabel(x.totalMinutes)}</b></div><a className="site-link" href={x.siteUrl}>Site ↗</a></article>)}</div></section></div>}
+  {authOpen&&<div data-urban-modal onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={{position:'fixed',inset:0,zIndex:100,background:'rgba(3,7,14,.78)',display:'grid',placeItems:'center',backdropFilter:'blur(8px)',pointerEvents:'auto'}}><div onMouseDown={e=>e.stopPropagation()} onClick={e=>e.stopPropagation()} style={{width:360,maxWidth:'90vw',background:'#111a28',border:'1px solid #4c5d74',borderRadius:16,padding:24,color:'#fff',boxShadow:'0 20px 70px #000'}}><button onClick={()=>setAuthOpen(false)} style={{float:'right',background:'transparent',border:0,color:'#fff',fontSize:22,cursor:'pointer'}}>×</button><h2 style={{marginTop:0}}>UrbanCity Account</h2><p style={{color:'#aeb9c8'}}>{authMode==='login'?'Login to bid on real advertising inventory.':'Create an account and receive a $1,000 virtual advertising balance.'}</p>{authMode==='register'&&<><input ref={authInputRef} onPointerDown={e=>e.stopPropagation()} onMouseDown={e=>e.stopPropagation()} value={authUsername} onChange={e=>setAuthUsername(e.target.value)} placeholder="Company name" style={{width:'100%',boxSizing:'border-box',padding:12,margin:'6px 0',borderRadius:8,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input value={authWebsite} onChange={e=>setAuthWebsite(e.target.value)} placeholder="Company website (optional) https://example.com" type="url" style={{width:'100%',boxSizing:'border-box',padding:12,margin:'6px 0',borderRadius:8,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/></>}<input ref={authMode==='login'?authInputRef:undefined} onPointerDown={e=>e.stopPropagation()} onMouseDown={e=>e.stopPropagation()} value={authEmail} onChange={e=>setAuthEmail(e.target.value)} placeholder="Email" type="email" style={{width:'100%',boxSizing:'border-box',padding:12,margin:'6px 0',borderRadius:8,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/><input onPointerDown={e=>e.stopPropagation()} onMouseDown={e=>e.stopPropagation()} value={authPassword} onChange={e=>setAuthPassword(e.target.value)} placeholder="Password" type="password" style={{width:'100%',boxSizing:'border-box',padding:12,margin:'6px 0',borderRadius:8,border:'1px solid #51627b',background:'#0a101a',color:'#fff'}}/>{authError&&<p style={{color:'#ff8f8f'}}>{authError}</p>}<button onClick={submitAuth} disabled={authBusy} style={{width:'100%',padding:12,marginTop:10,border:0,borderRadius:8,background:'#e5b75b',fontWeight:800,cursor:'pointer'}}>{authBusy?'Please wait...':authMode==='login'?'Login':'Create Account'}</button><button onClick={()=>{setAuthMode(authMode==='login'?'register':'login');setAuthError('')}} style={{width:'100%',padding:10,marginTop:8,border:'1px solid #51627b',borderRadius:8,background:'transparent',color:'#dbe5f3',cursor:'pointer'}}>{authMode==='login'?'Need an account? Register':'Already have an account? Login'}</button></div></div>}
  </div>
 }
 export default App;

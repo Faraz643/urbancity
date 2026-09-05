@@ -5,11 +5,10 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { io, Socket } from 'socket.io-client';
 import { GrowingPlayerAvatar, GrowthNameTag, PLAYER_BASE_HEIGHT, playerHeightFromSession } from './player-growth-react';
-
 type AdSlotKind = 'billboard' | 'wall-ad' | 'vertical-ad';
 type BidderInfo = {name:string;amount:number;siteUrl?:string;imageUrl?:string;description?:string};
 type Billboard = { id:string; type:'Premium Road'|'Street'|'Building Wall'|'Vertical'; position:[number,number,number]; traffic:'High'|'Medium'; bid:number; occupied:boolean; ad:string; rotationY?:number; kind?:AdSlotKind; size?:[number,number] };
-type Remote = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean };
+type Remote = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean; height?:number };
 
 // This is the same reach radius used by the real-time number shown above each billboard.
 // Standing Nearby uses this exact radius too, so "live reach" and "total footfall" mean the same area.
@@ -347,7 +346,7 @@ function PlayerAvatar({moving}:{moving:boolean}) {
  </group>;
 }
 
-function Player({onNearby,onMove,onPosition,onFootfallEnter,onFootfallLeave}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean})=>void;onPosition:(p:[number,number,number])=>void;onFootfallEnter:(id:string)=>void;onFootfallLeave:(id:string)=>void}) {
+function Player({onNearby,onMove,onPosition,onFootfallEnter,onFootfallLeave}:{onNearby:(b:Billboard|null)=>void;onMove:(state:{position:[number,number,number];rotation:number;moving:boolean;height:number})=>void;onPosition:(p:[number,number,number])=>void;onFootfallEnter:(id:string)=>void;onFootfallLeave:(id:string)=>void}) {
  const growthSessionStartedAt = useRef(Date.now()).current;
  const [playerHeight, setPlayerHeight] = useState(PLAYER_BASE_HEIGHT);
  useEffect(()=>{
@@ -402,7 +401,7 @@ function Player({onNearby,onMove,onPosition,onFootfallEnter,onFootfallLeave}:{on
    for(const id of nextInside) if(!previousInside.has(id)) onFootfallEnter(id);
    for(const id of previousInside) if(!nextInside.has(id)) onFootfallLeave(id);
    footfallInsideIds.current=nextInside;
-   networkAt.current+=dt;if(networkAt.current>.08){networkAt.current=0;onMove({position:[p.x,p.y,p.z],rotation:Math.atan2(velocity.current.x,velocity.current.z),moving:velocity.current.lengthSq()>.1})}
+   networkAt.current+=dt;if(networkAt.current>.08){networkAt.current=0;onMove({position:[p.x,p.y,p.z],rotation:Math.atan2(velocity.current.x,velocity.current.z),moving:velocity.current.lengthSq()>.1,height:(window as any).__urbanPlayerHeight || PLAYER_BASE_HEIGHT})}
  });
  return <RigidBody ref={body} colliders={false} position={[0,1.4,8]} enabledRotations={[false,false,false]} angularDamping={12} linearDamping={8} friction={0} mass={1}>
    <CapsuleCollider args={[0.75,0.42]}/>
@@ -575,7 +574,7 @@ function World({ setNearby, players, setSelected, onMove, onFootfallEnter, onFoo
   setNearby: (b: Billboard | null) => void;
   players: Remote[];
   setSelected: (b: Billboard) => void;
-  onMove: (state: { position: [number, number, number]; rotation: number; moving: boolean }) => void;
+  onMove: (state: { position: [number, number, number]; rotation: number; moving: boolean; height: number }) => void;
   onFootfallEnter: (id:string) => void;
   onFootfallLeave: (id:string) => void;
   timeMode: TimeMode;
@@ -675,7 +674,17 @@ function App(){
    }
    return stats;
  },[players,localPosition]);
- const authHeaders=()=>{const token=localStorage.getItem('urbancity_token');return token?{Authorization:'Bearer '+token}:{}}; 
+ const authHeaders = (): Record<string, string> => {
+  const token = localStorage.getItem('urbancity_token');
+
+  if (!token) {
+    return {};
+  }
+
+  return {
+    Authorization: `Bearer ${token}`,
+  };
+};
  const loadMe=async()=>{const r=await fetch(api+'/api/auth/me',{headers:authHeaders()});if(!r.ok)throw new Error('Session expired');const me=await r.json();setUser(me);if(me.wallet?.balance!=null)setBalance(Number(me.wallet.balance));};
  useEffect(()=>{if(localStorage.getItem('urbancity_token'))loadMe().catch(()=>localStorage.removeItem('urbancity_token'));},[]);
  useEffect(()=>{const params=new URLSearchParams(window.location.search);const bookingId=params.get('booking');const orderId=params.get('order_id');if(params.get('payment')!=='return'||!bookingId||!orderId||!localStorage.getItem('urbancity_token'))return;let cancelled=false;(async()=>{try{const r=await fetch(api+'/api/payments/'+encodeURIComponent(bookingId)+'/verify?order_id='+encodeURIComponent(orderId),{headers:authHeaders()});const data=await readApi(r);if(cancelled)return;if(!r.ok)throw new Error(data.error||'Could not verify payment');if(data.paid){setPaymentNotice({message:'Payment successful. Your advertising space is now active.',ok:true});await loadAllActiveBillboards();}else{setPaymentNotice({message:data.providerStatus==='ACTIVE'?'Payment is still pending confirmation. Please refresh in a moment.':'Payment was not completed.',ok:false});}window.history.replaceState({},'',window.location.pathname);}catch(e:any){if(!cancelled)setPaymentNotice({message:e.message||'Could not verify payment',ok:false});}})();return()=>{cancelled=true}},[api]);
@@ -794,4 +803,9 @@ function App(){
  </div>
 }
 export default App;
+
+
+
+
+
 
