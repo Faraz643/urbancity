@@ -667,8 +667,8 @@ function AdCreative({url,w,h,z=.125}:{url:string;w:number;h:number;z?:number}) {
 
 
 // URBANCITY_BILLBOARD_PLACEHOLDER_V1
-const BILLBOARD_PLACEHOLDER_HORIZONTAL = '/billboards/place-your-ad-horizontal.svg';
-const BILLBOARD_PLACEHOLDER_VERTICAL = '/billboards/place-your-ad-vertical.svg';
+const BILLBOARD_PLACEHOLDER_HORIZONTAL = '/billboards/place-your-ad-horizontal.png';
+const BILLBOARD_PLACEHOLDER_VERTICAL = '/billboards/place-your-ad-vertical.png';
 
 function BillboardMesh({b,onSelect,nearCount,totalVisitors,bidder}:{b:Billboard;onSelect:(b:Billboard)=>void;nearCount:number;totalVisitors:number;bidder?:BidderInfo}) {
 
