@@ -31,6 +31,18 @@
         };
       })();
     </script>
+    <script>
+      // Dodo appends payment_id/status to the return URL. The existing React verifier
+      // expects order_id, so normalize the URL before the React app mounts.
+      (function(){
+        var p=new URLSearchParams(window.location.search);
+        var paymentId=p.get('payment_id');
+        if(paymentId && !p.get('order_id')){
+          p.set('order_id',paymentId);
+          history.replaceState({},'',window.location.pathname+'?'+p.toString()+window.location.hash);
+        }
+      })();
+    </script>
     <script src="/board-owner-ui.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
