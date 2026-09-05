@@ -4,6 +4,11 @@ import { prisma } from '../db';
 import { authenticate, requireAdmin, AuthRequest } from '../middleware/auth';
 
 const router = Router();
+const USD_30_MIN_DEFAULT = 0.21;
+
+function defaultPriceForType(type: string) {
+  return type === 'WALL' ? 1.05 : type === 'STREET' ? 1.05 : USD_30_MIN_DEFAULT;
+}
 
 // Get all billboards with filters
 router.get('/', async (req, res, next) => {
@@ -76,7 +81,6 @@ router.get('/featured', async (req, res, next) => {
     });
 
     if (!featured) {
-      // Fallback to most valuable available billboard
       const fallback = await prisma.billboard.findFirst({
         where: { isActive: true },
         orderBy: { minBid: 'desc' },
@@ -122,10 +126,7 @@ router.get('/:id', async (req, res, next) => {
       },
     });
 
-    if (!billboard) {
-      return res.status(404).json({ error: 'Billboard not found' });
-    }
-
+    if (!billboard) return res.status(404).json({ error: 'Billboard not found' });
     res.json(billboard);
   } catch (error) {
     next(error);
@@ -148,25 +149,18 @@ router.post('/', authenticate, requireAdmin, async (req: AuthRequest, res, next)
       trafficRadius: z.number().default(50),
       trafficRating: z.enum(['VERY_LOW', 'LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH']).default('MEDIUM'),
       visibilityRating: z.enum(['POOR', 'FAIR', 'GOOD', 'EXCELLENT']).default('GOOD'),
-      minBid: z.number().default(1000),
+      minBid: z.number().positive().default(USD_30_MIN_DEFAULT),
     });
 
     const data = schema.parse(req.body);
-
-    const billboard = await prisma.billboard.create({
-      data: {
-        ...data,
-        minBid: data.minBid,
-      },
-    });
-
+    const billboard = await prisma.billboard.create({ data: { ...data, minBid: data.minBid || defaultPriceForType(data.type) } });
     res.status(201).json(billboard);
   } catch (error) {
     next(error);
   }
 });
 
-// Update billboard (admin)
+// Update billboard (admin). minBid is the USD price for one 30-minute slot.
 router.patch('/:id', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
   try {
     const schema = z.object({
@@ -182,18 +176,13 @@ router.patch('/:id', authenticate, requireAdmin, async (req: AuthRequest, res, n
       trafficRadius: z.number().optional(),
       trafficRating: z.enum(['VERY_LOW', 'LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH']).optional(),
       visibilityRating: z.enum(['POOR', 'FAIR', 'GOOD', 'EXCELLENT']).optional(),
-      minBid: z.number().optional(),
+      minBid: z.number().positive().optional(),
       isAvailable: z.boolean().optional(),
       isActive: z.boolean().optional(),
     });
 
     const data = schema.parse(req.body);
-
-    const billboard = await prisma.billboard.update({
-      where: { id: req.params.id },
-      data,
-    });
-
+    const billboard = await prisma.billboard.update({ where: { id: req.params.id }, data });
     res.json(billboard);
   } catch (error) {
     next(error);
@@ -203,10 +192,7 @@ router.patch('/:id', authenticate, requireAdmin, async (req: AuthRequest, res, n
 // Delete billboard (admin)
 router.delete('/:id', authenticate, requireAdmin, async (req: AuthRequest, res, next) => {
   try {
-    await prisma.billboard.delete({
-      where: { id: req.params.id },
-    });
-
+    await prisma.billboard.delete({ where: { id: req.params.id } });
     res.json({ success: true });
   } catch (error) {
     next(error);
