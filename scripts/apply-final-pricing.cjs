@@ -25,5 +25,11 @@ const newLabel = `<small>{pricingCategory(selected)==='MAIN'?\`Main boards (wide
 if (!oldLabel.test(source)) throw new Error('Could not find the old frontend price label');
 source = source.replace(oldLabel, newLabel);
 
+// Dodo redirects back with payment_id/status; Cashfree uses order_id.
+const oldReturnParam = "const orderId=params.get('order_id');";
+const newReturnParam = "const orderId=params.get('order_id')||params.get('payment_id');";
+if (!source.includes(oldReturnParam)) throw new Error('Could not find the payment return parameter in App.tsx');
+source = source.replace(oldReturnParam, newReturnParam);
+
 fs.writeFileSync(file, source, 'utf8');
-console.log('Applied final USD pricing and Dodo/Cashfree checkout handling to frontend/src/App.tsx');
+console.log('Applied final USD pricing plus Dodo/Cashfree checkout and return handling to frontend/src/App.tsx');
