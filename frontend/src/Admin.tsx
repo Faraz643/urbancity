@@ -5,16 +5,9 @@ import './admin.css';
 const API=import.meta.env.VITE_API_URL||'http://localhost:3001';
 const auth = (): Record<string, string> => {
   const token = localStorage.getItem('urbancity_token');
-
-  if (!token) {
-    return {};
-  }
-
-  return {
-    Authorization: `Bearer ${token}`,
-  };
+  return token ? { Authorization: `Bearer ${token}` } : {};
 };
-const money=(v:any)=>'$'+Number(v||0).toLocaleString(undefined,{maximumFractionDigits:2});
+const money=(v:any)=>'$'+Number(v||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
 const date=(v:string)=>new Date(v).toLocaleString();
 
 export default function Admin(){
@@ -22,11 +15,13 @@ export default function Admin(){
  const [me,setMe]=useState<any>(null),[tab,setTab]=useState('overview'),[stats,setStats]=useState<any>(null);
  const [users,setUsers]=useState<any[]>([]),[bookings,setBookings]=useState<any[]>([]),[ads,setAds]=useState<any[]>([]),[boards,setBoards]=useState<any[]>([]);
  const [search,setSearch]=useState(''),[loading,setLoading]=useState(true),[error,setError]=useState('');
+ const [boardPrices,setBoardPrices]=useState<Record<string,string>>({});
  const get=async(path:string)=>{const r=await fetch(API+path,{headers:auth()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Request failed');return d};
- const load=async()=>{try{setLoading(true);const m=await get('/api/auth/me');setMe(m);if(m.role!=='ADMIN')return;const [s,u,b,a,bo]=await Promise.all([get('/api/admin/stats'),get('/api/admin/users'),get('/api/admin/bookings'),get('/api/admin/advertisements'),get('/api/admin/billboards')]);setStats(s);setUsers(u);setBookings(b);setAds(a);setBoards(bo)}catch(e:any){setError(e.message)}finally{setLoading(false)}};
+ const load=async()=>{try{setLoading(true);const m=await get('/api/auth/me');setMe(m);if(m.role!=='ADMIN')return;const [s,u,b,a,bo]=await Promise.all([get('/api/admin/stats'),get('/api/admin/users'),get('/api/admin/bookings'),get('/api/admin/advertisements'),get('/api/admin/billboards')]);setStats(s);setUsers(u);setBookings(b);setAds(a);setBoards(bo);const prices:Record<string,string>={};bo.forEach((x:any)=>{prices[x.id]=Number(x.minBid||0).toString()});setBoardPrices(prices)}catch(e:any){setError(e.message)}finally{setLoading(false)}};
  useEffect(()=>{load()},[]);
  const filtered=useMemo(()=>users.filter(u=>!search||[u.email,u.username,u.displayName].filter(Boolean).join(' ').toLowerCase().includes(search.toLowerCase())),[users,search]);
  const patch=async(path:string,body:any)=>{const r=await fetch(API+path,{method:'PATCH',headers:{'Content-Type':'application/json',...auth()},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Update failed');await load()};
+ const saveBoardPrice=async(board:any)=>{const value=Number(boardPrices[board.id]);if(!Number.isFinite(value)||value<=0){setError('Billboard price must be greater than $0.');return;}try{await patch('/api/billboards/'+encodeURIComponent(board.id),{minBid:value});}catch(e:any){setError(e.message)}};
  if(!localStorage.getItem('urbancity_token'))return <Navigate to="/"/>;
  if(loading)return <div className="admin-loading">Loading UrbanCity Admin…</div>;
  if(error)return <div className="admin-loading"><div><h2>Admin unavailable</h2><p>{error}</p><button onClick={()=>nav('/')}>Back to UrbanCity</button></div></div>;
@@ -37,8 +32,8 @@ export default function Admin(){
   <main className="admin-main"><header><div><p className="eyebrow">CONTROL CENTER</p><h1>{tabs.find(x=>x[0]===tab)?.[1]}</h1></div><button className="refresh" onClick={load}>Refresh</button></header>
   {tab==='overview'&&<><section className="metric-grid">{[['Users',stats?.totalUsers],['Active bookings',stats?.activeBookings],['Billboards',stats?.totalBillboards],['Revenue',money(stats?.revenue)],['Total site visits',stats?.totalSiteVisits],['Unique visitors',stats?.uniqueVisitors]].map(([l,v])=><article className="metric" key={String(l)}><span>{l}</span><strong>{v}</strong></article>)}</section><section className="admin-card"><h2>Platform snapshot</h2><div className="snapshot"><div><span>Advertisements</span><b>{stats?.totalAds}</b></div><div><span>Pending review</span><b>{stats?.pendingAds}</b></div><div><span>Transactions</span><b>{stats?.totalTransactions}</b></div><div><span>Total bids</span><b>{stats?.totalBids}</b></div></div></section></>}
   {tab==='users'&&<section className="admin-card"><div className="card-head"><h2>Users</h2><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search users"/></div><div className="table-wrap"><table><thead><tr><th>Company</th><th>Email</th><th>Role</th><th>Status</th><th>Bookings</th><th></th></tr></thead><tbody>{filtered.map(u=><tr key={u.id}><td><b>{u.displayName||u.username}</b><small>@{u.username}</small></td><td>{u.email}</td><td><select value={u.role} onChange={e=>patch('/api/admin/users/'+u.id+'/role',{role:e.target.value})}><option>USER</option><option>ADMIN</option></select></td><td><button className={'status '+(u.isActive?'on':'off')} onClick={()=>patch('/api/admin/users/'+u.id+'/status',{isActive:!u.isActive})}>{u.isActive?'Active':'Suspended'}</button></td><td>{u._count?.campaigns||0}</td><td></td></tr>)}</tbody></table></div></section>}
-  {tab==='bookings'&&<section className="admin-card"><h2>Booking management</h2><div className="table-wrap"><table><thead><tr><th>Company</th><th>Billboard</th><th>Period</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>{bookings.map(b=><tr key={b.id}><td><b>{b.companyName}</b><small>{b.user?.email}</small></td><td>{b.billboard?.name||b.billboardId}</td><td><small>{date(b.startDate)}<br/>→ {date(b.endDate)}</small></td><td>{money(b.amount)}</td><td><span className="pill">{b.status}</span></td><td>{b.status==='ACTIVE'&&<button className="danger" onClick={()=>patch('/api/admin/bookings/'+b.id+'/cancel',{})}>Cancel</button>}</td></tr>)}</tbody></table></div></section>}
+  {tab==='bookings'&&<section className="admin-card"><h2>Booking management <small style={{fontWeight:400,opacity:.65}}>All amounts in USD</small></h2><div className="table-wrap"><table><thead><tr><th>Company</th><th>Billboard</th><th>Period</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>{bookings.map(b=><tr key={b.id}><td><b>{b.companyName}</b><small>{b.user?.email}</small></td><td>{b.billboard?.name||b.billboardId}</td><td><small>{date(b.startDate)}<br/>→ {date(b.endDate)}</small></td><td>{money(b.amount)}</td><td><span className="pill">{b.status}</span></td><td>{b.status==='ACTIVE'&&<button className="danger" onClick={()=>patch('/api/admin/bookings/'+b.id+'/cancel',{})}>Cancel</button>}</td></tr>)}</tbody></table></div></section>}
   {tab==='ads'&&<section className="admin-card"><h2>Advertisement moderation</h2><div className="ad-grid">{ads.map(a=><article className="ad-card" key={a.id}>{a.imageUrl&&<img src={a.imageUrl.startsWith('http')?a.imageUrl:API+a.imageUrl} alt={a.title}/>}<div><span className="pill">{a.status}</span><h3>{a.title}</h3><p>{a.description||'No description'}</p><small>{a.user?.displayName||a.user?.username}</small><div className="actions"><button onClick={()=>patch('/api/admin/advertisements/'+a.id+'/status',{status:'APPROVED'})}>Approve</button><button onClick={()=>patch('/api/admin/advertisements/'+a.id+'/status',{status:'DISABLED'})}>Disable</button></div></div></article>)}</div></section>}
-  {tab==='boards'&&<section className="admin-card"><h2>Billboard inventory</h2><div className="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Location</th><th>Active advertiser</th><th>Bookings</th></tr></thead><tbody>{boards.map(b=><tr key={b.id}><td><b>{b.name}</b><small>{b.id}</small></td><td>{b.type}</td><td>{b.location}</td><td>{b.bookings?.[0]?.user?.displayName||b.bookings?.[0]?.user?.username||'Available'}</td><td>{b._count?.bookings||0}</td></tr>)}</tbody></table></div></section>}
+  {tab==='boards'&&<section className="admin-card"><div className="card-head"><div><h2>Billboard pricing</h2><small>Set the base USD price for every 30-minute slot. Booking totals are calculated from this value.</small></div></div><div className="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Location</th><th>30 min price</th><th>Active advertiser</th><th>Bookings</th></tr></thead><tbody>{boards.map(b=><tr key={b.id}><td><b>{b.name}</b><small>{b.id}</small></td><td>{b.type}</td><td>{b.location}</td><td><div style={{display:'flex',gap:6,alignItems:'center'}}><span>$</span><input type="number" min="0.01" step="0.01" value={boardPrices[b.id]??''} onChange={e=>setBoardPrices(v=>({...v,[b.id]:e.target.value}))} style={{width:90}}/><button onClick={()=>saveBoardPrice(b)}>Save</button></div><small>Current: {money(b.minBid)}</small></td><td>{b.bookings?.[0]?.user?.displayName||b.bookings?.[0]?.user?.username||'Available'}</td><td>{b._count?.bookings||0}</td></tr>)}</tbody></table></div></section>}
   </main></div>
 }
