@@ -74,7 +74,13 @@ setInterval(()=>void expireBookings(),15000);
 setInterval(async()=>{if(!databaseReady)return;try{const [activePlayers,boards]=await Promise.all([Promise.resolve([...players.values()]),prisma.billboard.findMany({where:{isActive:true},select:{id:true,positionX:true,positionY:true,positionZ:true,trafficRadius:true}})]);await Promise.all(boards.map(async board=>{const nearbyVisitors=activePlayers.filter(player=>{const dx=player.position[0]-board.positionX,dy=player.position[1]-board.positionY,dz=player.position[2]-board.positionZ;return dx*dx+dy*dy+dz*dz<=board.trafficRadius*board.trafficRadius}).length;await prisma.trafficAnalytics.create({data:{billboardId:board.id,nearbyVisitors}})}))}catch{}},15000);
 app.use(errorHandler);
 const PORT=Number(process.env.PORT||3001);
-function validateProductionEnvironment(){if(process.env.NODE_ENV!=='production')return;getJwtSecret();const required=['DATABASE_URL','FRONTEND_URL'];if((process.env.CASHFREE_ENV||'sandbox').toLowerCase()==='production')required.push('CASHFREE_CLIENT_ID','CASHFREE_CLIENT_SECRET','CASHFREE_CUSTOMER_PHONE','CASHFREE_NOTIFY_URL');const missing=required.filter(k=>!process.env[k]);if(missing.length)throw new Error('Missing required production environment variables: '+missing.join(', '))}
+function validateProductionEnvironment(){
+ if(process.env.NODE_ENV!=='production')return;
+ getJwtSecret();
+ const required=['DATABASE_URL','FRONTEND_URL','CASHFREE_CLIENT_ID','CASHFREE_CLIENT_SECRET','CASHFREE_CUSTOMER_PHONE','CASHFREE_NOTIFY_URL','DODO_PAYMENTS_API_KEY','DODO_PAYMENTS_PRODUCT_ID','DODO_PAYMENTS_WEBHOOK_KEY'];
+ const missing=required.filter(k=>!process.env[k]);
+ if(missing.length)throw new Error('Missing required production environment variables: '+missing.join(', '));
+}
 async function start(){validateProductionEnvironment();await checkDatabase();await loadFootfallTotals();await expireBookings();httpServer.listen(PORT,()=>console.log('UrbanCity server on '+PORT))}
 start();
 async function shutdown(){io.close();httpServer.close();await prisma.$disconnect()}
