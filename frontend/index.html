@@ -14,22 +14,20 @@
     <div id="root"></div>
     <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
     <script>
-      // Keep the existing App checkout code unchanged: Cashfree sessions use the real SDK,
-      // while Dodo sessions are transparently redirected to their hosted checkout URL.
       (function(){
         var realCashfree=window.Cashfree;
         window.Cashfree=function(options){
           var real=typeof realCashfree==='function'?realCashfree(options):null;
-          return {
-            checkout:function(args){
-              var session=String((args&&args.paymentSessionId)||'');
-              if(session.indexOf('DODO_URL:')===0){
-                try{window.location.href=atob(session.slice(9).replace(/-/g,'+').replace(/_/g,'/'));return Promise.resolve();}catch(e){window.location.href=session.slice(9);return Promise.resolve();}
-              }
-              if(!real||typeof real.checkout!=='function')throw new Error('Cashfree checkout is unavailable.');
-              return real.checkout(args);
+          return {checkout:function(args){
+            var session=String((args&&args.paymentSessionId)||'');
+            if(session.indexOf('DODO_URL:')===0){
+              var encoded=session.slice(9).replace(/-/g,'+').replace(/_/g,'/');
+              while(encoded.length%4)encoded+='=';
+              try{window.location.href=atob(encoded);return Promise.resolve();}catch(e){throw new Error('Invalid Dodo checkout URL.');}
             }
-          };
+            if(!real||typeof real.checkout!=='function')throw new Error('Cashfree checkout is unavailable.');
+            return real.checkout(args);
+          }};
         };
       })();
     </script>
