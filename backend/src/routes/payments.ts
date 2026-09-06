@@ -68,7 +68,7 @@ async function country(req: AuthRequest) {
   if (/^[A-Z]{2}$/.test(h)) return h;
   const forced = String(process.env.PAYMENT_DEFAULT_COUNTRY || '').trim().toUpperCase();
   if (/^[A-Z]{2}$/.test(forced)) return forced;
-  return 'IN';
+  return 'US';
 }
 
 async function fx() {
