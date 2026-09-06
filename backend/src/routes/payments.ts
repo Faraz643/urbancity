@@ -64,6 +64,12 @@ function providerError(status: number, body: any) {
 }
 
 async function country(req: AuthRequest) {
+  console.log("🌍 PAYMENT COUNTRY DEBUG", {
+  "x-urban-country": req.headers["x-urban-country"],
+  "cf-ipcountry": req.headers["cf-ipcountry"],
+  "x-vercel-ip-country": req.headers["x-vercel-ip-country"],
+  "PAYMENT_DEFAULT_COUNTRY": process.env.PAYMENT_DEFAULT_COUNTRY,
+});
   const h = String(req.headers['x-urban-country'] || req.headers['cf-ipcountry'] || req.headers['x-vercel-ip-country'] || '').trim().toUpperCase();
   if (/^[A-Z]{2}$/.test(h)) return h;
   const forced = String(process.env.PAYMENT_DEFAULT_COUNTRY || '').trim().toUpperCase();
