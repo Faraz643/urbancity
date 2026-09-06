@@ -32,18 +32,21 @@ router.get('/history',authenticate,async(req:AuthRequest,res,next)=>{
 router.get('/leaderboard', async (_req,res,next)=>{
  try{
   const rows=await prisma.booking.findMany({
-   select:{companyName:true,amount:true,durationMinutes:true,user:{select:{username:true,displayName:true,avatar:true,websiteUrl:true}},advertisement:{select:{targetUrl:true}}}
+   select:{companyName:true,amount:true,durationMinutes:true,user:{select:{username:true,displayName:true,avatar:true,websiteUrl:true,companyDescription:true}},advertisement:{select:{targetUrl:true,description:true}}}
   });
-  const grouped=new Map<string,{name:string;username:string;logo:string|null;siteUrl:string|null;totalPayment:number;totalMinutes:number}>();
+  const grouped=new Map<string,{name:string;username:string;logo:string|null;siteUrl:string|null;description:string|null;totalPayment:number;totalMinutes:number}>();
   for(const row of rows){
    const key=row.companyName+'::'+row.user.username;
-   const current=grouped.get(key)||{name:row.companyName,username:row.user.username,logo:row.user.avatar,siteUrl:row.advertisement?.targetUrl||row.user.websiteUrl||null,totalPayment:0,totalMinutes:0};
+   const current=grouped.get(key)||{name:row.companyName,username:row.user.username,logo:row.user.avatar,siteUrl:row.advertisement?.targetUrl||row.user.websiteUrl||null,description:row.advertisement?.description||row.user.companyDescription||null,totalPayment:0,totalMinutes:0};
    current.totalPayment+=Number(row.amount);
    current.totalMinutes+=row.durationMinutes;
    // The website entered for an advertisement belongs to the advertisement, not necessarily
    // to the user's profile. Keep the most recently supplied booking URL for the leaderboard.
    if(row.advertisement?.targetUrl) current.siteUrl=row.advertisement.targetUrl;
    else if(!current.siteUrl&&row.user.websiteUrl) current.siteUrl=row.user.websiteUrl;
+   // Prefer the description supplied with the booking creative, then the company profile description.
+   if(row.advertisement?.description) current.description=row.advertisement.description;
+   else if(!current.description&&row.user.companyDescription) current.description=row.user.companyDescription;
    grouped.set(key,current);
   }
   const leaderboard=[...grouped.values()]
