@@ -54,6 +54,8 @@ export function AppShell() {
     [adTitle, setAdTitle] = useState(""),
     [adUrl, setAdUrl] = useState(""),
     [bookingCompanyName, setBookingCompanyName] = useState(""),
+    [customerPhone, setCustomerPhone] = useState(""),
+[paymentCountry, setPaymentCountry] = useState<string | null>(null),
     [uploadBusy, setUploadBusy] = useState(false),
     [editMode, setEditMode] = useState(false),
     [editBusy, setEditBusy] = useState(false),
@@ -133,6 +135,18 @@ export function AppShell() {
     setUser(me);
     if (me.wallet?.balance != null) setBalance(Number(me.wallet.balance));
   };
+  const loadPaymentCountry = async () => {
+  try {
+    const r = await fetch(api + "/api/payments/country");
+    const d = await readApi(r);
+    if (r.ok && /^[A-Z]{2}$/.test(String(d.country || ""))) {
+      setPaymentCountry(String(d.country).toUpperCase());
+    }
+  } catch {}
+};
+useEffect(() => {
+  loadPaymentCountry();
+}, [api]);
   useEffect(() => {
     loadPricing();
     const timer = window.setInterval(loadPricing, 60000);
@@ -309,6 +323,7 @@ export function AppShell() {
   }, [modalOpen]);
   useEffect(() => {
     if (!selected) return;
+    setCustomerPhone("");
     const active = activeBookings[selected.id];
     setEditMode(false);
     setRemovePhoto(false);
@@ -591,6 +606,16 @@ export function AppShell() {
       return;
     }
     setBookingError("");
+    if (paymentCountry === "IN") {
+  const phone = customerPhone.replace(/\D/g, "");
+
+  if (!/^\d{10}$/.test(phone)) {
+    setBookingError(
+      "Please enter your valid 10-digit Indian mobile number for Cashfree payment.",
+    );
+    return;
+  }
+}
     const link = adUrl.trim();
     if (link) {
       try {
@@ -621,7 +646,11 @@ export function AppShell() {
             companyName:
               bookingCompanyName || user.displayName || user.username,
             description: adTitle.trim() || undefined,
-            advertisementId: advertisementId || undefined,
+           advertisementId: advertisementId || undefined,
+customerPhone:
+  paymentCountry === "IN"
+    ? customerPhone.replace(/\D/g, "")
+    : undefined,
           }),
         }),
         data = await readApi(r);
@@ -1077,6 +1106,47 @@ export function AppShell() {
             />
           </div>
           <div className="stat">
+          {paymentCountry === "IN" && (
+  <div
+    style={{
+      margin: "12px 0",
+      padding: 10,
+      border: "1px solid rgba(255,255,255,.12)",
+      borderRadius: 10,
+    }}
+  >
+    <b>Mobile Number</b>
+    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "0 10px",
+          borderRadius: 7,
+          border: "1px solid #51627b",
+          background: "#0a101a",
+          color: "#fff",
+          fontWeight: 700,
+        }}
+      >
+        +91
+      </div>
+      <input
+        value={customerPhone}
+        onChange={(e) =>
+          setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
+        }
+        placeholder="10-digit mobile number"
+        inputMode="numeric"
+        maxLength={10}
+        style={{ ...inputStyle, marginTop: 0 }}
+      />
+    </div>
+    <small style={{ display: "block", marginTop: 6 }}>
+      Required for Indian users paying through Cashfree.
+    </small>
+  </div>
+)}
             <span>Fixed price</span>
             <b>
               {pricingReady
