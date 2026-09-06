@@ -4,8 +4,10 @@ import * as THREE from 'three';
 
 export function GameCamera() {
   const yaw = useRef(0);
-  const pitch = useRef(0.32);
-  const distance = useRef(11);
+  // Start much closer to a straight third-person view instead of looking down from above.
+  const pitch = useRef(0.12);
+  // Start roughly one scroll-in closer than before.
+  const distance = useRef(8);
 
   // Smooth the Rapier player's physics position before the camera uses it.
   // This removes tiny physics-step corrections that can look like screen shake.
@@ -48,7 +50,7 @@ export function GameCamera() {
       distance.current = THREE.MathUtils.clamp(
         distance.current + e.deltaY * 0.035,
         4.5,
-        250,
+        18,
       );
     };
 
