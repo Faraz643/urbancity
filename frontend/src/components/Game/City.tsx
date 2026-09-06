@@ -8,6 +8,7 @@ import { StreetLight } from './StreetLight';
 import { ThemedSky } from './ThemedSky';
 import { Tree } from './Tree';
 import { WorldFence } from './WorldFence';
+import { RoadLayout } from './RoadLayout';
 
 export type { TimeMode } from '../../lib/timeTheme';
 export { TIME_THEMES } from '../../lib/timeTheme';
@@ -23,8 +24,7 @@ export function City({timeMode,billboards=[]}:{timeMode:TimeMode;billboards?:Bil
  return <group>
   <color attach="background" args={[theme.bg]}/><fog attach="fog" args={[theme.fog,75,155]}/><ambientLight intensity={theme.ambient}/><directionalLight castShadow position={theme.sunPos} intensity={theme.sun} color={theme.sunColor} shadow-mapSize={[1024,1024]}/>
   <RigidBody type="fixed"><CuboidCollider args={[70,.2,70]} position={[0,-.2,0]}/></RigidBody><ThemedSky timeMode={timeMode}/><mesh rotation={[-Math.PI/2,0,0]} receiveShadow><planeGeometry args={[120,120]}/><meshStandardMaterial color={theme.ground}/></mesh><WorldFence/>
-  <mesh position={[0,.01,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[18,120]}/><meshStandardMaterial color={theme.road} roughness={.9}/></mesh><mesh position={[0,.012,-29]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[120,14]}/><meshStandardMaterial color="#090f1a" roughness={.9}/></mesh><mesh position={[-10,.025,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[2,120]}/><meshStandardMaterial color="#46505b"/></mesh><mesh position={[10,.025,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[2,120]}/><meshStandardMaterial color="#46505b"/></mesh>
-  {[-4.5,4.5].map((x,i)=>Array.from({length:12},(_,j)=><mesh key={i+'-'+j} position={[x,.045,-52+j*9]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[.18,4.2]}/><meshStandardMaterial color="#d7c95e" emissive="#655c27"/></mesh>))}<mesh position={[0,.05,0]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[.12,120]}/><meshStandardMaterial color="#9d9348"/></mesh><mesh position={[0,.05,-36]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[120,.18]}/><meshStandardMaterial color="#d7c95e"/></mesh>{Array.from({length:7},(_,i)=><mesh key={'cw'+i} position={[-6+i*2,.06,-21.7]} rotation={[-Math.PI/2,0,0]}><planeGeometry args={[1.15,4]}/><meshStandardMaterial color="#d6d9d6"/></mesh>)}
+  <RoadLayout timeMode={timeMode}/>
   {buildings.map(([x,z,w,d,h,col],i)=><Building key={i} position={[x,0,z]} size={[w,d]} height={h} color={col}/>)}{treePos.map((p,i)=><Tree key={i} position={p}/>)}{Array.from({length:12},(_,i)=><StreetLight key={i} position={[i%2?-12:12,0,-48+Math.floor(i/2)*18]}/>)}<Bench position={[-13,0,26]}/><Bench position={[13,0,-8]}/>
  </group>;
 }
