@@ -60,3 +60,5 @@ jobs:
           git rm .github/workflows/one-time-city-wiring.yml
           git commit -m "chore: remove one-time refactor workflow"
           git push origin refactor-app
+
+# one-time trigger
