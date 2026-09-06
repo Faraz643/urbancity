@@ -1,1 +1,1 @@
-export { default } from './AppLegacy';
+export { AppShell as default } from './AppShell';
