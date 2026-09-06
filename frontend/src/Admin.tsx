@@ -1,20 +1,466 @@
-import {useEffect,useMemo,useState} from 'react';import {Navigate,useNavigate} from 'react-router-dom';import './admin.css';
-const API=import.meta.env.VITE_API_URL||'http://localhost:3001';const auth = (): Record<string, string> => {
-  const token = localStorage.getItem('urbancity_token');
+import { useEffect, useMemo, useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
+import "./admin.css";
+const API = import.meta.env.VITE_API_URL || "http://localhost:3001";
+const auth = (): Record<string, string> => {
+  const token = localStorage.getItem("urbancity_token");
   return token ? { Authorization: `Bearer ${token}` } : {};
-};;const money=(v:any)=>'$'+Number(v||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});const date=(v:string)=>new Date(v).toLocaleString();
-export default function Admin(){const nav=useNavigate();const[me,setMe]=useState<any>(null),[tab,setTab]=useState('overview'),[stats,setStats]=useState<any>(null),[users,setUsers]=useState<any[]>([]),[bookings,setBookings]=useState<any[]>([]),[ads,setAds]=useState<any[]>([]),[boards,setBoards]=useState<any[]>([]),[search,setSearch]=useState(''),[loading,setLoading]=useState(true),[error,setError]=useState(''),[pricing,setPricing]=useState<any>(null),[priceForm,setPriceForm]=useState<any>(null),[priceSaving,setPriceSaving]=useState(false),[priceMessage,setPriceMessage]=useState('');
- const get=async(path:string)=>{const r=await fetch(API+path,{headers:auth()});const d=await r.json();if(!r.ok)throw new Error(d.error||'Request failed');return d};
- const load=async()=>{try{setLoading(true);const m=await get('/api/auth/me');setMe(m);if(m.role!=='ADMIN')return;const[s,u,b,a,bo,p]=await Promise.all([get('/api/admin/stats'),get('/api/admin/users'),get('/api/admin/bookings'),get('/api/admin/advertisements'),get('/api/admin/billboards'),get('/api/admin/pricing')]);setStats(s);setUsers(u);setBookings(b);setAds(a);setBoards(bo);setPricing(p);setPriceForm({mainPer30:p.main.per30,mainOneDay:p.main.oneDay,wallPer30:p.wall.per30,wallOneDay:p.wall.oneDay,cornerPer30:p.corner.per30,cornerOneDay:p.corner.oneDay})}catch(e:any){setError(e.message)}finally{setLoading(false)}};useEffect(()=>{load()},[]);
- const patch=async(path:string,body:any)=>{const r=await fetch(API+path,{method:'PATCH',headers:{'Content-Type':'application/json',...auth()},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.error||'Update failed');return d};const filtered=useMemo(()=>users.filter(u=>!search||[u.email,u.username,u.displayName].filter(Boolean).join(' ').toLowerCase().includes(search.toLowerCase())),[users,search]);
- const savePricing=async()=>{if(!priceForm)return;try{setPriceSaving(true);setPriceMessage('');const p=await patch('/api/admin/pricing/admin',priceForm);setPricing(p);setPriceForm({mainPer30:p.main.per30,mainOneDay:p.main.oneDay,wallPer30:p.wall.per30,wallOneDay:p.wall.oneDay,cornerPer30:p.corner.per30,cornerOneDay:p.corner.oneDay});setPriceMessage('Pricing saved successfully. New bookings use these prices immediately.')}catch(e:any){setPriceMessage(e.message)}finally{setPriceSaving(false)}};
- if(!localStorage.getItem('urbancity_token'))return <Navigate to="/"/>;if(loading)return <div className="admin-loading">Loading UrbanCity Admin…</div>;if(error)return <div className="admin-loading"><div><h2>Admin unavailable</h2><p>{error}</p><button onClick={()=>nav('/')}>Back to UrbanCity</button></div></div>;if(me?.role!=='ADMIN')return <div className="admin-loading"><div><h2>Admin access required</h2><p>Your account does not have administrator privileges.</p><button onClick={()=>nav('/')}>Back to UrbanCity</button></div></div>;
- const tabs=[['overview','Overview'],['pricing','Pricing'],['users','Users'],['bookings','Bookings'],['ads','Advertisements'],['boards','Billboards']];
- return <div className="admin-shell"><aside className="admin-side"><div className="admin-brand">URBANCITY <span>ADMIN</span></div><nav>{tabs.map(([id,label])=><button className={tab===id?'active':''} onClick={()=>setTab(id)} key={id}>{label}</button>)}</nav><div className="admin-side-bottom"><div><b>{me.displayName||me.username}</b><small>Administrator</small></div><button onClick={()=>nav('/')}>Exit Admin ↗</button></div></aside><main className="admin-main"><header><div><p className="eyebrow">CONTROL CENTER</p><h1>{tabs.find(x=>x[0]===tab)?.[1]}</h1></div><button className="refresh" onClick={load}>Refresh</button></header>
- {tab==='overview'&&<><section className="metric-grid">{[['Users',stats?.totalUsers],['Active bookings',stats?.activeBookings],['Billboards',stats?.totalBillboards],['Revenue',money(stats?.revenue)],['Total site visits',stats?.totalSiteVisits]].map(([l,v])=><article className="metric" key={String(l)}><span>{l}</span><strong>{v}</strong></article>)}</section></>}
- {tab==='pricing'&&priceForm&&<section className="admin-card"><h2>Advertising pricing</h2><p>Prices are stored server-side in USD. Customers see these values; checkout uses the same server-side values. Indian Cashfree checkout converts the USD total to INR using the existing FX flow.</p><div className="metric-grid">{[['mainPer30','Main boards · 30 min'],['mainOneDay','Main boards · 1 day'],['wallPer30','Wall boards · 30 min'],['wallOneDay','Wall boards · 1 day'],['cornerPer30','Corner boards · 30 min'],['cornerOneDay','Corner boards · 1 day']].map(([k,l])=><label className="metric" key={k}><span>{l}</span><div style={{display:'flex',alignItems:'center',gap:6,marginTop:8}}><b>$</b><input type="number" min="0.01" step="0.01" value={priceForm[k]} onChange={e=>setPriceForm((v:any)=>({...v,[k]:Number(e.target.value)}))}/></div></label>)}</div><button onClick={savePricing} disabled={priceSaving}>{priceSaving?'Saving…':'Save pricing'}</button>{priceMessage&&<p>{priceMessage}</p>}<small>Current: Main {money(pricing?.main?.per30)}/30m · {money(pricing?.main?.oneDay)}/day · Wall {money(pricing?.wall?.per30)}/30m · {money(pricing?.wall?.oneDay)}/day · Corner {money(pricing?.corner?.per30)}/30m · {money(pricing?.corner?.oneDay)}/day</small></section>}
- {tab==='users'&&<section className="admin-card"><div className="card-head"><h2>Users</h2><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search users"/></div><div className="table-wrap"><table><thead><tr><th>Company</th><th>Email</th><th>Role</th><th>Status</th><th>Bookings</th></tr></thead><tbody>{filtered.map(u=><tr key={u.id}><td><b>{u.displayName||u.username}</b><small>@{u.username}</small></td><td>{u.email}</td><td><select value={u.role} onChange={e=>patch('/api/admin/users/'+u.id+'/role',{role:e.target.value}).then(load)}><option>USER</option><option>ADMIN</option></select></td><td><button onClick={()=>patch('/api/admin/users/'+u.id+'/status',{isActive:!u.isActive}).then(load)}>{u.isActive?'Active':'Suspended'}</button></td><td>{u._count?.campaigns||0}</td></tr>)}</tbody></table></div></section>}
- {tab==='bookings'&&<section className="admin-card"><h2>Booking management</h2><div className="table-wrap"><table><thead><tr><th>Company</th><th>Billboard</th><th>Period</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>{bookings.map(b=><tr key={b.id}><td><b>{b.companyName}</b><small>{b.user?.email}</small></td><td>{b.billboard?.name||b.billboardId}</td><td><small>{date(b.startDate)}<br/>→ {date(b.endDate)}</small></td><td>{money(b.amount)}</td><td><span className="pill">{b.status}</span></td><td>{b.status==='ACTIVE'&&<button onClick={()=>patch('/api/admin/bookings/'+b.id+'/cancel',{}).then(load)}>Cancel</button>}</td></tr>)}</tbody></table></div></section>}
- {tab==='ads'&&<section className="admin-card"><h2>Advertisement moderation</h2><div className="ad-grid">{ads.map(a=><article className="ad-card" key={a.id}>{a.imageUrl&&<img src={a.imageUrl.startsWith('http')?a.imageUrl:API+a.imageUrl} alt={a.title}/>}<div><span className="pill">{a.status}</span><h3>{a.title}</h3><p>{a.description||'No description'}</p><small>{a.user?.displayName||a.user?.username}</small><div className="actions"><button onClick={()=>patch('/api/admin/advertisements/'+a.id+'/status',{status:'APPROVED'}).then(load)}>Approve</button><button onClick={()=>patch('/api/admin/advertisements/'+a.id+'/status',{status:'DISABLED'}).then(load)}>Disable</button></div></div></article>)}</div></section>}
- {tab==='boards'&&<section className="admin-card"><h2>Billboards</h2><div className="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Location</th><th>Active advertiser</th><th>Bookings</th></tr></thead><tbody>{boards.map(b=><tr key={b.id}><td><b>{b.name}</b><small>{b.id}</small></td><td>{b.type}</td><td>{b.location}</td><td>{b.bookings?.[0]?.user?.displayName||b.bookings?.[0]?.user?.username||'Available'}</td><td>{b._count?.bookings||0}</td></tr>)}</tbody></table></div></section>}
- </main></div>}
+};
+const money = (v: any) =>
+  "$" +
+  Number(v || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+const date = (v: string) => new Date(v).toLocaleString();
+export default function Admin() {
+  const nav = useNavigate();
+  const [me, setMe] = useState<any>(null),
+    [tab, setTab] = useState("overview"),
+    [stats, setStats] = useState<any>(null),
+    [users, setUsers] = useState<any[]>([]),
+    [bookings, setBookings] = useState<any[]>([]),
+    [ads, setAds] = useState<any[]>([]),
+    [boards, setBoards] = useState<any[]>([]),
+    [search, setSearch] = useState(""),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [pricing, setPricing] = useState<any>(null),
+    [priceForm, setPriceForm] = useState<any>(null),
+    [priceSaving, setPriceSaving] = useState(false),
+    [priceMessage, setPriceMessage] = useState("");
+  const get = async (path: string) => {
+    const r = await fetch(API + path, { headers: auth() });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Request failed");
+    return d;
+  };
+  const load = async () => {
+    try {
+      setLoading(true);
+      const m = await get("/api/auth/me");
+      setMe(m);
+      if (m.role !== "ADMIN") return;
+      const [s, u, b, a, bo, p] = await Promise.all([
+        get("/api/admin/stats"),
+        get("/api/admin/users"),
+        get("/api/admin/bookings"),
+        get("/api/admin/advertisements"),
+        get("/api/admin/billboards"),
+        get("/api/admin/pricing"),
+      ]);
+      setStats(s);
+      setUsers(u);
+      setBookings(b);
+      setAds(a);
+      setBoards(bo);
+      setPricing(p);
+      setPriceForm({
+        mainPer30: p.main.per30,
+        mainOneDay: p.main.oneDay,
+        wallPer30: p.wall.per30,
+        wallOneDay: p.wall.oneDay,
+        cornerPer30: p.corner.per30,
+        cornerOneDay: p.corner.oneDay,
+      });
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    load();
+  }, []);
+  const patch = async (path: string, body: any) => {
+    const r = await fetch(API + path, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", ...auth() },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Update failed");
+    return d;
+  };
+  const filtered = useMemo(
+    () =>
+      users.filter(
+        (u) =>
+          !search ||
+          [u.email, u.username, u.displayName]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(search.toLowerCase()),
+      ),
+    [users, search],
+  );
+  const savePricing = async () => {
+    if (!priceForm) return;
+    try {
+      setPriceSaving(true);
+      setPriceMessage("");
+      const p = await patch("/api/admin/pricing/admin", priceForm);
+      setPricing(p);
+      setPriceForm({
+        mainPer30: p.main.per30,
+        mainOneDay: p.main.oneDay,
+        wallPer30: p.wall.per30,
+        wallOneDay: p.wall.oneDay,
+        cornerPer30: p.corner.per30,
+        cornerOneDay: p.corner.oneDay,
+      });
+      setPriceMessage(
+        "Pricing saved successfully. New bookings use these prices immediately.",
+      );
+    } catch (e: any) {
+      setPriceMessage(e.message);
+    } finally {
+      setPriceSaving(false);
+    }
+  };
+  if (!localStorage.getItem("urbancity_token")) return <Navigate to="/" />;
+  if (loading)
+    return <div className="admin-loading">Loading UrbanCity Admin…</div>;
+  if (error)
+    return (
+      <div className="admin-loading">
+        <div>
+          <h2>Admin unavailable</h2>
+          <p>{error}</p>
+          <button onClick={() => nav("/")}>Back to UrbanCity</button>
+        </div>
+      </div>
+    );
+  if (me?.role !== "ADMIN")
+    return (
+      <div className="admin-loading">
+        <div>
+          <h2>Admin access required</h2>
+          <p>Your account does not have administrator privileges.</p>
+          <button onClick={() => nav("/")}>Back to UrbanCity</button>
+        </div>
+      </div>
+    );
+  const tabs = [
+    ["overview", "Overview"],
+    ["pricing", "Pricing"],
+    ["users", "Users"],
+    ["bookings", "Bookings"],
+    ["ads", "Advertisements"],
+    ["boards", "Billboards"],
+  ];
+  return (
+    <div className="admin-shell">
+      <aside className="admin-side">
+        <div className="admin-brand">
+          URBANCITY <span>ADMIN</span>
+        </div>
+        <nav>
+          {tabs.map(([id, label]) => (
+            <button
+              className={tab === id ? "active" : ""}
+              onClick={() => setTab(id)}
+              key={id}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className="admin-side-bottom">
+          <div>
+            <b>{me.displayName || me.username}</b>
+            <small>Administrator</small>
+          </div>
+          <button onClick={() => nav("/")}>Exit Admin ↗</button>
+        </div>
+      </aside>
+      <main className="admin-main">
+        <header>
+          <div>
+            <p className="eyebrow">CONTROL CENTER</p>
+            <h1>{tabs.find((x) => x[0] === tab)?.[1]}</h1>
+          </div>
+          <button className="refresh" onClick={load}>
+            Refresh
+          </button>
+        </header>
+        {tab === "overview" && (
+          <>
+            <section className="metric-grid">
+              {[
+                ["Users", stats?.totalUsers],
+                ["Active bookings", stats?.activeBookings],
+                ["Billboards", stats?.totalBillboards],
+                ["Revenue", money(stats?.revenue)],
+                ["Total site visits", stats?.totalSiteVisits],
+              ].map(([l, v]) => (
+                <article className="metric" key={String(l)}>
+                  <span>{l}</span>
+                  <strong>{v}</strong>
+                </article>
+              ))}
+            </section>
+          </>
+        )}
+        {tab === "pricing" && priceForm && (
+          <section className="admin-card">
+            <h2>Advertising pricing</h2>
+            <p>
+              Prices are stored server-side in USD. Customers see these values;
+              checkout uses the same server-side values. Indian Cashfree
+              checkout converts the USD total to INR using the existing FX flow.
+            </p>
+            <div className="metric-grid">
+              {[
+                ["mainPer30", "Main boards · 30 min"],
+                ["mainOneDay", "Main boards · 1 day"],
+                ["wallPer30", "Wall boards · 30 min"],
+                ["wallOneDay", "Wall boards · 1 day"],
+                ["cornerPer30", "Corner boards · 30 min"],
+                ["cornerOneDay", "Corner boards · 1 day"],
+              ].map(([k, l]) => (
+                <label className="metric" key={k}>
+                  <span>{l}</span>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      marginTop: 8,
+                    }}
+                  >
+                    <b>$</b>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={priceForm[k]}
+                      onChange={(e) =>
+                        setPriceForm((v: any) => ({
+                          ...v,
+                          [k]: Number(e.target.value),
+                        }))
+                      }
+                    />
+                  </div>
+                </label>
+              ))}
+            </div>
+            <button onClick={savePricing} disabled={priceSaving}>
+              {priceSaving ? "Saving…" : "Save pricing"}
+            </button>
+            {priceMessage && <p>{priceMessage}</p>}
+            <small>
+              Current: Main {money(pricing?.main?.per30)}/30m ·{" "}
+              {money(pricing?.main?.oneDay)}/day · Wall{" "}
+              {money(pricing?.wall?.per30)}/30m · {money(pricing?.wall?.oneDay)}
+              /day · Corner {money(pricing?.corner?.per30)}/30m ·{" "}
+              {money(pricing?.corner?.oneDay)}/day
+            </small>
+          </section>
+        )}
+        {tab === "users" && (
+          <section className="admin-card">
+            <div className="card-head">
+              <h2>Users</h2>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search users"
+              />
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Bookings</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((u) => (
+                    <tr key={u.id}>
+                      <td>
+                        <b>{u.displayName || u.username}</b>
+                        <small>@{u.username}</small>
+                      </td>
+                      <td>{u.email}</td>
+                      <td>
+                        <select
+                          value={u.role}
+                          onChange={(e) =>
+                            patch("/api/admin/users/" + u.id + "/role", {
+                              role: e.target.value,
+                            }).then(load)
+                          }
+                        >
+                          <option>USER</option>
+                          <option>ADMIN</option>
+                        </select>
+                      </td>
+                      <td>
+                        <button
+                          onClick={() =>
+                            patch("/api/admin/users/" + u.id + "/status", {
+                              isActive: !u.isActive,
+                            }).then(load)
+                          }
+                        >
+                          {u.isActive ? "Active" : "Suspended"}
+                        </button>
+                      </td>
+                      <td>{u._count?.campaigns || 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+        {tab === "bookings" && (
+          <section className="admin-card">
+            <h2>Booking management</h2>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Billboard</th>
+                    <th>Period</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bookings.map((b) => (
+                    <tr key={b.id}>
+                      <td>
+                        <b>{b.companyName}</b>
+                        <small>{b.user?.email}</small>
+                      </td>
+                      <td>{b.billboard?.name || b.billboardId}</td>
+                      <td>
+                        <small>
+                          {date(b.startDate)}
+                          <br />→ {date(b.endDate)}
+                        </small>
+                      </td>
+                      <td>{money(b.amount)}</td>
+                      <td>
+                        <span className="pill">{b.status}</span>
+                      </td>
+                      <td>
+                        {b.status === "ACTIVE" && (
+                          <button
+                            onClick={() =>
+                              patch(
+                                "/api/admin/bookings/" + b.id + "/cancel",
+                                {},
+                              ).then(load)
+                            }
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+        {tab === "ads" && (
+          <section className="admin-card">
+            <h2>Advertisement moderation</h2>
+            <div className="ad-grid">
+              {ads.map((a) => (
+                <article className="ad-card" key={a.id}>
+                  {a.imageUrl && (
+                    <img
+                      src={
+                        a.imageUrl.startsWith("http")
+                          ? a.imageUrl
+                          : API + a.imageUrl
+                      }
+                      alt={a.title}
+                    />
+                  )}
+                  <div>
+                    <span className="pill">{a.status}</span>
+                    <h3>{a.title}</h3>
+                    <p>{a.description || "No description"}</p>
+                    <small>{a.user?.displayName || a.user?.username}</small>
+                    <div className="actions">
+                      <button
+                        onClick={() =>
+                          patch(
+                            "/api/admin/advertisements/" + a.id + "/status",
+                            { status: "APPROVED" },
+                          ).then(load)
+                        }
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() =>
+                          patch(
+                            "/api/admin/advertisements/" + a.id + "/status",
+                            { status: "DISABLED" },
+                          ).then(load)
+                        }
+                      >
+                        Disable
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+        {tab === "boards" && (
+          <section className="admin-card">
+            <h2>Billboards</h2>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Location</th>
+                    <th>Active advertiser</th>
+                    <th>Bookings</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {boards.map((b) => (
+                    <tr key={b.id}>
+                      <td>
+                        <b>{b.name}</b>
+                        <small>{b.id}</small>
+                      </td>
+                      <td>{b.type}</td>
+                      <td>{b.location}</td>
+                      <td>
+                        {b.bookings?.[0]?.user?.displayName ||
+                          b.bookings?.[0]?.user?.username ||
+                          "Available"}
+                      </td>
+                      <td>{b._count?.bookings || 0}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
