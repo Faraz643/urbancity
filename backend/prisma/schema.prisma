@@ -20,7 +20,6 @@ model User {
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-
   sessions        Session[]
   bids            Bid[]
   wallet          Wallet?
@@ -30,244 +29,220 @@ model User {
   notifications   Notification[]
   bookings        Booking[]
   payments        Payment[]
-
   @@map("users")
 }
-
 model Session {
-  id        String   @id @default(uuid())
-  token     String   @unique
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id String @id @default(uuid())
+  token String @unique
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
-
   @@map("sessions")
 }
-
 model Wallet {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  balance   Decimal  @default(0)
+  id String @id @default(uuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance Decimal @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   transactions Transaction[]
-
   @@map("wallets")
 }
-
 model Transaction {
-  id          String   @id @default(uuid())
-  walletId    String
-  wallet      Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        String
-  amount      Decimal
+  id String @id @default(uuid())
+  walletId String
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type String
+  amount Decimal
   description String?
-  status      String   @default("COMPLETED")
+  status String @default("COMPLETED")
   referenceId String?
-  createdAt   DateTime @default(now())
-
+  createdAt DateTime @default(now())
   @@map("transactions")
 }
-
 model Billboard {
-  id                String   @id @default(uuid())
-  name              String
-  type              String
-  positionX         Float
-  positionY         Float
-  positionZ         Float
-  rotationY         Float    @default(0)
-  width             Float    @default(4)
-  height            Float    @default(2.5)
-  location          String
-  trafficRadius     Float    @default(50)
-  trafficRating     String   @default("MEDIUM")
-  visibilityRating  String   @default("GOOD")
-  minBid            Decimal  @default(0.21)
-  currentBid        Decimal?
-  currentBidderId   String?
-  isAvailable       Boolean  @default(true)
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  auctions          Auction[]
-  bids              Bid[]
-  campaigns         AdvertisingCampaign[]
-  trafficAnalytics  TrafficAnalytics[]
-  bookings          Booking[]
-
+  id String @id @default(uuid())
+  name String
+  type String
+  positionX Float
+  positionY Float
+  positionZ Float
+  rotationY Float @default(0)
+  width Float @default(4)
+  height Float @default(2.5)
+  location String
+  trafficRadius Float @default(50)
+  trafficRating String @default("MEDIUM")
+  visibilityRating String @default("GOOD")
+  minBid Decimal @default(0.21)
+  currentBid Decimal?
+  currentBidderId String?
+  isAvailable Boolean @default(true)
+  isActive Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  auctions Auction[]
+  bids Bid[]
+  campaigns AdvertisingCampaign[]
+  trafficAnalytics TrafficAnalytics[]
+  bookings Booking[]
   @@map("billboards")
 }
-
 model Auction {
-  id            String   @id @default(uuid())
-  billboardId   String
-  billboard     Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
-  startPrice    Decimal
-  currentPrice  Decimal?
-  winnerId      String?
-  status        String   @default("ACTIVE")
-  startedAt     DateTime @default(now())
-  endsAt        DateTime
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  bids          Bid[]
-
+  id String @id @default(uuid())
+  billboardId String
+  billboard Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
+  startPrice Decimal
+  currentPrice Decimal?
+  winnerId String?
+  status String @default("ACTIVE")
+  startedAt DateTime @default(now())
+  endsAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  bids Bid[]
   @@map("auctions")
 }
-
 model Bid {
-  id          String    @id @default(uuid())
-  auctionId   String
-  auction     Auction   @relation(fields: [auctionId], references: [id], onDelete: Cascade)
-  bidderId    String
-  bidder      User      @relation(fields: [bidderId], references: [id], onDelete: Cascade)
+  id String @id @default(uuid())
+  auctionId String
+  auction Auction @relation(fields: [auctionId], references: [id], onDelete: Cascade)
+  bidderId String
+  bidder User @relation(fields: [bidderId], references: [id], onDelete: Cascade)
   billboardId String
-  billboard   Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
-  amount      Decimal
-  isWinning   Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-
+  billboard Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
+  amount Decimal
+  isWinning Boolean @default(false)
+  createdAt DateTime @default(now())
   @@map("bids")
 }
-
 model Advertisement {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  title       String
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title String
   description String?
-  imageUrl    String
-  targetUrl   String?
-  status      String   @default("PENDING")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  campaigns   AdvertisingCampaign[]
-  bookings    Booking[]
-
+  imageUrl String
+  targetUrl String?
+  status String @default("PENDING")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  campaigns AdvertisingCampaign[]
+  bookings Booking[]
   @@map("advertisements")
 }
-
 model AdvertisingCampaign {
-  id              String        @id @default(uuid())
-  userId          String
-  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  billboardId     String
-  billboard       Billboard     @relation(fields: [billboardId], references: [id], onDelete: Cascade)
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billboardId String
+  billboard Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
   advertisementId String
-  advertisement   Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
-  startDate       DateTime
-  endDate         DateTime
-  isActive        Boolean       @default(false)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
+  advertisement Advertisement @relation(fields: [advertisementId], references: [id], onDelete: Cascade)
+  startDate DateTime
+  endDate DateTime
+  isActive Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   @@map("advertising_campaigns")
 }
-
 model BillboardFootfall {
   billboardId String @id
-  total       Int    @default(0)
-  updatedAt   DateTime @updatedAt
-
+  total Int @default(0)
+  updatedAt DateTime @updatedAt
   @@map("billboard_footfall")
 }
-
 model TrafficAnalytics {
-  id             String    @id @default(uuid())
-  billboardId    String
-  billboard      Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
-  nearbyVisitors Int       @default(0)
-  timestamp      DateTime  @default(now())
-
+  id String @id @default(uuid())
+  billboardId String
+  billboard Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
+  nearbyVisitors Int @default(0)
+  timestamp DateTime @default(now())
   @@map("traffic_analytics")
 }
-
 model Notification {
-  id        String   @id @default(uuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String
-  title     String
-  message   String
-  isRead    Boolean  @default(false)
-  data      String?
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type String
+  title String
+  message String
+  isRead Boolean @default(false)
+  data String?
   createdAt DateTime @default(now())
-
   @@map("notifications")
 }
-
 model Booking {
-  id          String    @id @default(uuid())
-  userId      String
-  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id String @id @default(uuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   billboardId String
-  billboard   Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
-  startDate   DateTime
-  endDate     DateTime
+  billboard Billboard @relation(fields: [billboardId], references: [id], onDelete: Cascade)
+  startDate DateTime
+  endDate DateTime
   durationMinutes Int
-  amount      Decimal
+  amount Decimal
   companyName String
   description String?
   advertisementId String?
   advertisement Advertisement? @relation(fields: [advertisementId], references: [id], onDelete: SetNull)
-  status      String    @default("ACTIVE")
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  payment     Payment?
-
+  status String @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  payment Payment?
   @@index([billboardId, status, endDate])
   @@index([userId, createdAt])
   @@map("bookings")
 }
-
 model CheckoutLock {
-  id          String   @id @default(uuid())
-  billboardId String   @unique
-  userId      String
-  bookingId   String?  @unique
-  expiresAt   DateTime
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
+  id String @id @default(uuid())
+  billboardId String @unique
+  userId String
+  bookingId String? @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   @@index([expiresAt])
   @@map("checkout_locks")
 }
-
 model Payment {
-  id              String   @id @default(uuid())
-  bookingId       String   @unique
-  booking         Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider        String   @default("DODO")
+  id String @id @default(uuid())
+  bookingId String @unique
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider String @default("DODO")
   providerPaymentId String? @unique
   checkoutSessionId String? @unique
-  amount          Decimal
-  currency        String   @default("USD")
-  status          String   @default("PENDING")
+  amount Decimal
+  currency String @default("USD")
+  status String @default("PENDING")
   providerEventId String? @unique
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   @@index([userId, status])
   @@map("payments")
 }
-
+model PricingSettings {
+  id String @id
+  mainPer30Usd Decimal @default(0.50) @map("main_per30_usd") @db.Decimal(12,4)
+  mainOneDayUsd Decimal @default(10.58) @map("main_one_day_usd") @db.Decimal(12,4)
+  wallPer30Usd Decimal @default(0.30) @map("wall_per30_usd") @db.Decimal(12,4)
+  wallOneDayUsd Decimal @default(3.71) @map("wall_one_day_usd") @db.Decimal(12,4)
+  cornerPer30Usd Decimal @default(0.20) @map("corner_per30_usd") @db.Decimal(12,4)
+  cornerOneDayUsd Decimal @default(3.17) @map("corner_one_day_usd") @db.Decimal(12,4)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  @@map("pricing_settings")
+}
 model SiteVisit {
-  id        String   @id @default(uuid())
-  visitorId String   @map("visitor_id")
-  sessionId String   @unique @map("session_id")
+  id String @id @default(uuid())
+  visitorId String @map("visitor_id")
+  sessionId String @unique @map("session_id")
   createdAt DateTime @default(now()) @map("created_at")
-
   @@index([visitorId])
   @@index([createdAt])
   @@map("site_visits")
