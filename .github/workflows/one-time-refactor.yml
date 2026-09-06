@@ -1,0 +1,31 @@
+name: One-time App extraction
+
+on:
+  push:
+    branches: [refactor-app]
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    if: ${{ !contains(github.event.head_commit.message, 'refactor: extract world camera') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor-app
+
+      - name: Extract safe App modules
+        run: python scripts/extract-app-modules.py
+
+      - name: Verify frontend build
+        run: npm run build
+
+      - name: Commit extraction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/App.tsx frontend/src/components/Game/WorldFence.tsx frontend/src/components/Game/ThemedSky.tsx frontend/src/components/Game/GameCamera.tsx frontend/src/lib/time.ts
+          git commit -m "refactor: extract world camera"
+          git push origin refactor-app
