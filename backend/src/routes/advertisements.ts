@@ -29,178 +29,90 @@ function getStorageClient() {
   });
 }
 
-// Get all advertisements (public)
 router.get('/', async (req, res, next) => {
   try {
     const { status, userId } = req.query;
-
     const where: any = {};
     if (status) where.status = status;
     if (userId) where.userId = userId;
-
     const ads = await prisma.advertisement.findMany({
       where,
-      include: {
-        user: { select: { username: true, displayName: true } },
-        campaigns: { where: { isActive: true } },
-      },
+      include: { user: { select: { username: true, displayName: true } }, campaigns: { where: { isActive: true } } },
       orderBy: { createdAt: 'desc' },
     });
-
     res.json(ads);
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
-// Get my advertisements
 router.get('/my-ads', authenticate, async (req: AuthRequest, res, next) => {
   try {
     const ads = await prisma.advertisement.findMany({
       where: { userId: req.user!.id },
-      include: {
-        campaigns: {
-          include: { billboard: true },
-        },
-      },
+      include: { campaigns: { include: { billboard: true } } },
       orderBy: { createdAt: 'desc' },
     });
-
     res.json(ads);
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
-// Upload advertisement creative to persistent Supabase Storage.
 router.post('/upload', authenticate, requireActiveUser, upload.single('file'), async (req: AuthRequest, res, next) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'Upload a PNG, JPG or WEBP image (max 5 MB).' });
-    }
-
+    if (!req.file) return res.status(400).json({ error: 'Upload a PNG, JPG or WEBP image (max 5 MB).' });
     const ext = path.extname(req.file.originalname).toLowerCase() || '.img';
     const objectPath = `advertisements/${req.user!.id}/${Date.now()}-${randomUUID()}${ext}`;
     const supabase = getStorageClient();
-
-    const { error: uploadError } = await supabase.storage
-      .from(SUPABASE_STORAGE_BUCKET)
-      .upload(objectPath, req.file.buffer, {
-        contentType: req.file.mimetype,
-        upsert: false,
-      });
-
-    if (uploadError) {
-      throw new Error(`Advertisement upload failed: ${uploadError.message}`);
-    }
-
+    const { error: uploadError } = await supabase.storage.from(SUPABASE_STORAGE_BUCKET).upload(objectPath, req.file.buffer, { contentType: req.file.mimetype, upsert: false });
+    if (uploadError) throw new Error(`Advertisement upload failed: ${uploadError.message}`);
     const { data } = supabase.storage.from(SUPABASE_STORAGE_BUCKET).getPublicUrl(objectPath);
     res.status(201).json({ imageUrl: data.publicUrl, path: objectPath });
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
-// Create advertisement
 router.post('/', authenticate, requireActiveUser, async (req: AuthRequest, res, next) => {
   try {
+    // imageUrl may be empty for a text/website-only billboard creative. The game
+    // treats an empty image as a text-only creative while targetUrl remains clickable.
     const schema = z.object({
       title: z.string().min(1).max(100),
       description: z.string().optional(),
-      imageUrl: z.string().url(),
+      imageUrl: z.union([z.string().url(), z.literal('')]),
       targetUrl: z.string().url().optional(),
     });
-
     const data = schema.parse(req.body);
-
-    const ad = await prisma.advertisement.create({
-      data: {
-        ...data,
-        userId: req.user!.id,
-        status: 'PENDING', // Requires admin approval
-      },
-    });
-
+    const ad = await prisma.advertisement.create({ data: { ...data, userId: req.user!.id, status: 'PENDING' } });
     res.status(201).json(ad);
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
-// Update advertisement
 router.patch('/:id', authenticate, requireActiveUser, async (req: AuthRequest, res, next) => {
   try {
     const schema = z.object({
       title: z.string().min(1).max(100).optional(),
       description: z.string().optional(),
-      imageUrl: z.string().url().optional(),
+      imageUrl: z.union([z.string().url(), z.literal('')]).optional(),
       targetUrl: z.string().url().optional(),
     });
-
     const data = schema.parse(req.body);
-
-    const existing = await prisma.advertisement.findFirst({
-      where: { id: req.params.id, userId: req.user!.id },
-    });
-
-    if (!existing && req.user!.role !== 'ADMIN') {
-      return res.status(403).json({ error: 'Not authorized' });
-    }
-
-    const ad = await prisma.advertisement.update({
-      where: { id: req.params.id },
-      data,
-    });
-
+    const existing = await prisma.advertisement.findFirst({ where: { id: req.params.id, userId: req.user!.id } });
+    if (!existing && req.user!.role !== 'ADMIN') return res.status(403).json({ error: 'Not authorized' });
+    const ad = await prisma.advertisement.update({ where: { id: req.params.id }, data });
     res.json(ad);
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
-// Advertisement moderation is centralized under /api/admin/advertisements.
-
-// Create advertising campaign
 router.post('/campaigns', authenticate, requireActiveUser, async (req: AuthRequest, res, next) => {
   try {
-    const schema = z.object({
-      billboardId: z.string(),
-      advertisementId: z.string(),
-      startDate: z.string().datetime(),
-      endDate: z.string().datetime(),
-    });
-
+    const schema = z.object({ billboardId: z.string(), advertisementId: z.string(), startDate: z.string().datetime(), endDate: z.string().datetime() });
     const data = schema.parse(req.body);
-
-    // Verify ownership
-    const ad = await prisma.advertisement.findFirst({
-      where: { id: data.advertisementId, userId: req.user!.id },
-    });
-
-    if (!ad) {
-      return res.status(403).json({ error: 'Advertisement not found or not owned by you' });
-    }
-
-    if (ad.status !== 'APPROVED') {
-      return res.status(400).json({ error: 'Advertisement must be approved first' });
-    }
-
+    const ad = await prisma.advertisement.findFirst({ where: { id: data.advertisementId, userId: req.user!.id } });
+    if (!ad) return res.status(403).json({ error: 'Advertisement not found or not owned by you' });
+    if (ad.status !== 'APPROVED') return res.status(400).json({ error: 'Advertisement must be approved first' });
     const campaign = await prisma.advertisingCampaign.create({
-      data: {
-        ...data,
-        userId: req.user!.id,
-        isActive: true,
-      },
-      include: {
-        billboard: true,
-        advertisement: true,
-      },
+      data: { ...data, userId: req.user!.id, isActive: true },
+      include: { billboard: true, advertisement: true },
     });
-
     res.status(201).json(campaign);
-  } catch (error) {
-    next(error);
-  }
+  } catch (error) { next(error); }
 });
 
 export { router as advertisementRouter };
