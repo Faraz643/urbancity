@@ -5,7 +5,11 @@ import App from './App'
 import Admin from './Admin'
 import PublicPage from './PublicPage'
 import './index.css'
+import './menuFix.css'
 import StartupGate from './StartupGate'
+import { installMenuWheelGuard } from './menuFix'
+
+installMenuWheelGuard()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
