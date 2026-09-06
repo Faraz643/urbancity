@@ -1,5 +1,7 @@
 export { Bench } from './Bench';
 export { Building } from './Building';
+export { City, TIME_THEMES } from './City';
+export type { TimeMode } from './City';
 export { GameCamera } from './GameCamera';
 export { Player } from './Player';
 export { PlayerAvatar } from './PlayerAvatar';
