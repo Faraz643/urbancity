@@ -1,0 +1,5 @@
+/* UrbanCity menu polish: replace the old bullet with a compact hamburger icon. */
+.game-menu-button{font-size:0;gap:7px}
+.game-menu-button span{font-size:11px;margin-left:0}
+.game-menu-button::before{content:"";width:14px;height:10px;display:inline-block;border-top:2px solid currentColor;border-bottom:2px solid currentColor;box-sizing:border-box;background:linear-gradient(currentColor,currentColor) center/100% 2px no-repeat;opacity:.95}
+.game-menu-button:hover::before{opacity:1}
