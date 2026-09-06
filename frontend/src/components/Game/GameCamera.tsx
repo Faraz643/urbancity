@@ -12,14 +12,12 @@ export function GameCamera() {
   const smoothTarget = useRef(new THREE.Vector3(0, 3.6, 8));
   const smoothCamera = useRef(new THREE.Vector3(0, 6.5, 18));
   const dragging = useRef(false);
-  const last = useRef<[number, number]>([0, 0]);
 
   useEffect(() => {
     const down = (e: MouseEvent) => {
       if ((window as any).__urbanModalOpen) return;
       if (e.button === 0) {
         dragging.current = true;
-        last.current = [e.clientX, e.clientY];
         document.body.style.cursor = 'grabbing';
         e.preventDefault();
       }
