@@ -1,12 +1,8 @@
--- UrbanCity pricing is now stored in USD.
--- minBid is the editable 30-minute base price used by checkout and the admin dashboard.
--- Preserve the existing inventory IDs while converting the launch prices.
+-- UrbanCity pricing is stored in USD.
+-- minBid is an inventory display/base value; authoritative booking prices are stored in pricing_settings.
 
-UPDATE "billboards" SET "minBid" = 0.21 WHERE "id" IN ('102','207','102-L','102-R','207-L','207-R');
-UPDATE "billboards" SET "minBid" = 1.05 WHERE "id" IN ('501','502','503','504','W01','W02','W03','W04','W05','W06','W07','W08','W09','W10','W11');
-
--- New database-created boards should also start in USD.
-ALTER TABLE "billboards" ALTER COLUMN "minBid" SET DEFAULT 0.21;
-
--- Existing payment records represent the UrbanCity system currency.
+UPDATE "billboards" SET "minBid" = 0.50 WHERE "id" IN ('102','207','102-L','102-R','207-L','207-R');
+UPDATE "billboards" SET "minBid" = 0.30 WHERE "id" IN ('W01','W02','W03','W04','W05','W06','W07','W08','W09','W10','W11');
+UPDATE "billboards" SET "minBid" = 0.20 WHERE "id" IN ('501','502','503','504');
+ALTER TABLE "billboards" ALTER COLUMN "minBid" SET DEFAULT 0.50;
 UPDATE "payments" SET "currency" = 'USD' WHERE "currency" = 'INR';
