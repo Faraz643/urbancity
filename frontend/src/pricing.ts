@@ -1,7 +1,6 @@
-// UrbanCity customer-facing prices are USD.
-// These are the agreed INR prices converted at the Sep 5, 2026 reference rate
-// of approximately ₹94.42 per USD. Indian Cashfree checkout converts the USD
-// booking amount to INR using the live FX rate at checkout.
+// Pricing module placeholder during the App.tsx refactor.
+// Customer-facing prices remain the current USD values until the admin-controlled
+// pricing system is wired to the database. No runtime pricing behavior is changed here.
 export const URBANCITY_PRICING = {
   MAIN: { per30: 0.52, oneDay: 10.58 },
   WALL: { per30: 0.31, oneDay: 4.77 },
