@@ -8,8 +8,8 @@ import { authenticate, requireActiveUser, AuthRequest } from '../middleware/auth
 const router = Router();
 const MAX_MINUTES = 48 * 60;
 const API_VERSION = process.env.CASHFREE_API_VERSION || '2025-01-01';
-const CHECKOUT_LOCK_MINUTES = 10;
-const CHECKOUT_LOCK_MESSAGE = 'Someone else is booking this space right now. Please check another board or try again after 10 minutes.';
+const CHECKOUT_LOCK_MINUTES = 5;
+const CHECKOUT_LOCK_MESSAGE = 'Someone else is booking this space right now. Please check another board or try again after 5 minutes.';
 const BASE_CURRENCY = 'USD';
 
 type P = {
