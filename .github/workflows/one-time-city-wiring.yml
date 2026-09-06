@@ -1,0 +1,62 @@
+name: One-time City wiring
+
+on:
+  push:
+    branches: [refactor-app]
+
+permissions:
+  contents: write
+
+jobs:
+  wire-city:
+    if: ${{ !contains(github.event.head_commit.message, 'refactor: wire extracted City') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refactor-app
+          fetch-depth: 0
+      - name: Wire extracted City into AppLegacy
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('frontend/src/AppLegacy.tsx')
+          s = p.read_text(encoding='utf-8')
+
+          old_import = "import { io, Socket } from 'socket.io-client';"
+          new_import = old_import + "\nimport { City as ExtractedCity, type TimeMode } from './components/Game/City';"
+          if "from './components/Game/City'" not in s:
+              s = s.replace(old_import, new_import, 1)
+
+          start = s.find('function Building(')
+          end = s.find('function Bench(')
+          if start == -1 or end == -1 or start >= end:
+              raise SystemExit('Could not locate the old city scene block')
+          s = s[:start] + s[end:]
+
+          old_call = '<City timeMode={timeMode}/>'
+          new_call = '<ExtractedCity timeMode={timeMode} billboards={MAP_BILLBOARDS}/>'
+          if old_call not in s:
+              raise SystemExit('Could not locate the old City render call')
+          s = s.replace(old_call, new_call, 1)
+
+          p.write_text(s, encoding='utf-8')
+
+      - name: Verify TypeScript build
+        run: npm run build
+
+      - name: Commit refactor
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/AppLegacy.tsx
+          git diff --cached --quiet || git commit -m "refactor: wire extracted City"
+          git push origin refactor-app
+
+      - name: Remove one-time workflow
+        shell: bash
+        run: |
+          git rm .github/workflows/one-time-city-wiring.yml
+          git commit -m "chore: remove one-time refactor workflow"
+          git push origin refactor-app
