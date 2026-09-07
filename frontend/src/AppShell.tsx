@@ -1211,19 +1211,19 @@ useEffect(() => {
             <a href="/rules" style={linkStyle}>
               Rules
             </a>
-            <span style={sepStyle}>•·</span>
+            <span style={sepStyle}>•</span>
             <a href="/faq" style={linkStyle}>
               FAQ
             </a>
-            <span style={sepStyle}>•·</span>
+            <span style={sepStyle}>•</span>
             <a href="/terms" style={linkStyle}>
               Terms & Conditions
             </a>
-            <span style={sepStyle}>•·</span>
+            <span style={sepStyle}>•</span>
             <a href="/privacy" style={linkStyle}>
               Privacy
             </a>
-            <span style={sepStyle}>•·</span>
+            <span style={sepStyle}>•</span>
             <a href="/refund-policy" style={linkStyle}>
               Refunds
             </a>
