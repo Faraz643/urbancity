@@ -32,8 +32,9 @@ function priceFor(p: P, type: string, minutes: number) {
     t === 'building wall';
 
   const main =
-    t === 'premium road' ||
-    t === 'vertical';
+  t === 'premium' ||
+  t === 'premium road' ||
+  t === 'vertical';
 
   const corner = !wall && !main;
 
