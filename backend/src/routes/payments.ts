@@ -14,8 +14,56 @@ const BASE_CURRENCY = 'USD';
 
 type P = { main_per30_usd:any; main_one_day_usd:any; wall_per30_usd:any; wall_one_day_usd:any; corner_per30_usd:any; corner_one_day_usd:any; };
 async function getPricing(tx:any){const r=await tx.$queryRaw<P[]>`SELECT main_per30_usd, main_one_day_usd, wall_per30_usd, wall_one_day_usd, corner_per30_usd, corner_one_day_usd FROM pricing_settings WHERE id='default'`;if(!r[0])throw Object.assign(new Error('Pricing is not configured.'),{status:503});return r[0];}
-function priceFor(p:P,type:string,minutes:number){if(minutes<=0||minutes%30!==0||minutes>MAX_MINUTES)throw new Error('Duration must be in 30-minute steps, maximum 2 days');const t=String(type||'');const wall=t==='Wall'||t==='WALL'||t==='Building Wall';const corner=t==='Street'||t==='STREET'||t==='Corner'||t==='CORNER';const per30=Number(wall?p.wall_per30_usd:corner?p.corner_per30_usd:p.main_per30_usd);const day=Number(wall?p.wall_one_day_usd:corner?p.corner_one_day_usd:p.main_one_day_usd);if(minutes<1440)return Number(((minutes/30)*per30).toFixed(2));const days=Math.floor(minutes/1440),rem=minutes%1440;return Number((days*day+(rem/30)*per30).toFixed(2));}
-function cashfreeBaseUrl(){return(process.env.CASHFREE_ENV||'sandbox').toLowerCase()==='production'?'https://api.cashfree.com/pg':'https://sandbox.cashfree.com/pg';}
+function priceFor(p: P, type: string, minutes: number) {
+  if (
+    minutes <= 0 ||
+    minutes % 30 !== 0 ||
+    minutes > MAX_MINUTES
+  ) {
+    throw new Error(
+      'Duration must be in 30-minute steps, maximum 2 days'
+    );
+  }
+
+  const t = String(type || '').trim().toLowerCase();
+
+  const wall =
+    t === 'wall' ||
+    t === 'building wall';
+
+  const main =
+    t === 'premium road' ||
+    t === 'vertical';
+
+  const corner = !wall && !main;
+
+  const per30 = Number(
+    wall
+      ? p.wall_per30_usd
+      : corner
+        ? p.corner_per30_usd
+        : p.main_per30_usd
+  );
+
+  const day = Number(
+    wall
+      ? p.wall_one_day_usd
+      : corner
+        ? p.corner_one_day_usd
+        : p.main_one_day_usd
+  );
+
+  if (minutes < 1440) {
+    return Number(((minutes / 30) * per30).toFixed(2));
+  }
+
+  const days = Math.floor(minutes / 1440);
+  const rem = minutes % 1440;
+
+  return Number(
+    (days * day + (rem / 30) * per30).toFixed(2)
+  );
+}function cashfreeBaseUrl(){return(process.env.CASHFREE_ENV||'sandbox').toLowerCase()==='production'?'https://api.cashfree.com/pg':'https://sandbox.cashfree.com/pg';}
 function cashfreeHeaders(idempotencyKey?:string){const id=process.env.CASHFREE_CLIENT_ID,secret=process.env.CASHFREE_CLIENT_SECRET;if(!id||!secret)throw Object.assign(new Error('Cashfree Payments is not configured.'),{status:503});return{'Content-Type':'application/json','Accept':'application/json','x-api-version':API_VERSION,'x-client-id':id,'x-client-secret':secret,...(idempotencyKey?{'x-idempotency-key':idempotencyKey}:{})};}
 function dodoBaseUrl(){return(process.env.DODO_PAYMENTS_ENVIRONMENT||'live_mode').toLowerCase()==='test_mode'?'https://test.dodopayments.com':'https://live.dodopayments.com';}
 function dodoHeaders(){const key=process.env.DODO_PAYMENTS_API_KEY;if(!key)throw Object.assign(new Error('Dodo Payments is not configured. Add DODO_PAYMENTS_API_KEY.'),{status:503});return{'Content-Type':'application/json','Accept':'application/json','Authorization':'Bearer '+key};}
