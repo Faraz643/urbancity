@@ -13,20 +13,21 @@ async function enhanceActiveAd() {
   const heading = document.querySelector('.panel h2');
   const companyLink = heading?.querySelector<HTMLAnchorElement>('a.company-link');
   if (!heading || !companyLink) return;
-
   try {
     const response = await fetch(`${API}/api/bookings/active`);
     if (!response.ok) return;
     const active = (await response.json()) as Record<string, any>;
     const displayedName = (companyLink.firstChild?.textContent || '').trim();
-    const match = Object.values(active).find((booking: any) =>
-      String(booking.companyName || '').trim() === displayedName,
-    );
+    const match = Object.values(active).find((booking: any) => String(booking.companyName || '').trim() === displayedName);
     if (!match) return;
 
-    const trackedUrl = `${API}${match.clickUrl}${match.clickUrl.includes('?') ? '&' : '?'}visitorId=${encodeURIComponent(visitorId())}`;
-    if (companyLink.href !== trackedUrl) companyLink.href = trackedUrl;
-    companyLink.title = 'Visit advertiser website';
+    const destination = String(match.targetUrl || match.siteUrl || match.user?.websiteUrl || companyLink.href || '').trim();
+    if (destination) {
+      // Keep the real advertiser URL in href so the browser status bar shows it.
+      companyLink.href = destination;
+      companyLink.dataset.adTrackingUrl = `${API}${match.clickUrl}${match.clickUrl.includes('?') ? '&' : '?'}visitorId=${encodeURIComponent(visitorId())}`;
+    }
+    companyLink.title = destination ? `Visit ${destination}` : 'Visit advertiser website';
 
     let badge = heading.querySelector<HTMLElement>('[data-ad-total-clicks]');
     if (!badge) {
@@ -37,7 +38,7 @@ async function enhanceActiveAd() {
     }
     badge.textContent = `↗ ${Number(match.totalClicks || 0).toLocaleString()} clicks`;
   } catch {
-    // Click tracking must never prevent the billboard popup from working.
+    // Tracking must never prevent the billboard popup from working.
   }
 }
 
@@ -55,12 +56,13 @@ export function installAdClickTracker() {
   const observer = new MutationObserver(scheduleEnhance);
   observer.observe(document.body, { childList: true, subtree: true });
   document.addEventListener('click', (event) => {
-    const link = (event.target as HTMLElement | null)?.closest('a.company-link');
-    if (link) {
-      // The server records the click and then redirects. Do not block navigation.
-      const href = link.getAttribute('href');
-      if (href && href.includes('/api/advertisements/click/')) return;
-    }
+    const link = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('a.company-link');
+    if (!link) return;
+    const trackingUrl = link.dataset.adTrackingUrl;
+    if (!trackingUrl) return;
+    // Record the click without replacing the real href. Normal anchor navigation
+    // then opens the advertiser's actual website.
+    void fetch(trackingUrl, { method: 'GET', keepalive: true }).catch(() => {});
   });
   scheduleEnhance();
 }
