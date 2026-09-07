@@ -48,54 +48,15 @@ function ensureBadge(heading: Element, initialTotal = 0) {
   return badge;
 }
 
-function getActiveBookingFromWindow(heading: Element, companyLink: HTMLAnchorElement) {
-  const displayedName = (companyLink.firstChild?.textContent || '').trim();
-  if (!displayedName) return null;
-
-  // The popup's existing booking data is exposed on the page by the app.
-  // Use it when available so the count can be painted without waiting for
-  // another network request.
-  const candidates = [
-    (window as any).__URBANCITY_ACTIVE_BOOKINGS__,
-    (window as any).activeBookings,
-  ];
-
-  for (const active of candidates) {
-    if (!active || typeof active !== 'object') continue;
-    const match = Object.values(active).find(
-      (booking: any) => String(booking?.companyName || '').trim() === displayedName,
-    );
-    if (match) return match as any;
-  }
-
-  return null;
-}
-
 async function enhanceActiveAd() {
   const heading = document.querySelector('.panel h2');
   const companyLink = heading ? findCompanyLink(heading) : null;
   if (!heading || !companyLink) return;
 
-  // Paint the badge immediately if the application has already exposed the
-  // active booking. The server request below is only the authoritative refresh.
-  const immediateMatch = getActiveBookingFromWindow(heading, companyLink);
-  if (immediateMatch) {
-    const bookingId = String(immediateMatch.id || '').trim();
-    const destination = String(
-      immediateMatch.targetUrl || immediateMatch.siteUrl || immediateMatch.user?.websiteUrl || companyLink.href || '',
-    ).trim();
-    if (destination) {
-      companyLink.href = destination;
-      companyLink.target = '_blank';
-      companyLink.rel = 'noopener noreferrer';
-    }
-    companyLink.title = destination ? `Visit ${destination}` : 'Visit advertiser website';
-    ensureBadge(heading, Number(immediateMatch.totalClicks || 0));
-    if (bookingId) {
-      companyLink.dataset.bookingId = bookingId;
-      void refreshClickTotal(heading, bookingId);
-    }
-  }
+  // IMPORTANT: create the badge immediately when the popup renders.
+  // Do not wait for /api/bookings/active. The API call only supplies the
+  // authoritative count and advertiser URL after the badge is already visible.
+  ensureBadge(heading, 0);
 
   try {
     const response = await fetch(`${API}/api/bookings/active?t=${Date.now()}`, {
@@ -122,10 +83,13 @@ async function enhanceActiveAd() {
     }
 
     companyLink.title = destination ? `Visit ${destination}` : 'Visit advertiser website';
-    ensureBadge(heading, Number(match.totalClicks || 0));
+    // Replace the temporary immediate value with the booking's current count.
+    setClickBadge(heading, Number(match.totalClicks || 0));
 
     if (!bookingId) return;
     companyLink.dataset.bookingId = bookingId;
+
+    // Server count is authoritative and can include clicks made elsewhere.
     void refreshClickTotal(heading, bookingId);
   } catch {
     // Never interfere with the billboard popup.
