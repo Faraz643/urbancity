@@ -8,8 +8,10 @@ import './index.css'
 import './menuFix.css'
 import StartupGate from './StartupGate'
 import { installMenuWheelGuard } from './menuFix'
+import { installAdClickTracker } from './adClickTracker'
 
 installMenuWheelGuard()
+installAdClickTracker()
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
