@@ -1,45 +1,110 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="description" content="AdCity - A 3D Multiplayer Advertising City" />
-    <title>AdCity - 3D Advertising City</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <link rel="icon" type="image/svg+xml" href="/favicon.png" />
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+
+    <meta
+      name="description"
+      content="UrbanCity — Where Brands Own the Streets. Discover, explore, and experience brands in an interactive city."
+    />
+
+    <meta
+      property="og:title"
+      content="UrbanCity — Where Brands Own the Streets"
+    />
+
+    <meta
+      property="og:description"
+      content="Discover, explore, and experience brands in an interactive city."
+    />
+
+    <meta property="og:type" content="website" />
+
+    <meta property="og:url" content="https://www.urbancity.fun" />
+
+    <meta property="og:image" content="https://www.urbancity.fun/og-image.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <meta
+      name="twitter:title"
+      content="UrbanCity — Where Brands Own the Streets"
+    />
+
+    <meta
+      name="twitter:description"
+      content="Discover, explore, and experience brands in an interactive city."
+    />
+
+    <meta name="twitter:image" content="https://www.urbancity.fun/og-image.png" />
+
+    <title>UrbanCity — Where Brands Own the Streets</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="root"></div>
     <script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
     <script>
-      (function(){
-        var realCashfree=window.Cashfree;
-        window.Cashfree=function(options){
-          var real=typeof realCashfree==='function'?realCashfree(options):null;
-          return {checkout:function(args){
-            var session=String((args&&args.paymentSessionId)||'');
-            if(session.indexOf('DODO_URL:')===0){
-              var encoded=session.slice(9).replace(/-/g,'+').replace(/_/g,'/');
-              while(encoded.length%4)encoded+='=';
-              try{window.location.href=atob(encoded);return Promise.resolve();}catch(e){throw new Error('Invalid Dodo checkout URL.');}
-            }
-            if(!real||typeof real.checkout!=='function')throw new Error('Cashfree checkout is unavailable.');
-            return real.checkout(args);
-          }};
+      (function () {
+        var realCashfree = window.Cashfree;
+        window.Cashfree = function (options) {
+          var real =
+            typeof realCashfree === "function" ? realCashfree(options) : null;
+          return {
+            checkout: function (args) {
+              var session = String((args && args.paymentSessionId) || "");
+              if (session.indexOf("DODO_URL:") === 0) {
+                var encoded = session
+                  .slice(9)
+                  .replace(/-/g, "+")
+                  .replace(/_/g, "/");
+                while (encoded.length % 4) encoded += "=";
+                try {
+                  window.location.href = atob(encoded);
+                  return Promise.resolve();
+                } catch (e) {
+                  throw new Error("Invalid Dodo checkout URL.");
+                }
+              }
+              if (!real || typeof real.checkout !== "function")
+                throw new Error("Cashfree checkout is unavailable.");
+              return real.checkout(args);
+            },
+          };
         };
       })();
     </script>
     <script>
       // Dodo appends payment_id/status to the return URL. The existing React verifier
       // expects order_id, so normalize the URL before the React app mounts.
-      (function(){
-        var p=new URLSearchParams(window.location.search);
-        var paymentId=p.get('payment_id');
-        if(paymentId && !p.get('order_id')){
-          p.set('order_id',paymentId);
-          history.replaceState({},'',window.location.pathname+'?'+p.toString()+window.location.hash);
+      (function () {
+        var p = new URLSearchParams(window.location.search);
+        var paymentId = p.get("payment_id");
+        if (paymentId && !p.get("order_id")) {
+          p.set("order_id", paymentId);
+          history.replaceState(
+            {},
+            "",
+            window.location.pathname +
+              "?" +
+              p.toString() +
+              window.location.hash,
+          );
         }
       })();
     </script>
