@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { randomUUID } from 'crypto';
 import { prisma } from '../db';
 
 const router = Router();
@@ -80,13 +81,12 @@ router.post('/site-visit', async (req,res,next)=>{
     if(!/^[a-zA-Z0-9_-]{16,128}$/.test(visitorId)||!/^[a-zA-Z0-9_-]{16,128}$/.test(sessionId)){
       return res.status(400).json({error:'Invalid analytics visitor session.'});
     }
-    // PostgreSQL-native atomic insert. Prisma's upsert can use a multi-step
-    // implementation in some schema/client combinations, so two simultaneous
-    // browser requests can still race into the unique session_id constraint.
-    // ON CONFLICT is atomic in PostgreSQL: duplicates simply do nothing.
+
+    // site_visits.id is NOT database-generated in the live schema. Supply it
+    // explicitly so PostgreSQL cannot reject the insert with a NOT NULL violation.
     await prisma.$executeRaw`
-      INSERT INTO public.site_visits ("visitor_id", "session_id")
-      VALUES (${visitorId}, ${sessionId})
+      INSERT INTO public.site_visits ("id", "visitor_id", "session_id")
+      VALUES (${randomUUID()}, ${visitorId}, ${sessionId})
       ON CONFLICT ("session_id") DO NOTHING
     `;
 
@@ -108,4 +108,4 @@ router.get('/site', async (_req,res,next)=>{
   }catch(error){next(error)}
 });
 
-export { router as analyticsRouter };
+export { analyticsRouter as analyticsRouter };
