@@ -1,0 +1,47 @@
+name: Fix Dodo webhook
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: "!contains(github.event.head_commit.message, '[dodo-webhook-fixed]')"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch Dodo webhook
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          path = Path('backend/src/routes/payments.ts')
+          text = path.read_text(encoding='utf-8')
+
+          pattern = r"router\.post\('/webhook/dodo'.*?\n\nexport \{ router as paymentRouter \};"
+          replacement = r'''router.post('/webhook/dodo',async(req,res)=>{try{const secret=process.env.DODO_PAYMENTS_WEBHOOK_KEY;if(!secret)return res.status(503).json({error:'Dodo webhook secret is not configured'});const raw=(req as any).rawBody||JSON.stringify(req.body);const webhookId=String(req.headers['webhook-id']||'');const signature=String(req.headers['webhook-signature']||'');const timestamp=String(req.headers['webhook-timestamp']||'');if(!webhookId||!signature||!timestamp)return res.status(400).json({error:'Missing Dodo webhook headers'});const w=new Webhook(secret);await w.verify(raw,{'webhook-id':webhookId,'webhook-signature':signature,'webhook-timestamp':timestamp});const e:any=JSON.parse(raw);const type=String(e?.type||'');const d:any=e?.data||{};if(type!=='payment.succeeded'&&type!=='payment.failed'&&type!=='payment.cancelled')return res.status(200).json({received:true});const providerPaymentId=String(d?.payment_id||'');const checkoutSessionId=String(d?.checkout_session_id||'');const metadata=d?.metadata&&typeof d.metadata==='object'?d.metadata:{};const internalPaymentId=String(metadata?.payment_id||'');let p:any=null;if(internalPaymentId)p=await prisma.payment.findUnique({where:{id:internalPaymentId},include:{booking:true}});if(!p&&checkoutSessionId)p=await prisma.payment.findFirst({where:{provider:'DODO',checkoutSessionId},include:{booking:true}});if(!p)return res.status(200).json({received:true});const prior=await prisma.payment.findUnique({where:{providerEventId:webhookId}});if(prior)return res.status(200).json({received:true,duplicate:true});if(type==='payment.failed'){await fail(p.id,'FAILED');return res.status(200).json({received:true});}if(type==='payment.cancelled'){await fail(p.id,'CANCELLED');return res.status(200).json({received:true});}if(!providerPaymentId)return res.status(400).json({error:'Dodo payment id missing'});if(!checkoutSessionId||checkoutSessionId!==String(p.checkoutSessionId||''))return res.status(400).json({error:'Dodo checkout session does not match this payment'});const providerStatus=String(d?.status||'').toLowerCase();const providerCurrency=String(d?.currency||'').toUpperCase();const providerAmount=Number(d?.total_amount)/100;if(providerStatus!=='succeeded'||!providerCurrency||!Number.isFinite(providerAmount)||providerAmount<=0)return res.status(400).json({error:'Dodo payment verification failed'});await activate(p.id,providerPaymentId,webhookId,providerAmount,providerCurrency);return res.status(200).json({received:true});}catch(e){return res.status(400).json({error:'Invalid Dodo webhook'});}});
+
+export { router as paymentRouter };'''
+
+          new_text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit('Could not locate the Dodo webhook block; no changes made.')
+          path.write_text(new_text, encoding='utf-8')
+
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/src/routes/payments.ts
+          git diff --cached --quiet && exit 0
+          git commit -m "Fix Dodo webhook INR payment activation [dodo-webhook-fixed]"
+          git push
