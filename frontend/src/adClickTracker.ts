@@ -25,7 +25,7 @@ async function enhanceActiveAd() {
     if (destination) {
       // Keep the real advertiser URL in href so the browser status bar shows it.
       companyLink.href = destination;
-      companyLink.dataset.adTrackingUrl = `${API}${match.clickUrl}${match.clickUrl.includes('?') ? '&' : '?'}visitorId=${encodeURIComponent(visitorId())}`;
+      companyLink.dataset.adTrackingUrl = `${API}${match.clickUrl}${match.clickUrl.includes('?') ? '&' : '?'}visitorId=${encodeURIComponent(visitorId())}&track=1`;
     }
     companyLink.title = destination ? `Visit ${destination}` : 'Visit advertiser website';
 
@@ -60,9 +60,27 @@ export function installAdClickTracker() {
     if (!link) return;
     const trackingUrl = link.dataset.adTrackingUrl;
     if (!trackingUrl) return;
-    // Record the click without replacing the real href. Normal anchor navigation
-    // then opens the advertiser's actual website.
-    void fetch(trackingUrl, { method: 'GET', keepalive: true }).catch(() => {});
+
+    // Open the real advertiser URL immediately so the browser keeps the user's
+    // gesture. Tracking is a separate request and never replaces the real href.
+    event.preventDefault();
+    const destination = link.href;
+    const opened = window.open(destination, '_blank', 'noopener,noreferrer');
+    if (!opened) window.location.href = destination;
+
+    void fetch(trackingUrl, { method: 'GET', keepalive: true, credentials: 'omit' })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const result = await response.json().catch(() => null);
+        if (result?.counted) {
+          const badge = link.closest('h2')?.querySelector<HTMLElement>('[data-ad-total-clicks]');
+          if (badge) {
+            const current = Number((badge.textContent || '').replace(/[^0-9]/g, '')) || 0;
+            badge.textContent = `↗ ${(current + 1).toLocaleString()} clicks`;
+          }
+        }
+      })
+      .catch(() => {});
   });
   scheduleEnhance();
 }
