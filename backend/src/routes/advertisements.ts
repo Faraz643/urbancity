@@ -134,12 +134,16 @@ router.get('/click/:bookingId', async (req, res, next) => {
       : booking.advertisement?.targetUrl || booking.user.websiteUrl;
     if (!destination) return res.status(204).end();
 
-    // A database-enforced unique key prevents repeated clicks by the same visitor
-    // on the same booking during the same calendar day from inflating the metric.
-    await prisma.$executeRawUnsafe(
+    const result = await prisma.$executeRawUnsafe(
       `INSERT INTO "ad_clicks" ("id","booking_id","billboard_id","visitor_id","clicked_at","clicked_day") VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT ("booking_id","visitor_id","clicked_day") DO NOTHING`,
       randomUUID(), booking.id, booking.billboardId, visitorId, now, now.toISOString().slice(0, 10),
     );
+
+    // Fetch-based tracking uses track=1 so it cannot be cancelled by navigation
+    // or fail because fetch follows the advertiser's cross-origin redirect.
+    if (String(req.query.track || '') === '1') {
+      return res.status(200).json({ counted: result > 0, totalClicks: result > 0 ? undefined : undefined });
+    }
 
     res.redirect(302, destination);
   } catch (error) { next(error); }
