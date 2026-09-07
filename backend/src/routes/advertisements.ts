@@ -133,7 +133,7 @@ router.all('/click/:bookingId', async (req, res, next) => {
     if (!destination) return res.status(204).end();
 
     const result = await prisma.$executeRawUnsafe(
-      `INSERT INTO "ad_clicks" ("id","booking_id","billboard_id","visitor_id","clicked_at","clicked_day") VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT ("booking_id","visitor_id","clicked_day") DO NOTHING`,
+      `INSERT INTO "ad_clicks" ("id","booking_id","billboard_id","visitor_id","clicked_at","clicked_day") VALUES ($1,$2,$3,$4,$5,$6::date) ON CONFLICT ("booking_id","visitor_id","clicked_day") DO NOTHING`,
       randomUUID(), booking.id, booking.billboardId, visitorId, now, now.toISOString().slice(0, 10),
     );
 
