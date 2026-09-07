@@ -26,12 +26,31 @@ const httpServer = createServer(app);
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(cors({ origin: FRONTEND_URL, credentials: true }));
 app.use(express.json({ limit: '2mb', verify: (req:any,_res,buf) => { req.rawBody=buf.toString('utf8'); } }));
 app.use('/uploads',express.static('uploads'));
 
 const jsonRateLimit = (windowMs:number, max:number) => rateLimit({ windowMs, max, standardHeaders:true, legacyHeaders:false, handler:(_req,res)=>res.status(429).json({error:'Too many requests. Please wait a moment and try again.',code:'RATE_LIMITED',retryAfterSeconds:Math.ceil(windowMs/1000)}) });
+const publicApiRateLimit = jsonRateLimit(Number(process.env.API_RATE_LIMIT_WINDOW_MS||60000),Number(process.env.API_RATE_LIMIT_MAX_REQUESTS||300));
+const paymentRateLimit = jsonRateLimit(Number(process.env.PAYMENT_RATE_LIMIT_WINDOW_MS||60000),Number(process.env.PAYMENT_RATE_LIMIT_MAX_REQUESTS||30));
+const analyticsRateLimit = jsonRateLimit(Number(process.env.ANALYTICS_RATE_LIMIT_WINDOW_MS||60000),Number(process.env.ANALYTICS_RATE_LIMIT_MAX_REQUESTS||60));
+
+app.get('/health',(_req,res)=>res.json({status:'ok',online:players.size,database:databaseReady?'connected':'unavailable',timestamp:new Date().toISOString()}));
+
+const isDev=process.env.NODE_ENV!=='production';
+app.use('/api/auth',isDev?authRouter:jsonRateLimit(Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS||60000),Number(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS||60)),authRouter);
+app.use('/api/billboards',publicApiRateLimit,billboardRouter);
+app.use('/api/bookings',publicApiRateLimit,bookingRouter);
+app.use('/api/advertisements',publicApiRateLimit,advertisementRouter);
+app.use('/api/admin',publicApiRateLimit,adminRouter);
+app.use('/api/pricing',publicApiRateLimit,pricingRouter);
+app.use('/api/analytics',analyticsRateLimit,analyticsRouter);
+app.use('/api/payments',paymentRateLimit,paymentRouter);
+
+// Keep the live billboard endpoint protected independently from the generic routers.
+app.get('/api/live/billboards',publicApiRateLimit,async(_req,res)=>{try{const rows=await prisma.billboard.findMany({select:{id:true,currentBid:true}});res.json(rows.map(b=>({id:b.id,bid:Number(b.currentBid||0),footfall:billboardFootfall.get(b.id)||0})))}catch{res.json([...billboardFootfall.entries()].map(([id,footfall])=>({id,bid:0,footfall})))}});
 
 type Player = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean };
 const players = new Map<string, Player>();
@@ -41,20 +60,21 @@ const playerFootfallInside = new Map<string, Set<string>>();
 function recordFootfallEnter(playerId:string,billboardId:string){if(!billboardId)return;const total=(billboardFootfall.get(billboardId)||0)+1;billboardFootfall.set(billboardId,total);io.emit('billboard:footfall',{id:billboardId,total,playerId});}
 let databaseReady=false;
 async function checkDatabase(){try{await prisma.$queryRaw`SELECT 1`;databaseReady=true;console.log('Database connected')}catch{databaseReady=false;console.warn('Database unavailable. Multiplayer demo mode remains available until migrations are run.')}}
-app.get('/health',(_req,res)=>res.json({status:'ok',online:players.size,database:databaseReady?'connected':'unavailable',timestamp:new Date().toISOString()}));
-app.get('/api/live/billboards',async(_req,res)=>{try{const rows=await prisma.billboard.findMany({select:{id:true,currentBid:true}});res.json(rows.map(b=>({id:b.id,bid:Number(b.currentBid||0),footfall:billboardFootfall.get(b.id)||0})))}catch{res.json([...billboardFootfall.entries()].map(([id,footfall])=>({id,bid:0,footfall})))}});
-const isDev=process.env.NODE_ENV!=='production';
-app.use('/api/auth',isDev?authRouter:jsonRateLimit(Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS||60000),Number(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS||60)),authRouter);
-app.use('/api/billboards',billboardRouter);app.use('/api/bookings',bookingRouter);app.use('/api/advertisements',advertisementRouter);app.use('/api/admin',adminRouter);app.use('/api/pricing',pricingRouter);app.use('/api/analytics',analyticsRouter);app.use('/api/payments',paymentRouter);
-const io=new Server(httpServer,{cors:{origin:FRONTEND_URL,credentials:true}});
-io.use((socket,next)=>{const token=typeof socket.handshake.auth?.token==='string'?socket.handshake.auth.token:'';if(!token)return next();try{const decoded=jwt.verify(token,getJwtSecret()) as {userId?:string};if(!decoded.userId)return next(new Error('Invalid socket token'));socket.data.userId=decoded.userId;next()}catch{next(new Error('Invalid socket token'))}});
+
+const io=new Server(httpServer,{cors:{origin:FRONTEND_URL,credentials:true},connectionStateRecovery:{maxDisconnectionDuration:120000}});
+const socketConnectionCounts = new Map<string,number>();
+const SOCKET_MAX_CONNECTIONS_PER_IP = Number(process.env.SOCKET_MAX_CONNECTIONS_PER_IP||20);
+const SOCKET_UPDATE_MIN_INTERVAL_MS = Number(process.env.SOCKET_UPDATE_MIN_INTERVAL_MS||50);
+function socketIp(socket:any){const forwarded=String(socket.handshake.headers?.['x-forwarded-for']||'').split(',')[0].trim();return forwarded||String(socket.handshake.address||'unknown');}
+io.use((socket,next)=>{const ip=socketIp(socket);const count=socketConnectionCounts.get(ip)||0;if(count>=SOCKET_MAX_CONNECTIONS_PER_IP)return next(new Error('Too many connections from this network'));const token=typeof socket.handshake.auth?.token==='string'?socket.handshake.auth.token:'';if(!token){socket.data.ip=ip;socketConnectionCounts.set(ip,count+1);return next();}try{const decoded=jwt.verify(token,getJwtSecret()) as {userId?:string};if(!decoded.userId)return next(new Error('Invalid socket token'));socket.data.userId=decoded.userId;socket.data.ip=ip;socketConnectionCounts.set(ip,count+1);next()}catch{next(new Error('Invalid socket token'))}});
 io.on('connection',(socket)=>{
  const player:Player={id:socket.id,name:socket.data.userId?'Player-'+String(socket.data.userId).slice(0,4):'Visitor-'+randomUUID().slice(0,4),position:[0,1,8],rotation:0,moving:false};
+ let lastPlayerUpdate=0;
  players.set(socket.id,player);socket.emit('players:list',[...players.values()]);socket.broadcast.emit('player:joined',player);io.emit('online:count',players.size);
- socket.on('player:update',(data:Partial<Player>)=>{const current=players.get(socket.id);if(!current)return;if(Array.isArray(data.position)&&data.position.length===3&&data.position.every(v=>typeof v==='number'&&Number.isFinite(v))){const next=data.position as [number,number,number];const dx=next[0]-current.position[0],dy=next[1]-current.position[1],dz=next[2]-current.position[2];if(Math.hypot(dx,dy,dz)<=8&&Math.abs(next[0])<=80&&next[1]>=-2&&next[1]<=30&&Math.abs(next[2])<=80)current.position=next}if(typeof data.rotation==='number'&&Number.isFinite(data.rotation))current.rotation=data.rotation;if(typeof data.moving==='boolean')current.moving=data.moving;socket.broadcast.emit('player:update',current)});
+ socket.on('player:update',(data:Partial<Player>)=>{const now=Date.now();if(now-lastPlayerUpdate<SOCKET_UPDATE_MIN_INTERVAL_MS)return;lastPlayerUpdate=now;const current=players.get(socket.id);if(!current)return;if(Array.isArray(data.position)&&data.position.length===3&&data.position.every(v=>typeof v==='number'&&Number.isFinite(v))){const next=data.position as [number,number,number];const dx=next[0]-current.position[0],dy=next[1]-current.position[1],dz=next[2]-current.position[2];if(Math.hypot(dx,dy,dz)<=8&&Math.abs(next[0])<=80&&next[1]>=-2&&next[1]<=30&&Math.abs(next[2])<=80)current.position=next}if(typeof data.rotation==='number'&&Number.isFinite(data.rotation))current.rotation=data.rotation;if(typeof data.moving==='boolean')current.moving=data.moving;socket.broadcast.emit('player:update',current)});
  socket.on('billboard:footfall-enter',(data:{id?:string})=>{const id=String(data?.id||'');if(!id||!billboardFootfallPositions.has(id))return;const inside=playerFootfallInside.get(socket.id)||new Set<string>();if(inside.has(id))return;inside.add(id);playerFootfallInside.set(socket.id,inside);recordFootfallEnter(socket.id,id)});
  socket.on('billboard:footfall-leave',(data:{id?:string})=>{const id=String(data?.id||'');if(id)playerFootfallInside.get(socket.id)?.delete(id)});
- socket.on('disconnect',()=>{players.delete(socket.id);playerFootfallInside.delete(socket.id);io.emit('player:left',socket.id);io.emit('online:count',players.size)});
+ socket.on('disconnect',()=>{players.delete(socket.id);playerFootfallInside.delete(socket.id);const ip=socket.data.ip||'unknown';const count=socketConnectionCounts.get(ip)||0;if(count<=1)socketConnectionCounts.delete(ip);else socketConnectionCounts.set(ip,count-1);io.emit('player:left',socket.id);io.emit('online:count',players.size)});
 });
 async function loadFootfallTotals(){if(!databaseReady)return;try{const [totals,billboards]=await Promise.all([prisma.billboardFootfall.findMany(),prisma.billboard.findMany({select:{id:true,positionX:true,positionZ:true}})]);billboardFootfall.clear();for(const row of totals)billboardFootfall.set(row.billboardId,row.total);billboardFootfallPositions.clear();for(const row of billboards)billboardFootfallPositions.set(row.id,{x:row.positionX,z:row.positionZ});console.log('Footfall totals loaded; '+billboardFootfallPositions.size+' active database billboard(s) available for validation')}catch(e){console.warn('Could not load footfall totals',e)}}
 setInterval(async()=>{if(!databaseReady)return;try{for(const [billboardId,total] of billboardFootfall)await prisma.billboardFootfall.upsert({where:{billboardId},update:{total},create:{billboardId,total}})}catch(e){console.warn('Footfall persistence failed',e)}},30000);
