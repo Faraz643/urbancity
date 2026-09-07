@@ -115,4 +115,45 @@ router.post('/campaigns', authenticate, requireActiveUser, async (req: AuthReque
   } catch (error) { next(error); }
 });
 
+// Record one outbound advertising click per visitor per booking per local calendar day.
+// The visitor id is a browser-generated anonymous identifier; no raw IP is persisted.
+router.get('/click/:bookingId', async (req, res, next) => {
+  try {
+    const visitorId = String(req.query.visitorId || '').trim();
+    if (!visitorId || visitorId.length > 128) return res.status(400).send('Missing visitor identifier');
+
+    const now = new Date();
+    const booking = await prisma.booking.findFirst({
+      where: { id: req.params.bookingId, status: 'ACTIVE', endDate: { gt: now }, startDate: { lte: now } },
+      include: { advertisement: true, user: { select: { websiteUrl: true } } },
+    });
+    if (!booking) return res.status(404).send('Advertisement is no longer active');
+
+    const destination = booking.advertisement?.status === 'DISABLED'
+      ? booking.user.websiteUrl
+      : booking.advertisement?.targetUrl || booking.user.websiteUrl;
+    if (!destination) return res.status(204).end();
+
+    // A database-enforced unique key prevents repeated clicks by the same visitor
+    // on the same booking during the same calendar day from inflating the metric.
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "ad_clicks" ("id","booking_id","billboard_id","visitor_id","clicked_at","clicked_day") VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT ("booking_id","visitor_id","clicked_day") DO NOTHING`,
+      randomUUID(), booking.id, booking.billboardId, visitorId, now, now.toISOString().slice(0, 10),
+    );
+
+    res.redirect(302, destination);
+  } catch (error) { next(error); }
+});
+
+router.get('/clicks/:bookingId', async (req, res, next) => {
+  try {
+    const booking = await prisma.booking.findUnique({ where: { id: req.params.bookingId }, select: { id: true } });
+    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    const rows: Array<{ count: number }> = await prisma.$queryRawUnsafe(
+      `SELECT COUNT(*)::int AS count FROM "ad_clicks" WHERE "booking_id" = $1`, req.params.bookingId,
+    );
+    res.json({ bookingId: req.params.bookingId, totalClicks: Number(rows[0]?.count || 0) });
+  } catch (error) { next(error); }
+});
+
 export { router as advertisementRouter };
