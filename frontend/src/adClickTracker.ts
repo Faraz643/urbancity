@@ -22,9 +22,7 @@ async function refreshClickTotal(heading: Element, bookingId: string) {
     );
     if (!response.ok) return;
     const result = await response.json();
-    if (typeof result?.totalClicks === 'number') {
-      setClickBadge(heading, result.totalClicks);
-    }
+    if (typeof result?.totalClicks === 'number') setClickBadge(heading, result.totalClicks);
   } catch {
     // Click tracking must never break the billboard popup.
   }
@@ -37,22 +35,67 @@ function findCompanyLink(heading: Element) {
   );
 }
 
-function ensureBadge(heading: Element) {
+function ensureBadge(heading: Element, initialTotal = 0) {
   let badge = heading.querySelector<HTMLElement>('[data-ad-total-clicks]');
   if (!badge) {
     badge = document.createElement('span');
     badge.dataset.adTotalClicks = 'true';
     badge.style.cssText =
       'display:inline-flex;align-items:center;margin-left:10px;padding:3px 7px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);font-size:11px;font-weight:700;color:#aeb9c8;vertical-align:middle;white-space:nowrap;';
+    badge.textContent = `${Math.max(0, initialTotal).toLocaleString()} clicks`;
     heading.appendChild(badge);
   }
   return badge;
+}
+
+function getActiveBookingFromWindow(heading: Element, companyLink: HTMLAnchorElement) {
+  const displayedName = (companyLink.firstChild?.textContent || '').trim();
+  if (!displayedName) return null;
+
+  // The popup's existing booking data is exposed on the page by the app.
+  // Use it when available so the count can be painted without waiting for
+  // another network request.
+  const candidates = [
+    (window as any).__URBANCITY_ACTIVE_BOOKINGS__,
+    (window as any).activeBookings,
+  ];
+
+  for (const active of candidates) {
+    if (!active || typeof active !== 'object') continue;
+    const match = Object.values(active).find(
+      (booking: any) => String(booking?.companyName || '').trim() === displayedName,
+    );
+    if (match) return match as any;
+  }
+
+  return null;
 }
 
 async function enhanceActiveAd() {
   const heading = document.querySelector('.panel h2');
   const companyLink = heading ? findCompanyLink(heading) : null;
   if (!heading || !companyLink) return;
+
+  // Paint the badge immediately if the application has already exposed the
+  // active booking. The server request below is only the authoritative refresh.
+  const immediateMatch = getActiveBookingFromWindow(heading, companyLink);
+  if (immediateMatch) {
+    const bookingId = String(immediateMatch.id || '').trim();
+    const destination = String(
+      immediateMatch.targetUrl || immediateMatch.siteUrl || immediateMatch.user?.websiteUrl || companyLink.href || '',
+    ).trim();
+    if (destination) {
+      companyLink.href = destination;
+      companyLink.target = '_blank';
+      companyLink.rel = 'noopener noreferrer';
+    }
+    companyLink.title = destination ? `Visit ${destination}` : 'Visit advertiser website';
+    ensureBadge(heading, Number(immediateMatch.totalClicks || 0));
+    if (bookingId) {
+      companyLink.dataset.bookingId = bookingId;
+      void refreshClickTotal(heading, bookingId);
+    }
+  }
 
   try {
     const response = await fetch(`${API}/api/bookings/active?t=${Date.now()}`, {
@@ -78,16 +121,12 @@ async function enhanceActiveAd() {
       companyLink.rel = 'noopener noreferrer';
     }
 
-    // Keep the existing ↗ link icon. The click count is a separate element.
     companyLink.title = destination ? `Visit ${destination}` : 'Visit advertiser website';
-
-    const badge = ensureBadge(heading);
-    badge.textContent = `${Number(match.totalClicks || 0).toLocaleString()} clicks`;
+    ensureBadge(heading, Number(match.totalClicks || 0));
 
     if (!bookingId) return;
     companyLink.dataset.bookingId = bookingId;
-
-    window.setTimeout(() => void refreshClickTotal(heading, bookingId), 150);
+    void refreshClickTotal(heading, bookingId);
   } catch {
     // Never interfere with the billboard popup.
   }
@@ -119,7 +158,6 @@ export function installAdClickTracker() {
     const heading = link.closest('h2');
     const badge = heading?.querySelector<HTMLElement>('[data-ad-total-clicks]');
     const current = Number((badge?.textContent || '').match(/\d[\d,]*/)?.[0]?.replace(/,/g, '') || 0);
-
     if (badge) badge.textContent = `${(current + 1).toLocaleString()} clicks`;
 
     const trackingUrl =
