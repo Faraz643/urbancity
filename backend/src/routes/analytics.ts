@@ -49,7 +49,7 @@ router.post('/site-visit', async (req,res,next)=>{
     }
     await prisma.$executeRaw`
       INSERT INTO public.site_visits ("id", "visitor_id", "session_id")
-      VALUES (${randomUUID()}, ${visitorId}, ${sessionId})
+      VALUES (${randomUUID()}::uuid, ${visitorId}, ${sessionId})
       ON CONFLICT ("session_id") DO NOTHING
     `;
     const [totalVisits,uniqueRows]=await Promise.all([
