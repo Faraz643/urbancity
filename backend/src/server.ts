@@ -49,16 +49,38 @@ app.use('/api/pricing',publicApiRateLimit,pricingRouter);
 app.use('/api/analytics',analyticsRateLimit,analyticsRouter);
 app.use('/api/payments',paymentRateLimit,paymentRouter);
 
-// Keep the live billboard endpoint protected independently from the generic routers.
-app.get('/api/live/billboards',publicApiRateLimit,async(_req,res)=>{try{const rows=await prisma.billboard.findMany({select:{id:true,currentBid:true}});res.json(rows.map(b=>({id:b.id,bid:Number(b.currentBid||0),footfall:billboardFootfall.get(b.id)||0})))}catch{res.json([...billboardFootfall.entries()].map(([id,footfall])=>({id,bid:0,footfall})))}});
-
 type Player = { id:string; name:string; position:[number,number,number]; rotation:number; moving:boolean };
 const players = new Map<string, Player>();
 const billboardFootfall = new Map<string, number>();
 const billboardFootfallPositions = new Map<string, {x:number;z:number}>();
 const playerFootfallInside = new Map<string, Set<string>>();
-function recordFootfallEnter(playerId:string,billboardId:string){if(!billboardId)return;const total=(billboardFootfall.get(billboardId)||0)+1;billboardFootfall.set(billboardId,total);io.emit('billboard:footfall',{id:billboardId,total,playerId});}
 let databaseReady=false;
+
+// Footfall is a permanent counter: one increment per genuine ENTER event.
+// The database is the source of truth. We persist the increment immediately
+// instead of periodically writing the whole in-memory map back to Supabase.
+// This prevents deleted/reset rows from being recreated by stale server memory.
+async function recordFootfallEnter(playerId:string,billboardId:string){
+  if(!billboardId)return;
+  try{
+    if(databaseReady){
+      const row=await prisma.billboardFootfall.upsert({
+        where:{billboardId},
+        update:{total:{increment:1}},
+        create:{billboardId,total:1},
+      });
+      billboardFootfall.set(billboardId,row.total);
+      io.emit('billboard:footfall',{id:billboardId,total:row.total,playerId});
+      return;
+    }
+  }catch(e){
+    console.warn('Footfall database increment failed:',e);
+  }
+  const total=(billboardFootfall.get(billboardId)||0)+1;
+  billboardFootfall.set(billboardId,total);
+  io.emit('billboard:footfall',{id:billboardId,total,playerId});
+}
+
 async function checkDatabase(){try{await prisma.$queryRaw`SELECT 1`;databaseReady=true;console.log('Database connected')}catch{databaseReady=false;console.warn('Database unavailable. Multiplayer demo mode remains available until migrations are run.')}}
 
 const io=new Server(httpServer,{cors:{origin:FRONTEND_URL,credentials:true},connectionStateRecovery:{maxDisconnectionDuration:120000}});
@@ -72,12 +94,16 @@ io.on('connection',(socket)=>{
  let lastPlayerUpdate=0;
  players.set(socket.id,player);socket.emit('players:list',[...players.values()]);socket.broadcast.emit('player:joined',player);io.emit('online:count',players.size);
  socket.on('player:update',(data:Partial<Player>)=>{const now=Date.now();if(now-lastPlayerUpdate<SOCKET_UPDATE_MIN_INTERVAL_MS)return;lastPlayerUpdate=now;const current=players.get(socket.id);if(!current)return;if(Array.isArray(data.position)&&data.position.length===3&&data.position.every(v=>typeof v==='number'&&Number.isFinite(v))){const next=data.position as [number,number,number];const dx=next[0]-current.position[0],dy=next[1]-current.position[1],dz=next[2]-current.position[2];if(Math.hypot(dx,dy,dz)<=8&&Math.abs(next[0])<=80&&next[1]>=-2&&next[1]<=30&&Math.abs(next[2])<=80)current.position=next}if(typeof data.rotation==='number'&&Number.isFinite(data.rotation))current.rotation=data.rotation;if(typeof data.moving==='boolean')current.moving=data.moving;socket.broadcast.emit('player:update',current)});
- socket.on('billboard:footfall-enter',(data:{id?:string})=>{const id=String(data?.id||'');if(!id||!billboardFootfallPositions.has(id))return;const inside=playerFootfallInside.get(socket.id)||new Set<string>();if(inside.has(id))return;inside.add(id);playerFootfallInside.set(socket.id,inside);recordFootfallEnter(socket.id,id)});
+ socket.on('billboard:footfall-enter',(data:{id?:string})=>{const id=String(data?.id||'');if(!id||!billboardFootfallPositions.has(id))return;const inside=playerFootfallInside.get(socket.id)||new Set<string>();if(inside.has(id))return;inside.add(id);playerFootfallInside.set(socket.id,inside);void recordFootfallEnter(socket.id,id)});
  socket.on('billboard:footfall-leave',(data:{id?:string})=>{const id=String(data?.id||'');if(id)playerFootfallInside.get(socket.id)?.delete(id)});
  socket.on('disconnect',()=>{players.delete(socket.id);playerFootfallInside.delete(socket.id);const ip=socket.data.ip||'unknown';const count=socketConnectionCounts.get(ip)||0;if(count<=1)socketConnectionCounts.delete(ip);else socketConnectionCounts.set(ip,count-1);io.emit('player:left',socket.id);io.emit('online:count',players.size)});
 });
+
 async function loadFootfallTotals(){if(!databaseReady)return;try{const [totals,billboards]=await Promise.all([prisma.billboardFootfall.findMany(),prisma.billboard.findMany({select:{id:true,positionX:true,positionZ:true}})]);billboardFootfall.clear();for(const row of totals)billboardFootfall.set(row.billboardId,row.total);billboardFootfallPositions.clear();for(const row of billboards)billboardFootfallPositions.set(row.id,{x:row.positionX,z:row.positionZ});console.log('Footfall totals loaded; '+billboardFootfallPositions.size+' active database billboard(s) available for validation')}catch(e){console.warn('Could not load footfall totals',e)}}
-setInterval(async()=>{if(!databaseReady)return;try{for(const [billboardId,total] of billboardFootfall)await prisma.billboardFootfall.upsert({where:{billboardId},update:{total},create:{billboardId,total}})}catch(e){console.warn('Footfall persistence failed',e)}},30000);
+
+// Return the database value for footfall so resets/deletions are reflected immediately.
+app.get('/api/live/billboards',publicApiRateLimit,async(_req,res)=>{try{const [rows,totals]=await Promise.all([prisma.billboard.findMany({select:{id:true,currentBid:true}}),prisma.billboardFootfall.findMany({select:{billboardId:true,total:true}})]);const totalsById=new Map(totals.map(x=>[x.billboardId,x.total]));res.json(rows.map(b=>({id:b.id,bid:Number(b.currentBid||0),footfall:totalsById.get(b.id)||0})))}catch{res.json([...billboardFootfall.entries()].map(([id,footfall])=>({id,bid:0,footfall})))}});
+
 async function expireBookings(){if(!databaseReady)return;try{const now=new Date();const expired=await prisma.booking.findMany({where:{status:'ACTIVE',endDate:{lte:now}},select:{id:true,billboardId:true,companyName:true,endDate:true}});if(!expired.length)return;await prisma.$transaction(async tx=>{for(const booking of expired){await tx.booking.update({where:{id:booking.id},data:{status:'EXPIRED'}});const nextActive=await tx.booking.findFirst({where:{billboardId:booking.billboardId,status:'ACTIVE',endDate:{gt:now}}});if(!nextActive)await tx.billboard.update({where:{id:booking.billboardId},data:{isAvailable:true,currentBid:null,currentBidderId:null}})}});for(const booking of expired){io.emit('billboard:expired',{id:booking.billboardId,companyName:booking.companyName,endedAt:booking.endDate.toISOString()});io.emit('billboard:update',{id:booking.billboardId,bid:0,bidder:null,available:true})}}catch(error){console.warn('Booking expiry check failed:',error)}}
 setInterval(()=>void expireBookings(),15000);
 setInterval(async()=>{if(!databaseReady)return;try{const [activePlayers,boards]=await Promise.all([Promise.resolve([...players.values()]),prisma.billboard.findMany({where:{isActive:true},select:{id:true,positionX:true,positionY:true,positionZ:true,trafficRadius:true}})]);await Promise.all(boards.map(async board=>{const nearbyVisitors=activePlayers.filter(player=>{const dx=player.position[0]-board.positionX,dy=player.position[1]-board.positionY,dz=player.position[2]-board.positionZ;return dx*dx+dy*dy+dz*dz<=board.trafficRadius*board.trafficRadius}).length;await prisma.trafficAnalytics.create({data:{billboardId:board.id,nearbyVisitors}})}))}catch{}},15000);
