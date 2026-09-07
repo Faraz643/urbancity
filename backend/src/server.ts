@@ -53,6 +53,7 @@ type Player = { id:string; name:string; position:[number,number,number]; rotatio
 const players = new Map<string, Player>();
 const billboardFootfall = new Map<string, number>();
 const billboardFootfallPositions = new Map<string, {x:number;z:number}>();
+const billboardFootfallRadii = new Map<string, number>();
 const playerFootfallInside = new Map<string, Set<string>>();
 let databaseReady=false;
 
@@ -94,12 +95,28 @@ io.on('connection',(socket)=>{
  let lastPlayerUpdate=0;
  players.set(socket.id,player);socket.emit('players:list',[...players.values()]);socket.broadcast.emit('player:joined',player);io.emit('online:count',players.size);
  socket.on('player:update',(data:Partial<Player>)=>{const now=Date.now();if(now-lastPlayerUpdate<SOCKET_UPDATE_MIN_INTERVAL_MS)return;lastPlayerUpdate=now;const current=players.get(socket.id);if(!current)return;if(Array.isArray(data.position)&&data.position.length===3&&data.position.every(v=>typeof v==='number'&&Number.isFinite(v))){const next=data.position as [number,number,number];const dx=next[0]-current.position[0],dy=next[1]-current.position[1],dz=next[2]-current.position[2];if(Math.hypot(dx,dy,dz)<=8&&Math.abs(next[0])<=80&&next[1]>=-2&&next[1]<=30&&Math.abs(next[2])<=80)current.position=next}if(typeof data.rotation==='number'&&Number.isFinite(data.rotation))current.rotation=data.rotation;if(typeof data.moving==='boolean')current.moving=data.moving;socket.broadcast.emit('player:update',current)});
- socket.on('billboard:footfall-enter',(data:{id?:string})=>{const id=String(data?.id||'');if(!id||!billboardFootfallPositions.has(id))return;const inside=playerFootfallInside.get(socket.id)||new Set<string>();if(inside.has(id))return;inside.add(id);playerFootfallInside.set(socket.id,inside);void recordFootfallEnter(socket.id,id)});
+ socket.on('billboard:footfall-enter',(data:{id?:string})=>{
+   const id=String(data?.id||'');
+   const boardPos=billboardFootfallPositions.get(id);
+   const radius=billboardFootfallRadii.get(id);
+   if(!id||!boardPos||!radius)return;
+   const current=players.get(socket.id);
+   if(!current)return;
+   // The frontend detects the crossing locally, but the server verifies that
+   // the visitor is actually at the billboard before counting the entry.
+   const distance=Math.hypot(current.position[0]-boardPos.x,current.position[2]-boardPos.z);
+   if(distance>radius+8)return;
+   const inside=playerFootfallInside.get(socket.id)||new Set<string>();
+   if(inside.has(id))return;
+   inside.add(id);
+   playerFootfallInside.set(socket.id,inside);
+   void recordFootfallEnter(socket.id,id);
+ });
  socket.on('billboard:footfall-leave',(data:{id?:string})=>{const id=String(data?.id||'');if(id)playerFootfallInside.get(socket.id)?.delete(id)});
  socket.on('disconnect',()=>{players.delete(socket.id);playerFootfallInside.delete(socket.id);const ip=socket.data.ip||'unknown';const count=socketConnectionCounts.get(ip)||0;if(count<=1)socketConnectionCounts.delete(ip);else socketConnectionCounts.set(ip,count-1);io.emit('player:left',socket.id);io.emit('online:count',players.size)});
 });
 
-async function loadFootfallTotals(){if(!databaseReady)return;try{const [totals,billboards]=await Promise.all([prisma.billboardFootfall.findMany(),prisma.billboard.findMany({select:{id:true,positionX:true,positionZ:true}})]);billboardFootfall.clear();for(const row of totals)billboardFootfall.set(row.billboardId,row.total);billboardFootfallPositions.clear();for(const row of billboards)billboardFootfallPositions.set(row.id,{x:row.positionX,z:row.positionZ});console.log('Footfall totals loaded; '+billboardFootfallPositions.size+' active database billboard(s) available for validation')}catch(e){console.warn('Could not load footfall totals',e)}}
+async function loadFootfallTotals(){if(!databaseReady)return;try{const [totals,billboards]=await Promise.all([prisma.billboardFootfall.findMany(),prisma.billboard.findMany({select:{id:true,positionX:true,positionZ:true,trafficRadius:true}})]);billboardFootfall.clear();for(const row of totals)billboardFootfall.set(row.billboardId,row.total);billboardFootfallPositions.clear();billboardFootfallRadii.clear();for(const row of billboards){billboardFootfallPositions.set(row.id,{x:row.positionX,z:row.positionZ});billboardFootfallRadii.set(row.id,row.trafficRadius)}console.log('Footfall totals loaded; '+billboardFootfallPositions.size+' database billboard(s) available for validation')}catch(e){console.warn('Could not load footfall totals',e)}}
 
 // Return the database value for footfall so resets/deletions are reflected immediately.
 app.get('/api/live/billboards',publicApiRateLimit,async(_req,res)=>{try{const [rows,totals]=await Promise.all([prisma.billboard.findMany({select:{id:true,currentBid:true}}),prisma.billboardFootfall.findMany({select:{billboardId:true,total:true}})]);const totalsById=new Map(totals.map(x=>[x.billboardId,x.total]));res.json(rows.map(b=>({id:b.id,bid:Number(b.currentBid||0),footfall:totalsById.get(b.id)||0})))}catch{res.json([...billboardFootfall.entries()].map(([id,footfall])=>({id,bid:0,footfall})))}});
