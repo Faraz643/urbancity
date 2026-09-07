@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { prisma } from '../db';
 import { authenticate, requireActiveUser, AuthRequest } from '../middleware/auth';
+import { prisma } from '../db';
 
 const router=Router();
 
@@ -29,11 +29,8 @@ router.get('/leaderboard', async (_req,res,next)=>{
    const current=grouped.get(key)||{name:row.companyName,username:row.user.username,logo:row.user.avatar,siteUrl:row.advertisement?.targetUrl||row.user.websiteUrl||null,description:row.advertisement?.description||row.user.companyDescription||null,totalPayment:0,totalMinutes:0};
    current.totalPayment+=Number(row.amount);
    current.totalMinutes+=row.durationMinutes;
-   // The website entered for an advertisement belongs to the advertisement, not necessarily
-   // to the user's profile. Keep the most recently supplied booking URL for the leaderboard.
    if(row.advertisement?.targetUrl) current.siteUrl=row.advertisement.targetUrl;
    else if(!current.siteUrl&&row.user.websiteUrl) current.siteUrl=row.user.websiteUrl;
-   // Prefer the description supplied with the booking creative, then the company profile description.
    if(row.advertisement?.description) current.description=row.advertisement.description;
    else if(!current.description&&row.user.companyDescription) current.description=row.user.companyDescription;
    grouped.set(key,current);
@@ -45,12 +42,27 @@ router.get('/leaderboard', async (_req,res,next)=>{
  }catch(e){next(e)}
 });
 
+async function clickCountMap(bookingIds:string[]) {
+ const map=new Map<string,number>();
+ if(!bookingIds.length)return map;
+ const rows:Array<{booking_id:string;count:number}>=await prisma.$queryRawUnsafe(
+  `SELECT "booking_id", COUNT(*)::int AS count FROM "ad_clicks" WHERE "booking_id" = ANY($1::text[]) GROUP BY "booking_id"`,bookingIds
+ );
+ for(const row of rows)map.set(row.booking_id,Number(row.count||0));
+ return map;
+}
+
 router.get('/active',async(_req,res,next)=>{
  try{
   const now=new Date();
   const rows=await prisma.booking.findMany({where:{status:'ACTIVE',endDate:{gt:now}},orderBy:{endDate:'desc'},include:{user:{select:{username:true,displayName:true,websiteUrl:true}},advertisement:true}});
   const active:Record<string,any>={};
-  for(const row of rows){if(!active[row.billboardId]) active[row.billboardId]={...row,siteUrl:row.user.websiteUrl,imageUrl:row.advertisement?.status==='DISABLED'?null:row.advertisement?.imageUrl||null,description:row.advertisement?.status==='DISABLED'?row.description||null:row.advertisement?.description||row.description||null,targetUrl:row.advertisement?.status==='DISABLED'?row.user.websiteUrl:row.advertisement?.targetUrl||row.user.websiteUrl};}
+  const selectedRows=rows.filter(row=>!active[row.billboardId]);
+  const counts=await clickCountMap(selectedRows.map(row=>row.id));
+  for(const row of selectedRows){
+   const targetUrl=row.advertisement?.status==='DISABLED'?row.user.websiteUrl:row.advertisement?.targetUrl||row.user.websiteUrl;
+   active[row.billboardId]={...row,siteUrl:row.user.websiteUrl,imageUrl:row.advertisement?.status==='DISABLED'?null:row.advertisement?.imageUrl||null,description:row.advertisement?.status==='DISABLED'?row.description||null:row.advertisement?.description||row.description||null,targetUrl,clickUrl:`/api/advertisements/click/${encodeURIComponent(row.id)}`,totalClicks:counts.get(row.id)||0};
+  }
   res.json(active);
  }catch(e){next(e)}
 });
@@ -59,7 +71,10 @@ router.get('/billboard/:billboardId',async(req,res,next)=>{
  try{
   const now=new Date();
   const active=await prisma.booking.findFirst({where:{billboardId:req.params.billboardId,status:'ACTIVE',endDate:{gt:now}},orderBy:{endDate:'desc'},include:{user:{select:{username:true,displayName:true,websiteUrl:true}},advertisement:true}});
-  res.json({active:active?{...active,user:active.user,siteUrl:active.user.websiteUrl,imageUrl:active.advertisement?.status==='DISABLED'?null:active.advertisement?.imageUrl||null,description:active.advertisement?.status==='DISABLED'?active.description||null:active.advertisement?.description||active.description||null,targetUrl:active.advertisement?.status==='DISABLED'?active.user.websiteUrl:active.advertisement?.targetUrl||active.user.websiteUrl}:null});
+  if(!active)return res.json({active:null});
+  const counts=await clickCountMap([active.id]);
+  const targetUrl=active.advertisement?.status==='DISABLED'?active.user.websiteUrl:active.advertisement?.targetUrl||active.user.websiteUrl;
+  res.json({active:{...active,user:active.user,siteUrl:active.user.websiteUrl,imageUrl:active.advertisement?.status==='DISABLED'?null:active.advertisement?.imageUrl||null,description:active.advertisement?.status==='DISABLED'?active.description||null:active.advertisement?.description||active.description||null,targetUrl,clickUrl:`/api/advertisements/click/${encodeURIComponent(active.id)}`,totalClicks:counts.get(active.id)||0}});
  }catch(e){next(e)}
 });
 
@@ -83,13 +98,8 @@ router.patch('/:billboardId/creative',authenticate,requireActiveUser,async(req:A
   let advertisementId=booking.advertisementId;
 
   if(removeImage){
-   // Advertisement.imageUrl is required in the schema, so detach the image-backed
-   // advertisement and let the booking's text fields become the active creative.
    advertisementId=null;
   }else if(booking.advertisementId){
-   // Always persist text/link edits, even when the user does not upload a new image.
-   // Previously these fields were only written when imageUrl was supplied, making
-   // "Save Changes" appear to do nothing for normal text-only edits.
    await prisma.advertisement.update({
     where:{id:booking.advertisementId},
     data:{
@@ -109,7 +119,8 @@ router.patch('/:billboardId/creative',authenticate,requireActiveUser,async(req:A
    data:{companyName:data.companyName||booking.companyName,description:cleanDescription===undefined?booking.description:cleanDescription,advertisementId},
    include:{advertisement:true,user:{select:{username:true,displayName:true,websiteUrl:true}}}
   });
-  res.json({...updated,siteUrl:updated.advertisement?.targetUrl||cleanUrl||updated.user.websiteUrl,imageUrl:updated.advertisement?.imageUrl||null,description:updated.advertisement?.description||updated.description||null,targetUrl:updated.advertisement?.targetUrl||cleanUrl||updated.user.websiteUrl});
+  const counts=await clickCountMap([updated.id]);
+  res.json({...updated,siteUrl:updated.advertisement?.targetUrl||cleanUrl||updated.user.websiteUrl,imageUrl:updated.advertisement?.imageUrl||null,description:updated.advertisement?.description||updated.description||null,targetUrl:updated.advertisement?.targetUrl||cleanUrl||updated.user.websiteUrl,clickUrl:`/api/advertisements/click/${encodeURIComponent(updated.id)}`,totalClicks:counts.get(updated.id)||0});
  }catch(e){next(e)}
 });
 
