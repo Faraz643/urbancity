@@ -6,6 +6,7 @@
         const text = button.textContent?.trim();
         return text === 'Edit My Board' || text === 'Save Changes' || text === 'Cancel';
       });
+      const directChildren = Array.from(panel.children);
 
       // An active board that belongs to the current user keeps the existing
       // owner-only edit UI and hides the booking/checkout controls below it.
@@ -16,7 +17,9 @@
           el.style.removeProperty('display');
         });
 
-        const ownerSection = ownerEdit.parentElement;
+        // Find the actual direct child of .panel that contains the owner UI.
+        // This works both before and during "Edit My Board" mode.
+        const ownerSection = directChildren.find((el) => el.contains(ownerEdit));
         if (!ownerSection) return;
 
         let node = ownerSection.nextElementSibling;
@@ -35,9 +38,7 @@
       });
 
       // If another advertiser owns this board, the popup contains an "Ends"
-      // row. Keep the company/footfall/end-time information, but remove every
-      // booking/checkout control starting at "Booking duration".
-      const directChildren = Array.from(panel.children);
+      // row. Keep company details, footfall, end time and remaining time only.
       const hasActiveBooking = directChildren.some((el) =>
         el.textContent?.trim().startsWith('Ends'),
       );
@@ -49,6 +50,8 @@
         return;
       }
 
+      // Booking UI begins at the Booking duration section. Hide it and every
+      // following direct child, leaving only the read-only booking information.
       const bookingStart = directChildren.find((el) =>
         el.textContent?.trim().startsWith('Booking duration'),
       );
