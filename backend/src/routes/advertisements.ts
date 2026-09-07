@@ -70,8 +70,6 @@ router.post('/upload', authenticate, requireActiveUser, upload.single('file'), a
 
 router.post('/', authenticate, requireActiveUser, async (req: AuthRequest, res, next) => {
   try {
-    // imageUrl may be empty for a text/website-only billboard creative. The game
-    // treats an empty image as a text-only creative while targetUrl remains clickable.
     const schema = z.object({
       title: z.string().min(1).max(100),
       description: z.string().optional(),
@@ -116,8 +114,8 @@ router.post('/campaigns', authenticate, requireActiveUser, async (req: AuthReque
 });
 
 // Record one outbound advertising click per visitor per booking per local calendar day.
-// The visitor id is a browser-generated anonymous identifier; no raw IP is persisted.
-router.get('/click/:bookingId', async (req, res, next) => {
+// GET is retained for direct link compatibility; POST is used by navigator.sendBeacon.
+router.all('/click/:bookingId', async (req, res, next) => {
   try {
     const visitorId = String(req.query.visitorId || '').trim();
     if (!visitorId || visitorId.length > 128) return res.status(400).send('Missing visitor identifier');
@@ -139,10 +137,13 @@ router.get('/click/:bookingId', async (req, res, next) => {
       randomUUID(), booking.id, booking.billboardId, visitorId, now, now.toISOString().slice(0, 10),
     );
 
-    // Fetch-based tracking uses track=1 so it cannot be cancelled by navigation
-    // or fail because fetch follows the advertiser's cross-origin redirect.
+    const rows: Array<{ count: number }> = await prisma.$queryRawUnsafe(
+      `SELECT COUNT(*)::int AS count FROM "ad_clicks" WHERE "booking_id" = $1`, booking.id,
+    );
+    const totalClicks = Number(rows[0]?.count || 0);
+
     if (String(req.query.track || '') === '1') {
-      return res.status(200).json({ counted: result > 0, totalClicks: result > 0 ? undefined : undefined });
+      return res.status(200).json({ counted: result > 0, totalClicks });
     }
 
     res.redirect(302, destination);
