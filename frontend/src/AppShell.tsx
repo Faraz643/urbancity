@@ -606,16 +606,17 @@ useEffect(() => {
       return;
     }
     setBookingError("");
-    if (paymentCountry === "IN") {
-  const phone = customerPhone.replace(/\D/g, "");
+    // for cashfree integration
+//     if (paymentCountry === "IN") {
+//   const phone = customerPhone.replace(/\D/g, "");
 
-  if (!/^\d{10}$/.test(phone)) {
-    setBookingError(
-      "Please enter your valid 10-digit Indian mobile number for Cashfree payment.",
-    );
-    return;
-  }
-}
+//   if (!/^\d{10}$/.test(phone)) {
+//     setBookingError(
+//       "Please enter your valid 10-digit Indian mobile number for Cashfree payment.",
+//     );
+//     return;
+//   }
+// }
     const link = adUrl.trim();
     if (link) {
       try {
@@ -647,10 +648,10 @@ useEffect(() => {
               bookingCompanyName || user.displayName || user.username,
             description: adTitle.trim() || undefined,
            advertisementId: advertisementId || undefined,
-customerPhone:
-  paymentCountry === "IN"
-    ? customerPhone.replace(/\D/g, "")
-    : undefined,
+// customerPhone:
+//   paymentCountry === "IN"
+//     ? customerPhone.replace(/\D/g, "")
+//     : undefined,
           }),
         }),
         data = await readApi(r);
@@ -1106,7 +1107,7 @@ customerPhone:
             />
           </div>
           <div className="stat">
-          {paymentCountry === "IN" && (
+          {/* {paymentCountry === "IN" && (
   <div
     style={{
       margin: "12px 0",
@@ -1146,7 +1147,7 @@ customerPhone:
       Required for Indian users paying through Cashfree.
     </small>
   </div>
-)}
+)} */}
             <span>Fixed price</span>
             <b>
               {pricingReady
