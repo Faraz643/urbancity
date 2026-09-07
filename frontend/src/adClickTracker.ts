@@ -73,18 +73,12 @@ async function enhanceActiveAd() {
     ).trim();
 
     if (destination) {
-      // Keep the real advertiser URL visible in the browser status bar.
-      // target=_blank guarantees UrbanCity itself stays open.
       companyLink.href = destination;
       companyLink.target = '_blank';
       companyLink.rel = 'noopener noreferrer';
     }
 
-    // Remove the old arrow/link icon; the requirement is plain company name + clicks.
-    companyLink.querySelectorAll('span').forEach((span) => {
-      if (span.textContent?.trim() === '↗') span.remove();
-    });
-
+    // Keep the existing ↗ link icon. The click count is a separate element.
     companyLink.title = destination ? `Visit ${destination}` : 'Visit advertiser website';
 
     const badge = ensureBadge(heading);
@@ -93,7 +87,6 @@ async function enhanceActiveAd() {
     if (!bookingId) return;
     companyLink.dataset.bookingId = bookingId;
 
-    // Refresh the authoritative count while the popup is open.
     window.setTimeout(() => void refreshClickTotal(heading, bookingId), 150);
   } catch {
     // Never interfere with the billboard popup.
@@ -127,16 +120,12 @@ export function installAdClickTracker() {
     const badge = heading?.querySelector<HTMLElement>('[data-ad-total-clicks]');
     const current = Number((badge?.textContent || '').match(/\d[\d,]*/)?.[0]?.replace(/,/g, '') || 0);
 
-    // Update the UI immediately. The server refresh below is authoritative.
     if (badge) badge.textContent = `${(current + 1).toLocaleString()} clicks`;
 
     const trackingUrl =
       `${API}/api/advertisements/click/${encodeURIComponent(bookingId)}` +
       `?visitorId=${encodeURIComponent(visitorId())}&track=1`;
 
-    // The click is public analytics. Use a simple POST so it is sent even when
-    // the advertiser opens in a new tab. no-cors also avoids a client-side
-    // CORS response check from cancelling the request.
     try {
       void fetch(trackingUrl, {
         method: 'POST',
@@ -146,8 +135,6 @@ export function installAdClickTracker() {
       }).catch(() => {});
     } catch {}
 
-    // sendBeacon is an additional unload-safe fallback for browsers that cancel
-    // the keepalive fetch during the new-tab navigation.
     try {
       navigator.sendBeacon?.(trackingUrl, new Blob([], { type: 'text/plain' }));
     } catch {}
