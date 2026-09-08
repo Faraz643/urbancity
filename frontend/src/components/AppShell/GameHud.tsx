@@ -12,9 +12,10 @@ type Props = {
   onLogout: () => void;
   onTimeMode: (mode: TimeMode) => void;
   onLeaderboard: () => void;
+  onHunt?: () => void;
 };
 
-export function GameHud({ totalVisitors, siteTotalVisitors, billboardCount, user, timeMode, onMenuOpen, onLogin, onLogout, onTimeMode, onLeaderboard }: Props) {
+export function GameHud({ totalVisitors, siteTotalVisitors, billboardCount, user, timeMode, onMenuOpen, onLogin, onLogout, onTimeMode, onLeaderboard, onHunt }: Props) {
   return <>
     <div className="game-topbar">
       <div className="hud top"><div><b>• ONLINE</b><span>{totalVisitors}</span></div></div>
@@ -28,6 +29,7 @@ export function GameHud({ totalVisitors, siteTotalVisitors, billboardCount, user
     </div>
     <div className="hud controls"><b>Controls</b><small><kbd>W A S D</kbd> move</small><small><kbd>E</kbd> interact</small></div>
     <button className="leaderboard-button" onClick={onLeaderboard}>Leaderboard</button>
+    {onHunt && <button className="leaderboard-button" style={{ top: 334, background: "linear-gradient(135deg,#ff4d4d,#ff7a18)", color: "#fff", fontWeight: 900 }} onClick={onHunt}>🎯 HUNT</button>}
     <div className="billcount"><div>• Total Visitors <b>{siteTotalVisitors}</b></div><div>• Billboards <b>{billboardCount} total</b></div></div>
   </>;
 }
