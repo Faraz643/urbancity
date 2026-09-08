@@ -1,6 +1,9 @@
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const file = "frontend/src/AppShellLegacy.tsx";
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const file = path.join(repoRoot, "frontend", "src", "AppShellLegacy.tsx");
 let s = fs.readFileSync(file, "utf8");
 
 if (s.includes('./components/AppShell/GameMenu')) {
@@ -36,6 +39,5 @@ if (authBlock < 0 || appEnd < 0) throw new Error("Could not locate Auth block");
 const auth = `      <AuthModal\n        open={authOpen}\n        mode={authMode}\n        email={authEmail}\n        password={authPassword}\n        username={authUsername}\n        website={authWebsite}\n        error={authError}\n        busy={authBusy}\n        emailRef={authInputRef}\n        registerRef={authInputRef}\n        onClose={() => setAuthOpen(false)}\n        onModeChange={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }}\n        onSubmit={submitAuth}\n        setEmail={setAuthEmail}\n        setPassword={setAuthPassword}\n        setUsername={setAuthUsername}\n        setWebsite={setAuthWebsite}\n      />\n`;
 s = s.slice(0, authBlock) + auth + s.slice(appEnd);
 
-s = s.replace(/\nconst inputStyle = \{[\s\S]*?\nconst sepStyle = \{[^\n]*\};\s*$/m, "\n");
 fs.writeFileSync(file, s);
 console.log("AppShell UI extraction complete");
