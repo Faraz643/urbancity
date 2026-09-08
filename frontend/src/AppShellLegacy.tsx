@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { io, type Socket } from "socket.io-client";
+import { useEffect, useState } from "react";
+import { useAuth } from "./hooks/useAuth";
+import { useMultiplayer } from "./hooks/useMultiplayer";
+import { useAnalytics } from "./hooks/useAnalytics";
 import { World } from "./components/Game/World";
 import { MiniMap } from "./components/Game/MiniMap";
 import { GameMenu } from "./components/AppShell/GameMenu";
@@ -19,48 +21,24 @@ import type { Billboard, BidderInfo } from "./types/billboard";
 import type { RemotePlayer } from "./types/player";
 import type { TimeMode } from "./lib/timeTheme";
 
-type AuthUser = {
-  id: string;
-  email: string;
-  username: string;
-  displayName: string;
-  role: string;
-  websiteUrl?: string | null;
-  companyDescription?: string | null;
-  wallet?: { balance: number } | null;
-};
-type PaymentNotice = { message: string; ok: boolean };
 export function AppShell() {
   const api = import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
   const [gameMenuOpen, setGameMenuOpen] = useState(false),
     [nearby, setNearby] = useState<Billboard | null>(null),
     [selected, setSelected] = useState<Billboard | null>(null),
-    [balance, setBalance] = useState(750000),
-    [players, setPlayers] = useState<RemotePlayer[]>([]),
     [timeMode, setTimeMode] = useState<TimeMode>("evening"),
-    [localPosition, setLocalPosition] = useState<[number, number, number]>([
-      0, 1.4, 8,
-    ]),
-    [user, setUser] = useState<AuthUser | null>(null),
-    [authOpen, setAuthOpen] = useState(false),
-    [authMode, setAuthMode] = useState<"login" | "register">("login"),
-    [authEmail, setAuthEmail] = useState(""),
-    [authPassword, setAuthPassword] = useState(""),
-    [authUsername, setAuthUsername] = useState(""),
-    [authWebsite, setAuthWebsite] = useState(""),
-    [authError, setAuthError] = useState(""),
-    [authBusy, setAuthBusy] = useState(false),
+    [localPosition, setLocalPosition] = useState<[number, number, number]>([0, 1.4, 8]),
     [bidders, setBidders] = useState<Record<string, BidderInfo>>({}),
     [bookingMinutes, setBookingMinutes] = useState(30),
     [bookingBusy, setBookingBusy] = useState(false),
     [bookingError, setBookingError] = useState(""),
-    [paymentNotice, setPaymentNotice] = useState<PaymentNotice | null>(null),
+    [paymentNotice, setPaymentNotice] = useState<{ message: string; ok: boolean } | null>(null),
     [adFile, setAdFile] = useState<File | null>(null),
     [adTitle, setAdTitle] = useState(""),
     [adUrl, setAdUrl] = useState(""),
     [bookingCompanyName, setBookingCompanyName] = useState(""),
     [customerPhone, setCustomerPhone] = useState(""),
-[paymentCountry, setPaymentCountry] = useState<string | null>(null),
+    [paymentCountry, setPaymentCountry] = useState<string | null>(null),
     [uploadBusy, setUploadBusy] = useState(false),
     [editMode, setEditMode] = useState(false),
     [editBusy, setEditBusy] = useState(false),
@@ -69,27 +47,16 @@ export function AppShell() {
     [leaderboard, setLeaderboard] = useState<any[]>([]),
     [activeBookings, setActiveBookings] = useState<Record<string, any>>({}),
     [clock, setClock] = useState(Date.now()),
-    [footfallTotals, setFootfallTotals] = useState<Record<string, number>>({}),
-    [siteTotalVisitors, setSiteTotalVisitors] = useState(0),
     [pricing, setPricing] = useState<PricingConfig>(EMPTY_PRICING),
     [pricingReady, setPricingReady] = useState(false);
-  const authInputRef = useRef<HTMLInputElement | null>(null),
-    socket = useRef<Socket | null>(null),
-    totalVisitors = players.length + 1;
-  const toAssetUrl = (v?: string) =>
-    v ? (v.startsWith("http") ? v : api + v) : undefined;
-  const readApi = async (r: Response) => {
-    const text = await r.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      return { error: text || `Request failed (${r.status})` };
-    }
-  };
-  const authHeaders = (): Record<string, string> => {
-    const token = localStorage.getItem("urbancity_token");
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  };
+  const auth = useAuth(api);
+  const { user, setUser, balance, setBalance, authOpen, setAuthOpen, authMode, setAuthMode, authEmail, setAuthEmail, authPassword, setAuthPassword, authUsername, setAuthUsername, authWebsite, setAuthWebsite, authError, setAuthError, authBusy, authInputRef, readApi, authHeaders, loadMe, submitAuth, logout } = auth;
+  const multiplayer = useMultiplayer(api, setBidders, setSelected, setActiveBookings);
+  const { players, socket, footfallTotals, setFootfallTotals } = multiplayer;
+  const analytics = useAnalytics(api, players, localPosition, setFootfallTotals);
+  const { siteTotalVisitors, visitorStats } = analytics;
+  const totalVisitors = players.length + 1;
+  const toAssetUrl = (v?: string) => v ? (v.startsWith("http") ? v : api + v) : undefined;
   const loadPricing = async () => {
     try {
       const r = await fetch(api + "/api/admin/pricing");
@@ -133,13 +100,6 @@ export function AppShell() {
       setBidders(next);
     } catch {}
   };
-  const loadMe = async () => {
-    const r = await fetch(api + "/api/auth/me", { headers: authHeaders() });
-    if (!r.ok) throw new Error("Session expired");
-    const me = await r.json();
-    setUser(me);
-    if (me.wallet?.balance != null) setBalance(Number(me.wallet.balance));
-  };
   const loadPaymentCountry = async () => {
   try {
     const r = await fetch(api + "/api/payments/country");
@@ -162,61 +122,6 @@ useEffect(() => {
     const timer = window.setInterval(loadAllActiveBillboards, 60000);
     return () => window.clearInterval(timer);
   }, [api]);
-  useEffect(() => {
-    const makeId = () => crypto.randomUUID().replace(/-/g, "");
-    let visitorId = localStorage.getItem("urbancity_visitor_id");
-    if (!visitorId) {
-      visitorId = makeId();
-      localStorage.setItem("urbancity_visitor_id", visitorId);
-    }
-    let sessionId = sessionStorage.getItem("urbancity_visit_session");
-    if (!sessionId) {
-      sessionId = makeId();
-      sessionStorage.setItem("urbancity_visit_session", sessionId);
-    }
-    fetch(api + "/api/analytics/site-visit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visitorId, sessionId }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d) setSiteTotalVisitors(Number(d.totalVisits || 0));
-      })
-      .catch(() => {});
-    const refresh = () =>
-      fetch(api + "/api/analytics/site")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (d) setSiteTotalVisitors(Number(d.totalVisits || 0));
-        })
-        .catch(() => {});
-    const timer = window.setInterval(refresh, 60000);
-    return () => window.clearInterval(timer);
-  }, [api]);
-  useEffect(() => {
-    fetch(api + "/api/live/billboards")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((rows: any[]) => {
-        const n: Record<string, number> = {};
-        for (const row of rows) n[row.id] = Number(row.footfall || 0);
-        setFootfallTotals(n);
-      })
-      .catch(() => {});
-  }, [api]);
-  const visitorStats = useMemo(() => {
-    const stats: Record<string, number> = {};
-    for (const b of MAP_BILLBOARDS) stats[b.id] = 0;
-    const all = [localPosition, ...players.map((p) => p.position)];
-    for (const pos of all)
-      for (const b of MAP_BILLBOARDS)
-        if (
-          Math.hypot(pos[0] - b.position[0], pos[2] - b.position[2]) <=
-          billboardTrafficRadius(b)
-        )
-          stats[b.id]++;
-    return stats;
-  }, [players, localPosition]);
   useEffect(() => {
     if (localStorage.getItem("urbancity_token"))
       loadMe().catch(() => localStorage.removeItem("urbancity_token"));
@@ -372,70 +277,6 @@ useEffect(() => {
     };
   }, [modalOpen]);
   useEffect(() => {
-    const token = localStorage.getItem("urbancity_token"),
-      s = io(api, { auth: token ? { token } : {} });
-    socket.current = s;
-    s.on("players:list", (p: RemotePlayer[]) =>
-      setPlayers(p.filter((x) => x.id !== s.id)),
-    );
-    s.on("player:joined", (p: RemotePlayer) =>
-      setPlayers((a) => [...a.filter((x) => x.id !== p.id), p]),
-    );
-    s.on("player:update", (p: RemotePlayer) =>
-      setPlayers((a) => [...a.filter((x) => x.id !== p.id), p]),
-    );
-    s.on("player:left", (id: string) =>
-      setPlayers((a) => a.filter((x) => x.id !== id)),
-    );
-    s.on("billboard:footfall", (d: { id: string; total: number }) =>
-      setFootfallTotals((v) => ({ ...v, [d.id]: d.total })),
-    );
-    s.on("billboard:update", (b: any) => {
-      const local = MAP_BILLBOARDS.find((x) => x.id === b.id);
-      if (local) {
-        local.bid = b.bid;
-        if (typeof b.available === "boolean") local.occupied = !b.available;
-      }
-      if (b.bidder) setBidders((v) => ({ ...v, [b.id]: b.bidder }));
-      else if (b.bidder === null)
-        setBidders((v) => {
-          const n = { ...v };
-          delete n[b.id];
-          return n;
-        });
-      setSelected((v) =>
-        v && v.id === b.id
-          ? {
-              ...v,
-              bid: b.bid,
-              occupied:
-                typeof b.available === "boolean" ? !b.available : v.occupied,
-            }
-          : v,
-      );
-    });
-    s.on("billboard:expired", (b: any) => {
-      setActiveBookings((v) => {
-        const n = { ...v };
-        delete n[b.id];
-        return n;
-      });
-      const local = MAP_BILLBOARDS.find((x) => x.id === b.id);
-      if (local) local.occupied = false;
-      setBidders((v) => {
-        const n = { ...v };
-        delete n[b.id];
-        return n;
-      });
-      setSelected((v) => (v && v.id === b.id ? { ...v, occupied: false } : v));
-    });
-    return () => {
-      s.removeAllListeners();
-      s.disconnect();
-      if (socket.current === s) socket.current = null;
-    };
-  }, [api]);
-  useEffect(() => {
     fetch(api + "/api/billboards")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((rows: any[]) => {
@@ -454,71 +295,6 @@ useEffect(() => {
       delete (window as any).__urbanNearbyBillboard;
     };
   }, []);
-  const submitAuth = async () => {
-    setAuthError("");
-    const email = authEmail.trim(),
-      username = authUsername.trim(),
-      website = authWebsite.trim();
-    if (!email) return setAuthError("Please enter your email address.");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      return setAuthError("Please enter a valid email address.");
-    if (!authPassword) return setAuthError("Please enter your password.");
-    if (authMode === "register") {
-      if (!username) return setAuthError("Please enter your company name.");
-      if (website) {
-        try {
-          const parsed = new URL(website);
-          if (!["http:", "https:"].includes(parsed.protocol)) throw new Error();
-        } catch {
-          return setAuthError(
-            "Please enter a valid website URL, including https:// (for example: https://yourcompany.com).",
-          );
-        }
-      }
-    }
-    setAuthBusy(true);
-    try {
-      const body =
-        authMode === "login"
-          ? { email, password: authPassword }
-          : {
-              email,
-              password: authPassword,
-              username,
-              displayName: username,
-              websiteUrl: website || undefined,
-            };
-      const r = await fetch(
-          api + "/api/auth/" + (authMode === "login" ? "login" : "register"),
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          },
-        ),
-        data = await readApi(r);
-      if (!r.ok)
-        throw new Error(
-          data.error || "We could not complete your request. Please try again.",
-        );
-      localStorage.setItem("urbancity_token", data.token);
-      await loadMe();
-      setAuthOpen(false);
-      setAuthPassword("");
-      setAuthWebsite("");
-    } catch (e: any) {
-      setAuthError(
-        e.message || "We could not complete your request. Please try again.",
-      );
-    } finally {
-      setAuthBusy(false);
-    }
-  };
-  const logout = () => {
-    localStorage.removeItem("urbancity_token");
-    setUser(null);
-    setBalance(1000);
-  };
   const bookingPrice = (b: Billboard, minutes: number) =>
     calculateBookingPrice(pricing, b.type, minutes);
   const remaining = (end?: string) => {
