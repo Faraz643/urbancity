@@ -13,6 +13,11 @@ export default function HuntMode({ onExit }: { onExit: () => void }) {
   const phase = battle.matchEnded ? "finished" : !battle.joined ? "ready" : !battle.stats.alive ? "dead" : "playing";
 
   useEffect(() => {
+    window.dispatchEvent(new CustomEvent("urbancity:battle-state", { detail: { open: true } }));
+    return () => window.dispatchEvent(new CustomEvent("urbancity:battle-state", { detail: { open: false } }));
+  }, []);
+
+  useEffect(() => {
     (window as any).__urbanModalOpen = phase !== "playing";
     return () => { (window as any).__urbanModalOpen = false; };
   }, [phase]);
@@ -27,6 +32,12 @@ export default function HuntMode({ onExit }: { onExit: () => void }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [battle.reload, phase]);
+
+  const exitBattle = () => {
+    battle.leave();
+    window.dispatchEvent(new CustomEvent("urbancity:battle-state", { detail: { open: false } }));
+    onExit();
+  };
 
   return (
     <div className="app" style={{ position: "fixed", inset: 0, zIndex: 50, background: "#05070b" }}>
@@ -63,7 +74,7 @@ export default function HuntMode({ onExit }: { onExit: () => void }) {
         status={battle.status}
         killFeed={battle.killFeed}
         onStart={battle.join}
-        onExit={() => { battle.leave(); onExit(); }}
+        onExit={exitBattle}
         onReload={battle.reload}
       />
     </div>
