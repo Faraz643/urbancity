@@ -32,8 +32,8 @@ export function AuthModal({ open, mode, email, password, username, website, erro
       <button onClick={onClose} style={closeButtonStyle}>×</button>
       <h2 style={{ marginTop: 0 }}>UrbanCity Account</h2>
       <p style={{ color: "#aeb9c8" }}>{mode === "login" ? "Login to book advertising space." : "Create an account."}</p>
-      {mode === "register" && <><input ref={registerRef} value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Company name" style={authInputStyle} /><input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="Company website" type="url" style={authInputStyle} /></>}
-      <input ref={mode === "login" ? emailRef : undefined} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" style={authInputStyle} />
+      {mode === "register" && <><input ref={registerRef as RefObject<HTMLInputElement>} value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Company name" style={authInputStyle} /><input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="Company website" type="url" style={authInputStyle} /></>}
+      <input ref={mode === "login" ? (emailRef as RefObject<HTMLInputElement>) : undefined} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" type="email" style={authInputStyle} />
       <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" style={authInputStyle} />
       {error && <p style={{ color: "#ff8f8f" }}>{error}</p>}
       <button onClick={onSubmit} disabled={busy} style={authSubmitStyle}>{busy ? "Please wait..." : mode === "login" ? "Login" : "Create Account"}</button>
