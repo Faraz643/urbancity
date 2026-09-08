@@ -1,0 +1,39 @@
+name: Finish V2 AppShell Refactor
+
+on:
+  push:
+    branches: [v2]
+    paths:
+      - "frontend/src/AppShell.tsx"
+      - "frontend/src/components/AppShell/**"
+      - "scripts/organize-appshell.mjs"
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: node scripts/organize-appshell.mjs
+      - run: npm --prefix frontend run build
+      - name: Commit refactor
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/src/AppShell.tsx
+          if git diff --cached --quiet; then
+            echo "No AppShell changes to commit"
+            exit 0
+          fi
+          git commit -m "refactor: wire extracted AppShell components"
+          git push origin v2
