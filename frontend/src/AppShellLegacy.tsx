@@ -23,6 +23,7 @@ import {
 import type { Billboard, BidderInfo } from "./types/billboard";
 import type { RemotePlayer } from "./types/player";
 import type { TimeMode } from "./lib/timeTheme";
+import { formatDuration, formatUsd, shortDate, durationLabel, remainingTime } from "./utils/formatters";
 
 export function AppShell() {
   const api = import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
@@ -193,55 +194,7 @@ useEffect(() => {
   }, []);
   const bookingPrice = (b: Billboard, minutes: number) =>
     calculateBookingPrice(pricing, b.type, minutes);
-  const remaining = (end?: string) => {
-    if (!end) return "";
-    let s = Math.max(0, Math.ceil((new Date(end).getTime() - clock) / 1000));
-    const d = Math.floor(s / 86400);
-    s %= 86400;
-    const h = Math.floor(s / 3600);
-    s %= 3600;
-    const m = Math.floor(s / 60);
-    s %= 60;
-    return (
-      (d ? d + "d " : "") +
-      String(h).padStart(2, "0") +
-      "h " +
-      String(m).padStart(2, "0") +
-      "m " +
-      String(s).padStart(2, "0") +
-      "s"
-    );
-  };
-  const formatDuration = (m: number) =>
-    m < 60
-      ? "30 min"
-      : Number.isInteger(m / 60)
-        ? `${m / 60} hour${m === 60 ? "" : "s"}`
-        : `${m / 60} hours`;
-  const formatUsd = (v: number) =>
-    "$" +
-    Number(v || 0).toLocaleString("en-IN", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
-  const shortDate = (v: string) => {
-    const d = new Date(v),
-      now = new Date(),
-      same = d.toDateString() === now.toDateString();
-    return (
-      (same
-        ? "Today"
-        : d.toLocaleDateString(undefined, { day: "numeric", month: "short" })) +
-      " •· " +
-      d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
-    );
-  };
-  const durationLabel = (m: number) =>
-    m >= 1440
-      ? `${Math.round(m / 1440)} day${Math.round(m / 1440) === 1 ? "" : "s"}`
-      : m >= 60
-        ? `${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? "" : "s"}`
-        : `${m} min`;
+  const remaining = (end?: string) => remainingTime(end, clock);
   const active = selected ? activeBookings[selected.id] : undefined,
     bidder = selected ? bidders[selected.id] : undefined,
     isOwner = !!(user?.id && active?.userId && active.userId === user.id),
