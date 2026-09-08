@@ -4,6 +4,7 @@ import { MAP_BILLBOARDS } from "../lib/mapBillboards";
 import type { BidderInfo } from "../types/billboard";
 import type { PricingConfig } from "../pricing";
 
+// V2 keeps billboard data access isolated from the application shell.
 type ReadApi = (r: Response) => Promise<any>;
 
 export function useBillboards(
