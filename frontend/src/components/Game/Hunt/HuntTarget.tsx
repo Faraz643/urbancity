@@ -36,7 +36,6 @@ export default function HuntTarget({
       <mesh
         position={[0, 0.85, 0]}
         onClick={handleHit}
-        onPointerDown={handleHit}
         onPointerOver={(event) => {
           event.stopPropagation();
           document.body.style.cursor = "crosshair";
