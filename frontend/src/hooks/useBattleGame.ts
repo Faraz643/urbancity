@@ -22,7 +22,7 @@ export function useBattleGame(api: string) {
     const token = localStorage.getItem("urbancity_token");
     const s = io(api, { auth: token ? { token } : {} });
     socket.current = s;
-    s.on("connect", () => setSelfId(s.id));
+    s.on("connect", () => setSelfId(s.id || ""));
     s.on("battle:state", (data) => {
       setJoined(true);
       setPlayers(data.players || []);
