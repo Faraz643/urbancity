@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import { useMultiplayer } from "./hooks/useMultiplayer";
 import { useAnalytics } from "./hooks/useAnalytics";
+import { useBillboards } from "./hooks/useBillboards";
+import { usePaymentReturn } from "./hooks/usePaymentReturn";
 import { World } from "./components/Game/World";
 import { MiniMap } from "./components/Game/MiniMap";
 import { GameMenu } from "./components/AppShell/GameMenu";
@@ -56,50 +58,9 @@ export function AppShell() {
   const analytics = useAnalytics(api, players, localPosition, setFootfallTotals);
   const { siteTotalVisitors, visitorStats } = analytics;
   const totalVisitors = players.length + 1;
-  const toAssetUrl = (v?: string) => v ? (v.startsWith("http") ? v : api + v) : undefined;
-  const loadPricing = async () => {
-    try {
-      const r = await fetch(api + "/api/admin/pricing");
-      const p = await readApi(r);
-      if (!r.ok) throw new Error(p.error || "Pricing unavailable");
-      setPricing(p);
-      setPricingReady(true);
-    } catch {
-      setPricingReady(false);
-    }
-  };
-  const loadAllActiveBillboards = async () => {
-    try {
-      const r = await fetch(api + "/api/bookings/active"),
-        rows = await readApi(r);
-      if (!r.ok || !rows || typeof rows !== "object") return;
-      setActiveBookings(rows);
-      const next: Record<string, BidderInfo> = {};
-      for (const [id, a] of Object.entries(rows as Record<string, any>)) {
-        const x: any = a;
-        next[id] = {
-          name:
-            x.companyName ||
-            x.user?.displayName ||
-            x.user?.username ||
-            "Advertiser",
-          amount: Number(x.amount || 0),
-          siteUrl: x.targetUrl || x.siteUrl || x.user?.websiteUrl || undefined,
-          imageUrl: toAssetUrl(x.imageUrl),
-          description:
-            x.description ||
-            x.advertisement?.description ||
-            x.user?.companyDescription ||
-            undefined,
-        };
-        const local = MAP_BILLBOARDS.find((b) => b.id === id);
-        if (local) local.occupied = true;
-      }
-      for (const local of MAP_BILLBOARDS)
-        if (!rows[local.id]) local.occupied = false;
-      setBidders(next);
-    } catch {}
-  };
+  const billboardData = useBillboards(api, readApi, setActiveBookings, setBidders, setPricing, setPricingReady, setLeaderboard);
+  const { loadPricing, loadAllActiveBillboards, loadLeaderboard, toAssetUrl } = billboardData;
+  usePaymentReturn(api, authHeaders, readApi, setPaymentNotice, loadAllActiveBillboards);
   const loadPaymentCountry = async () => {
   try {
     const r = await fetch(api + "/api/payments/country");
@@ -126,74 +87,6 @@ useEffect(() => {
     if (localStorage.getItem("urbancity_token"))
       loadMe().catch(() => localStorage.removeItem("urbancity_token"));
   }, []);
-  useEffect(() => {
-  const params = new URLSearchParams(window.location.search);
-  const bookingId = params.get("booking");
-  const orderId = params.get("order_id");
-
-  if (
-    params.get("payment") !== "return" ||
-    !bookingId ||
-    !localStorage.getItem("urbancity_token")
-  )
-    return;
-
-  let cancelled = false;
-
-  (async () => {
-    try {
-      const verifyUrl =
-        api +
-        "/api/payments/" +
-        encodeURIComponent(bookingId) +
-        "/verify" +
-        (orderId ? "?order_id=" + encodeURIComponent(orderId) : "");
-
-      const r = await fetch(verifyUrl, {
-        headers: authHeaders(),
-      });
-
-      const data = await readApi(r);
-
-      if (cancelled) return;
-
-      if (!r.ok)
-        throw new Error(data.error || "Could not verify payment");
-
-      if (data.paid) {
-        setPaymentNotice({
-          message:
-            "Payment successful. Your advertising space is now active.",
-          ok: true,
-        });
-
-        await loadAllActiveBillboards();
-      } else {
-        setPaymentNotice({
-          message:
-            data.providerStatus === "ACTIVE"
-              ? "Payment is still pending confirmation. Please refresh in a moment."
-              : data.providerStatus === "PROCESSING"
-                ? "Payment is still being confirmed. Please refresh in a moment."
-                : "Payment was not completed.",
-          ok: false,
-        });
-      }
-
-      window.history.replaceState({}, "", window.location.pathname);
-    } catch (e: any) {
-      if (!cancelled)
-        setPaymentNotice({
-          message: e.message || "Could not verify payment",
-          ok: false,
-        });
-    }
-  })();
-
-  return () => {
-    cancelled = true;
-  };
-}, [api]);
   useEffect(() => {
     const t = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(t);
@@ -346,13 +239,6 @@ useEffect(() => {
       : m >= 60
         ? `${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? "" : "s"}`
         : `${m} min`;
-  const loadLeaderboard = async () => {
-    try {
-      const r = await fetch(api + "/api/bookings/leaderboard"),
-        d = await readApi(r);
-      if (r.ok) setLeaderboard(Array.isArray(d) ? d : []);
-    } catch {}
-  };
   const uploadImageOnly = async () => {
     if (!adFile) return undefined;
     const fd = new FormData();
