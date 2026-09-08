@@ -28,11 +28,6 @@ export default function HuntMode({ onExit }: { onExit: () => void }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [battle.reload, phase]);
 
-  useEffect(() => {
-    if (phase === "dead") (window as any).__urbanModalOpen = true;
-    if (battle.stats.alive && battle.joined) (window as any).__urbanModalOpen = false;
-  }, [battle.stats.alive, battle.joined, phase]);
-
   return (
     <div className="app" style={{ position: "fixed", inset: 0, zIndex: 50, background: "#05070b" }}>
       <Canvas
@@ -46,7 +41,7 @@ export default function HuntMode({ onExit }: { onExit: () => void }) {
         <GameCamera />
         <Physics gravity={[0, -20, 0]}>
           <City timeMode="evening" />
-          <RemotePlayers players={battle.players.filter((p) => p.id !== (undefined as any))} battle onShoot={battle.shoot} />
+          <RemotePlayers players={battle.players.filter((p) => p.id !== battle.selfId)} battle onShoot={battle.shoot} />
           <Player
             billboards={[]}
             onNearby={() => {}}
@@ -60,7 +55,6 @@ export default function HuntMode({ onExit }: { onExit: () => void }) {
           />
         </Physics>
       </Canvas>
-
       <BattleHUD
         phase={phase}
         stats={battle.stats}
