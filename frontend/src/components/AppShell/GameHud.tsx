@@ -1,7 +1,7 @@
 import type { TimeMode } from "../../lib/timeTheme";
 
 type Props = {
-  gameMenuOpen: boolean;
+  gameMenuOpen?: boolean;
   user: any;
   timeMode: TimeMode;
   totalVisitors: number;
