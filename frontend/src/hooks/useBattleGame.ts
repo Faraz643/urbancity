@@ -33,6 +33,8 @@ export function useBattleGame(api: string) {
       setMatchEnded(false);
     });
     s.on("battle:players", (data: BattlePlayer[]) => setPlayers(data || []));
+    s.on("player:update", (p: BattlePlayer) => setPlayers((items) => items.map((item) => item.id === p.id ? { ...item, position: p.position, rotation: p.rotation, moving: p.moving } : item)));
+    s.on("player:left", (id: string) => setPlayers((items) => items.filter((item) => item.id !== id)));
     s.on("battle:self", (data: BattleStats & { spawn?: [number, number, number] }) => {
       setStats(data);
       if (data.spawn) setSpawn(data.spawn);
