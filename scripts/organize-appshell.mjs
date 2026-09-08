@@ -47,8 +47,18 @@ if (!s.includes('"./hooks/useAuth"')) {
   s = s.replace(/  const toAssetUrl = \(v\?: string\) =>[\s\S]*?\n  const toAssetUrl = \(v\?: string\) =>/, '  const toAssetUrl = (v?: string) =>');
   s = s.replace(/  const loadMe = async \(\) => \{[\s\S]*?  \};\n  const loadPaymentCountry/, '  const loadPaymentCountry');
   s = s.replace(/  useEffect\(\(\) => \{\n    const makeId = \(\) => crypto\.randomUUID\(\)\.replace\(\/-\/g, ""\);[\s\S]*?  \}, \[api\]\);\n  useEffect\(\(\) => \{\n    fetch\(api \+ "\/api\/live\/billboards"\)[\s\S]*?  \}, \[api\]\);\n  const visitorStats = useMemo\(\(\) => \{[\s\S]*?  \}, \[players, localPosition\]\);\n/, '');
-  s = s.replace(/  useEffect\(\(\) => \{\n    const token = localStorage\.getItem\("urbancity_token"\),\n      s = io\(api, \{ auth: token \? \{ token \} : \{\} \}\);[\s\S]*?  \}, \[api\]\);\n  useEffect\(\(\) => \{\n    fetch\(api \+ "\/api\/billboards"\)/, '  useEffect(() => {\n    fetch(api + "/api/billboards")');
+  s = s.replace(/  useEffect\(\(\) => \{\n    const token = localStorage\.getItem\("urbancity_token"\),\n      s = io\(api, \{ auth: token \? \{ token \} : \{\} \}\);[\s\S]*?  \}, \[api\];\n  useEffect\(\(\) => \{\n    fetch\(api \+ "\/api\/billboards"\)/, '  useEffect(() => {\n    fetch(api + "/api/billboards")');
   s = s.replace(/  const submitAuth = async \(\) => \{[\s\S]*?  const logout = \(\) => \{[\s\S]*?  \};\n  const bookingPrice/, '  const bookingPrice');
+}
+
+// Phase 3: extract billboard loading and payment-return verification.
+if (!s.includes('"./hooks/useBillboards"')) {
+  s = s.replace('import { useAnalytics } from "./hooks/useAnalytics";\n', 'import { useAnalytics } from "./hooks/useAnalytics";\nimport { useBillboards } from "./hooks/useBillboards";\nimport { usePaymentReturn } from "./hooks/usePaymentReturn";\n');
+  const dataHook = `  const billboardData = useBillboards(api, readApi, setActiveBookings, setBidders, setPricing, setPricingReady, setLeaderboard);\n  const { loadPricing, loadAllActiveBillboards, loadLeaderboard, toAssetUrl } = billboardData;\n  usePaymentReturn(api, authHeaders, readApi, setPaymentNotice, loadAllActiveBillboards);\n`;
+  replaceOnce(/  const totalVisitors = players.length \+ 1;\n/, `  const totalVisitors = players.length + 1;\n${dataHook}` , "Could not insert billboard/payment hooks");
+  s = s.replace(/  const toAssetUrl = \(v\?: string\) => v \? \(v\.startsWith\("http"\) \? v : api \+ v\) : undefined;\n  const loadPricing = async \(\) => \{[\s\S]*?  const loadPaymentCountry = async/, '  const loadPaymentCountry = async');
+  s = s.replace(/  const loadLeaderboard = async \(\) => \{[\s\S]*?  const uploadImageOnly/, '  const uploadImageOnly');
+  s = s.replace(/  useEffect\(\(\) => \{\n  const params = new URLSearchParams\(window\.location\.search\);[\s\S]*?\n\}, \[api\]\);\n  useEffect\(\(\) => \{\n    const t = window\.setInterval\(\(\) => setClock\(Date\.now\(\)\), 1000\);/, '  useEffect(() => {\n    const t = window.setInterval(() => setClock(Date.now()), 1000);');
 }
 
 fs.writeFileSync(file, s);
