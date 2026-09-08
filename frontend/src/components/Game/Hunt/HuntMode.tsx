@@ -72,6 +72,7 @@ export default function HuntMode({ onExit }: { onExit: () => void }) {
         players={battle.players}
         timeLeft={battle.timeLeft}
         status={battle.status}
+        hitMarker={battle.hitMarker}
         killFeed={battle.killFeed}
         onStart={battle.join}
         onExit={exitBattle}
