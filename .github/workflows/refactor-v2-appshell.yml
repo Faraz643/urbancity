@@ -1,12 +1,14 @@
-name: Finish V2 AppShell Refactor
+name: Verify V2 AppShell Refactor
 
 on:
   push:
     branches: [v2]
     paths:
       - "frontend/src/AppShell.tsx"
+      - "frontend/src/AppShellLegacy.tsx"
       - "frontend/src/components/AppShell/**"
       - "scripts/organize-appshell.mjs"
+      - "frontend/package.json"
 
 permissions:
   contents: write
@@ -30,7 +32,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend/src/AppShell.tsx
+          git add frontend/src/AppShellLegacy.tsx
           if git diff --cached --quiet; then
             echo "No AppShell changes to commit"
             exit 0
