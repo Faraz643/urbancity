@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { io, type Socket } from "socket.io-client";
 import type { RemotePlayer } from "../types/player";
 import type { BidderInfo } from "../types/billboard";
@@ -6,12 +6,12 @@ import { MAP_BILLBOARDS } from "../lib/mapBillboards";
 
 export function useMultiplayer(
   api: string,
-  setFootfallTotals: React.Dispatch<React.SetStateAction<Record<string, number>>>,
-  setBidders: React.Dispatch<React.SetStateAction<Record<string, BidderInfo>>>,
-  setSelected: React.Dispatch<React.SetStateAction<any>>,
-  setActiveBookings: React.Dispatch<React.SetStateAction<Record<string, any>>>,
+  setBidders: Dispatch<SetStateAction<Record<string, BidderInfo>>>,
+  setSelected: Dispatch<SetStateAction<any>>,
+  setActiveBookings: Dispatch<SetStateAction<Record<string, any>>>,
 ) {
   const [players, setPlayers] = useState<RemotePlayer[]>([]);
+  const [footfallTotals, setFootfallTotals] = useState<Record<string, number>>({});
   const socket = useRef<Socket | null>(null);
 
   useEffect(() => {
@@ -41,7 +41,7 @@ export function useMultiplayer(
       setSelected((v: any) => v && v.id === b.id ? { ...v, occupied: false } : v);
     });
     return () => { s.removeAllListeners(); s.disconnect(); if (socket.current === s) socket.current = null; };
-  }, [api, setActiveBookings, setBidders, setFootfallTotals, setSelected]);
+  }, [api, setActiveBookings, setBidders, setSelected]);
 
-  return { players, socket };
+  return { players, socket, footfallTotals, setFootfallTotals };
 }
