@@ -7,6 +7,7 @@ import { usePaymentReturn } from "./hooks/usePaymentReturn";
 import { useBooking } from "./hooks/useBooking";
 import { World } from "./components/Game/World";
 import { MiniMap } from "./components/Game/MiniMap";
+import { HuntMode } from "./components/Game/Hunt/HuntMode";
 import { GameMenu } from "./components/AppShell/GameMenu";
 import { GameHud } from "./components/AppShell/GameHud";
 import { Leaderboard } from "./components/AppShell/Leaderboard";
@@ -28,6 +29,7 @@ import { formatDuration, formatUsd, shortDate, durationLabel, remainingTime } fr
 export function AppShell() {
   const api = import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
   const [gameMenuOpen, setGameMenuOpen] = useState(false),
+    [huntOpen, setHuntOpen] = useState(false),
     [nearby, setNearby] = useState<Billboard | null>(null),
     [selected, setSelected] = useState<Billboard | null>(null),
     [timeMode, setTimeMode] = useState<TimeMode>("evening"),
@@ -66,17 +68,17 @@ export function AppShell() {
   const bookingActions = useBooking({ api, selected, user, pricingReady, bookingMinutes, bookingCompanyName, adTitle, adUrl, adFile, removePhoto, setAuthOpen, setAuthError, setBookingError, setBookingBusy, setUploadBusy, setEditBusy, setActiveBookings, setBidders, setAdFile, setRemovePhoto, setEditMode, authHeaders, readApi, loadAllActiveBillboards, toAssetUrl });
   const { book, saveCreative } = bookingActions;
   const loadPaymentCountry = async () => {
-  try {
-    const r = await fetch(api + "/api/payments/country");
-    const d = await readApi(r);
-    if (r.ok && /^[A-Z]{2}$/.test(String(d.country || ""))) {
-      setPaymentCountry(String(d.country).toUpperCase());
-    }
-  } catch {}
-};
-useEffect(() => {
-  loadPaymentCountry();
-}, [api]);
+    try {
+      const r = await fetch(api + "/api/payments/country");
+      const d = await readApi(r);
+      if (r.ok && /^[A-Z]{2}$/.test(String(d.country || ""))) {
+        setPaymentCountry(String(d.country).toUpperCase());
+      }
+    } catch {}
+  };
+  useEffect(() => {
+    loadPaymentCountry();
+  }, [api]);
   useEffect(() => {
     loadPricing();
     const timer = window.setInterval(loadPricing, 60000);
@@ -215,6 +217,11 @@ useEffect(() => {
       active?.advertisement?.description ||
       active?.user?.companyDescription ||
       "Company description here.";
+
+  if (huntOpen) {
+    return <HuntMode onExit={() => setHuntOpen(false)} />;
+  }
+
   return (
     <div className="app">
       <World
@@ -255,7 +262,7 @@ useEffect(() => {
           {paymentNotice.message}
         </div>
       )}
-      <GameMenu open={gameMenuOpen} onClose={() => setGameMenuOpen(false)} />
+      <GameMenu open={gameMenuOpen} onClose={() => setGameMenuOpen(false)} onHunt={() => setHuntOpen(true)} />
       <GameHud
         totalVisitors={totalVisitors}
         siteTotalVisitors={siteTotalVisitors}
@@ -267,6 +274,7 @@ useEffect(() => {
         onLogout={logout}
         onTimeMode={setTimeMode}
         onLeaderboard={() => { setHistoryOpen(true); loadLeaderboard(); }}
+        onHunt={() => setHuntOpen(true)}
       />
       {nearby && !selected && (
         <button
