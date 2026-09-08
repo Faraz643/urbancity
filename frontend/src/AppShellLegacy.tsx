@@ -7,7 +7,7 @@ import { usePaymentReturn } from "./hooks/usePaymentReturn";
 import { useBooking } from "./hooks/useBooking";
 import { World } from "./components/Game/World";
 import { MiniMap } from "./components/Game/MiniMap";
-import { HuntMode } from "./components/Game/Hunt/HuntMode";
+import HuntMode from "./components/Game/Hunt/HuntMode";
 import { GameMenu } from "./components/AppShell/GameMenu";
 import { GameHud } from "./components/AppShell/GameHud";
 import { Leaderboard } from "./components/AppShell/Leaderboard";
