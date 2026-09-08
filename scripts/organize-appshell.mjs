@@ -51,7 +51,6 @@ if (!s.includes('"./hooks/useAuth"')) {
   s = s.replace(/  const submitAuth = async \(\) => \{[\s\S]*?  const logout = \(\) => \{[\s\S]*?  \};\n  const bookingPrice/, '  const bookingPrice');
 }
 
-// Phase 3: extract billboard loading and payment-return verification.
 if (!s.includes('"./hooks/useBillboards"')) {
   s = s.replace('import { useAnalytics } from "./hooks/useAnalytics";\n', 'import { useAnalytics } from "./hooks/useAnalytics";\nimport { useBillboards } from "./hooks/useBillboards";\nimport { usePaymentReturn } from "./hooks/usePaymentReturn";\n');
   const dataHook = `  const billboardData = useBillboards(api, readApi, setActiveBookings, setBidders, setPricing, setPricingReady, setLeaderboard);\n  const { loadPricing, loadAllActiveBillboards, loadLeaderboard, toAssetUrl } = billboardData;\n  usePaymentReturn(api, authHeaders, readApi, setPaymentNotice, loadAllActiveBillboards);\n`;
@@ -59,6 +58,13 @@ if (!s.includes('"./hooks/useBillboards"')) {
   s = s.replace(/  const toAssetUrl = \(v\?: string\) => v \? \(v\.startsWith\("http"\) \? v : api \+ v\) : undefined;\n  const loadPricing = async \(\) => \{[\s\S]*?  const loadPaymentCountry = async/, '  const loadPaymentCountry = async');
   s = s.replace(/  const loadLeaderboard = async \(\) => \{[\s\S]*?  const uploadImageOnly/, '  const uploadImageOnly');
   s = s.replace(/  useEffect\(\(\) => \{\n  const params = new URLSearchParams\(window\.location\.search\);[\s\S]*?\n\}, \[api\]\);\n  useEffect\(\(\) => \{\n    const t = window\.setInterval\(\(\) => setClock\(Date\.now\(\)\), 1000\);/, '  useEffect(() => {\n    const t = window.setInterval(() => setClock(Date.now()), 1000);');
+}
+
+if (!s.includes('"./hooks/useBooking"')) {
+  s = s.replace('import { usePaymentReturn } from "./hooks/usePaymentReturn";\n', 'import { usePaymentReturn } from "./hooks/usePaymentReturn";\nimport { useBooking } from "./hooks/useBooking";\n');
+  const bookingHook = `  const bookingActions = useBooking({ api, selected, user, pricingReady, bookingMinutes, bookingCompanyName, adTitle, adUrl, adFile, removePhoto, setAuthOpen, setAuthError, setBookingError, setBookingBusy, setUploadBusy, setEditBusy, setActiveBookings, setBidders, setAdFile, setRemovePhoto, setEditMode, authHeaders, readApi, loadAllActiveBillboards, toAssetUrl });\n  const { book, saveCreative } = bookingActions;\n`;
+  replaceOnce(/  usePaymentReturn\(api, authHeaders, readApi, setPaymentNotice, loadAllActiveBillboards\);\n/, `  usePaymentReturn(api, authHeaders, readApi, setPaymentNotice, loadAllActiveBillboards);\n${bookingHook}` , "Could not insert booking hook");
+  s = s.replace(/  const uploadImageOnly = async \(\) => \{[\s\S]*?  const active = selected \? activeBookings\[selected\.id\] : undefined,/, '  const active = selected ? activeBookings[selected.id] : undefined,');
 }
 
 fs.writeFileSync(file, s);
