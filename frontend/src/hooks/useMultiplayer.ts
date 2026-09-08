@@ -10,11 +10,25 @@ export function useMultiplayer(
   setSelected: Dispatch<SetStateAction<any>>,
   setActiveBookings: Dispatch<SetStateAction<Record<string, any>>>,
 ) {
+  const [paused, setPaused] = useState(false);
   const [players, setPlayers] = useState<RemotePlayer[]>([]);
   const [footfallTotals, setFootfallTotals] = useState<Record<string, number>>({});
   const socket = useRef<Socket | null>(null);
 
   useEffect(() => {
+    const onBattleState = (event: Event) => setPaused((event as CustomEvent<{ open?: boolean }>).detail?.open === true);
+    window.addEventListener("urbancity:battle-state", onBattleState);
+    return () => window.removeEventListener("urbancity:battle-state", onBattleState);
+  }, []);
+
+  useEffect(() => {
+    if (paused) {
+      socket.current?.disconnect();
+      socket.current = null;
+      setPlayers([]);
+      return;
+    }
+
     const token = localStorage.getItem("urbancity_token");
     const s = io(api, { auth: token ? { token } : {} });
     socket.current = s;
@@ -40,8 +54,12 @@ export function useMultiplayer(
       setBidders((v) => { const n = { ...v }; delete n[b.id]; return n; });
       setSelected((v: any) => v && v.id === b.id ? { ...v, occupied: false } : v);
     });
-    return () => { s.removeAllListeners(); s.disconnect(); if (socket.current === s) socket.current = null; };
-  }, [api, setActiveBookings, setBidders, setSelected]);
+    return () => {
+      s.removeAllListeners();
+      s.disconnect();
+      if (socket.current === s) socket.current = null;
+    };
+  }, [api, paused, setActiveBookings, setBidders, setSelected]);
 
   return { players, socket, footfallTotals, setFootfallTotals };
 }
