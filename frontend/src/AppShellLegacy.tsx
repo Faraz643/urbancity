@@ -4,6 +4,7 @@ import { useMultiplayer } from "./hooks/useMultiplayer";
 import { useAnalytics } from "./hooks/useAnalytics";
 import { useBillboards } from "./hooks/useBillboards";
 import { usePaymentReturn } from "./hooks/usePaymentReturn";
+import { useBooking } from "./hooks/useBooking";
 import { World } from "./components/Game/World";
 import { MiniMap } from "./components/Game/MiniMap";
 import { GameMenu } from "./components/AppShell/GameMenu";
@@ -61,6 +62,8 @@ export function AppShell() {
   const billboardData = useBillboards(api, readApi, setActiveBookings, setBidders, setPricing, setPricingReady, setLeaderboard);
   const { loadPricing, loadAllActiveBillboards, loadLeaderboard, toAssetUrl } = billboardData;
   usePaymentReturn(api, authHeaders, readApi, setPaymentNotice, loadAllActiveBillboards);
+  const bookingActions = useBooking({ api, selected, user, pricingReady, bookingMinutes, bookingCompanyName, adTitle, adUrl, adFile, removePhoto, setAuthOpen, setAuthError, setBookingError, setBookingBusy, setUploadBusy, setEditBusy, setActiveBookings, setBidders, setAdFile, setRemovePhoto, setEditMode, authHeaders, readApi, loadAllActiveBillboards, toAssetUrl });
+  const { book, saveCreative } = bookingActions;
   const loadPaymentCountry = async () => {
   try {
     const r = await fetch(api + "/api/payments/country");
@@ -239,188 +242,6 @@ useEffect(() => {
       : m >= 60
         ? `${Math.round(m / 60)} hour${Math.round(m / 60) === 1 ? "" : "s"}`
         : `${m} min`;
-  const uploadImageOnly = async () => {
-    if (!adFile) return undefined;
-    const fd = new FormData();
-    fd.append("file", adFile);
-    const r = await fetch(api + "/api/advertisements/upload", {
-        method: "POST",
-        headers: authHeaders(),
-        body: fd,
-      }),
-      d = await readApi(r);
-    if (!r.ok) throw new Error(d.error || "Upload failed");
-    return d.imageUrl;
-  };
-  const uploadCreative = async () => {
-    setUploadBusy(true);
-    try {
-      const imageUrl = await uploadImageOnly();
-      if (!imageUrl && !adUrl.trim() && !adTitle.trim()) return null;
-      const cr = await fetch(api + "/api/advertisements", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            title: bookingCompanyName || "Advertisement",
-            description: adTitle || undefined,
-            imageUrl: imageUrl || "",
-            targetUrl: adUrl || user?.websiteUrl || undefined,
-          }),
-        }),
-        ad = await readApi(cr);
-      if (!cr.ok) throw new Error(ad.error || "Could not create advertisement");
-      return ad.id;
-    } finally {
-      setUploadBusy(false);
-    }
-  };
-  const book = async () => {
-    if (!selected) return;
-    if (!user) {
-      setAuthOpen(true);
-      setAuthError("Login or register to book advertising space.");
-      return;
-    }
-    if (!pricingReady) {
-      setBookingError(
-        "Pricing is still loading. Please try again in a moment.",
-      );
-      return;
-    }
-    setBookingError("");
-    // for cashfree integration
-//     if (paymentCountry === "IN") {
-//   const phone = customerPhone.replace(/\D/g, "");
-
-//   if (!/^\d{10}$/.test(phone)) {
-//     setBookingError(
-//       "Please enter your valid 10-digit Indian mobile number for Cashfree payment.",
-//     );
-//     return;
-//   }
-// }
-    const link = adUrl.trim();
-    if (link) {
-      try {
-        const u = new URL(link);
-        if (!["http:", "https:"].includes(u.protocol)) throw new Error();
-      } catch {
-        setBookingError(
-          "Please enter a valid website URL including https:// (for example: https://yourcompany.com).",
-        );
-        return;
-      }
-    }
-    if (adFile && adFile.size > 5 * 1024 * 1024) {
-      setBookingError(
-        "Your image is too large. Please choose a PNG, JPG or WEBP image smaller than 5 MB.",
-      );
-      return;
-    }
-    setBookingBusy(true);
-    try {
-      const advertisementId = await uploadCreative(),
-        r = await fetch(api + "/api/payments/checkout", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            billboardId: selected.id,
-            durationMinutes: bookingMinutes,
-            companyName:
-              bookingCompanyName || user.displayName || user.username,
-            description: adTitle.trim() || undefined,
-           advertisementId: advertisementId || undefined,
-// customerPhone:
-//   paymentCountry === "IN"
-//     ? customerPhone.replace(/\D/g, "")
-//     : undefined,
-          }),
-        }),
-        data = await readApi(r);
-      if (!r.ok)
-        throw new Error(data.error || "Could not start secure checkout");
-      if (data.paymentProvider === "DODO" && data.checkoutUrl) {
-        window.location.href = data.checkoutUrl;
-        return;
-      }
-      if (!data.paymentSessionId)
-        throw new Error("Cashfree payment session was not returned");
-      const Cashfree = (window as any).Cashfree;
-      if (typeof Cashfree !== "function")
-        throw new Error(
-          "Cashfree checkout is still loading. Please wait a moment and try again.",
-        );
-      Cashfree({
-        mode: data.environment === "production" ? "production" : "sandbox",
-      }).checkout({
-        paymentSessionId: data.paymentSessionId,
-        redirectTarget: "_self",
-      });
-    } catch (e: any) {
-      setBookingError(e.message || "Booking failed");
-    } finally {
-      setBookingBusy(false);
-    }
-  };
-  const saveCreative = async () => {
-    if (!selected || !user) return;
-    setBookingError("");
-    const link = adUrl.trim();
-    if (link) {
-      try {
-        const u = new URL(link);
-        if (!["http:", "https:"].includes(u.protocol)) throw new Error();
-      } catch {
-        setBookingError(
-          "Please enter a valid website URL including https:// (for example: https://yourcompany.com).",
-        );
-        return;
-      }
-    }
-    setEditBusy(true);
-    try {
-      const imageUrl = removePhoto ? null : await uploadImageOnly(),
-        body: any = {
-          companyName: bookingCompanyName.trim() || undefined,
-          description: adTitle.trim(),
-          targetUrl: adUrl.trim(),
-        };
-      if (removePhoto) body.imageUrl = null;
-      else if (imageUrl) body.imageUrl = imageUrl;
-      const r = await fetch(
-          api +
-            "/api/bookings/" +
-            encodeURIComponent(selected.id) +
-            "/creative",
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json", ...authHeaders() },
-            body: JSON.stringify(body),
-          },
-        ),
-        data = await readApi(r);
-      if (!r.ok) throw new Error(data.error || "Could not update creative");
-      setActiveBookings((v) => ({ ...v, [selected.id]: data }));
-      setBidders((v) => ({
-        ...v,
-        [selected.id]: {
-          name: data.companyName,
-          amount: Number(data.amount || 0),
-          siteUrl: data.targetUrl || data.siteUrl || undefined,
-          imageUrl: toAssetUrl(data.imageUrl),
-          description: data.description || undefined,
-        },
-      }));
-      setAdFile(null);
-      setRemovePhoto(false);
-      setEditMode(false);
-      await loadAllActiveBillboards();
-    } catch (e: any) {
-      setBookingError(e.message || "Could not update creative");
-    } finally {
-      setEditBusy(false);
-    }
-  };
   const active = selected ? activeBookings[selected.id] : undefined,
     bidder = selected ? bidders[selected.id] : undefined,
     isOwner = !!(user?.id && active?.userId && active.userId === user.id),
