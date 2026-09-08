@@ -29,7 +29,7 @@ export function GameHud({ totalVisitors, siteTotalVisitors, billboardCount, user
     </div>
     <div className="hud controls"><b>Controls</b><small><kbd>W A S D</kbd> move</small><small><kbd>E</kbd> interact</small></div>
     <button className="leaderboard-button" onClick={onLeaderboard}>Leaderboard</button>
-    {onHunt && <button className="leaderboard-button" style={{ top: 334, background: "linear-gradient(135deg,#ff4d4d,#ff7a18)", color: "#fff", fontWeight: 900 }} onClick={onHunt}>🎯 HUNT</button>}
+    {onHunt && <button className="leaderboard-button" style={{ top: 334, background: "linear-gradient(135deg,#4b6bff,#705cff)", color: "#fff", fontWeight: 900 }} onClick={onHunt}>🔫 BATTLE</button>}
     <div className="billcount"><div>• Total Visitors <b>{siteTotalVisitors}</b></div><div>• Billboards <b>{billboardCount} total</b></div></div>
   </>;
 }
