@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { MAP_BILLBOARDS } from "../lib/mapBillboards";
 import { billboardTrafficRadius } from "../lib/billboard";
 import type { RemotePlayer } from "../types/player";
 
-export function useAnalytics(api: string, players: RemotePlayer[], localPosition: [number, number, number]) {
-  const [footfallTotals, setFootfallTotals] = useState<Record<string, number>>({});
+export function useAnalytics(
+  api: string,
+  players: RemotePlayer[],
+  localPosition: [number, number, number],
+  setFootfallTotals: Dispatch<SetStateAction<Record<string, number>>>,
+) {
   const [siteTotalVisitors, setSiteTotalVisitors] = useState(0);
 
   useEffect(() => {
@@ -26,7 +30,7 @@ export function useAnalytics(api: string, players: RemotePlayer[], localPosition
       .then((r) => (r.ok ? r.json() : []))
       .then((rows: any[]) => { const n: Record<string, number> = {}; for (const row of rows) n[row.id] = Number(row.footfall || 0); setFootfallTotals(n); })
       .catch(() => {});
-  }, [api]);
+  }, [api, setFootfallTotals]);
 
   const visitorStats = useMemo(() => {
     const stats: Record<string, number> = {};
@@ -37,5 +41,5 @@ export function useAnalytics(api: string, players: RemotePlayer[], localPosition
     return stats;
   }, [players, localPosition]);
 
-  return { footfallTotals, setFootfallTotals, siteTotalVisitors, setSiteTotalVisitors, visitorStats };
+  return { siteTotalVisitors, visitorStats };
 }
