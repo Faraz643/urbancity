@@ -1,9 +1,10 @@
 type Props = {
   open: boolean;
   onClose: () => void;
+  onHunt?: () => void;
 };
 
-export function GameMenu({ open, onClose }: Props) {
+export function GameMenu({ open, onClose, onHunt }: Props) {
   if (!open) return null;
   return (
     <div className="game-menu-overlay" onClick={onClose}>
@@ -15,6 +16,30 @@ export function GameMenu({ open, onClose }: Props) {
           </div>
           <button onClick={onClose}>×</button>
         </div>
+
+        {onHunt && (
+          <button
+            onClick={() => {
+              onClose();
+              onHunt();
+            }}
+            style={{
+              width: "100%",
+              marginBottom: 14,
+              padding: "13px 14px",
+              border: 0,
+              borderRadius: 10,
+              background: "linear-gradient(135deg,#ff4d4d,#ff7a18)",
+              color: "white",
+              fontWeight: 900,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            🎯 HUNT — 3 MINUTE CHALLENGE
+          </button>
+        )}
+
         <div className="game-menu-links">
           <a href="/about">About UrbanCity</a>
           <a href="/how-it-works">How It Works</a>
