@@ -9,6 +9,7 @@ on:
       - "frontend/src/components/AppShell/**"
       - "scripts/organize-appshell.mjs"
       - "frontend/package.json"
+      - "frontend/tsconfig.json"
 
 permissions:
   contents: write
