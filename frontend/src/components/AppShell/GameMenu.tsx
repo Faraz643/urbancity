@@ -10,36 +10,14 @@ export function GameMenu({ open, onClose, onHunt }: Props) {
     <div className="game-menu-overlay" onClick={onClose}>
       <aside className="game-menu" onClick={(e) => e.stopPropagation()}>
         <div className="game-menu-head">
-          <div>
-            <b>URBANCITY</b>
-            <small>INFORMATION & SUPPORT</small>
-          </div>
+          <div><b>URBANCITY</b><small>INFORMATION & SUPPORT</small></div>
           <button onClick={onClose}>×</button>
         </div>
-
         {onHunt && (
-          <button
-            onClick={() => {
-              onClose();
-              onHunt();
-            }}
-            style={{
-              width: "100%",
-              marginBottom: 14,
-              padding: "13px 14px",
-              border: 0,
-              borderRadius: 10,
-              background: "linear-gradient(135deg,#ff4d4d,#ff7a18)",
-              color: "white",
-              fontWeight: 900,
-              cursor: "pointer",
-              textAlign: "left",
-            }}
-          >
-            🎯 HUNT — 3 MINUTE CHALLENGE
+          <button onClick={() => { onClose(); onHunt(); }} style={{ width: "100%", marginBottom: 14, padding: "13px 14px", border: 0, borderRadius: 10, background: "linear-gradient(135deg,#4b6bff,#705cff)", color: "white", fontWeight: 900, cursor: "pointer", textAlign: "left" }}>
+            🔫 BATTLE — MULTIPLAYER CITY FIGHT
           </button>
         )}
-
         <div className="game-menu-links">
           <a href="/about">About UrbanCity</a>
           <a href="/how-it-works">How It Works</a>
