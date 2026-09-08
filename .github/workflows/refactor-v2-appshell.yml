@@ -7,6 +7,7 @@ on:
       - "frontend/src/AppShell.tsx"
       - "frontend/src/AppShellLegacy.tsx"
       - "frontend/src/components/AppShell/**"
+      - "frontend/src/hooks/**"
       - "scripts/organize-appshell.mjs"
       - "frontend/package.json"
       - "frontend/package-lock.json"
@@ -40,5 +41,6 @@ jobs:
             echo "No AppShell changes to commit"
             exit 0
           fi
-          git commit -m "refactor: wire extracted AppShell components"
+          git commit -m "refactor: organize AppShell logic"
+          git pull --rebase origin v2
           git push origin v2
