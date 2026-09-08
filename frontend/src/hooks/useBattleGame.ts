@@ -2,18 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import type { BattlePlayer, BattleStats } from "../types/battle";
 
-const EMPTY_STATS: BattleStats = {
-  kills: 0,
-  deaths: 0,
-  streak: 0,
-  bestStreak: 0,
-  ammo: 30,
-  health: 100,
-  alive: true,
-};
+const EMPTY_STATS: BattleStats = { kills: 0, deaths: 0, streak: 0, bestStreak: 0, ammo: 30, health: 100, alive: true };
 
 export function useBattleGame(api: string) {
   const socket = useRef<Socket | null>(null);
+  const [selfId, setSelfId] = useState("");
   const [joined, setJoined] = useState(false);
   const [players, setPlayers] = useState<BattlePlayer[]>([]);
   const [stats, setStats] = useState<BattleStats>(EMPTY_STATS);
@@ -29,7 +22,7 @@ export function useBattleGame(api: string) {
     const token = localStorage.getItem("urbancity_token");
     const s = io(api, { auth: token ? { token } : {} });
     socket.current = s;
-
+    s.on("connect", () => setSelfId(s.id));
     s.on("battle:state", (data) => {
       setJoined(true);
       setPlayers(data.players || []);
@@ -63,7 +56,6 @@ export function useBattleGame(api: string) {
       if (data?.players) setPlayers(data.players);
     });
     s.on("battle:error", (message: string) => setStatus(message));
-
     return () => {
       if (hitTimer.current) window.clearTimeout(hitTimer.current);
       s.emit("battle:leave");
@@ -73,27 +65,14 @@ export function useBattleGame(api: string) {
     };
   }, [api]);
 
-  const join = useCallback(() => {
-    socket.current?.emit("battle:join");
-  }, []);
-
-  const leave = useCallback(() => {
-    socket.current?.emit("battle:leave");
-    setJoined(false);
-  }, []);
-
-  const move = useCallback((data: { position: [number, number, number]; rotation: number; moving: boolean }) => {
-    socket.current?.emit("player:update", data);
-  }, []);
-
+  const join = useCallback(() => socket.current?.emit("battle:join"), []);
+  const leave = useCallback(() => { socket.current?.emit("battle:leave"); setJoined(false); }, []);
+  const move = useCallback((data: { position: [number, number, number]; rotation: number; moving: boolean }) => socket.current?.emit("player:update", data), []);
   const shoot = useCallback((targetId?: string) => {
     if (!socket.current || !joined || !stats.alive || matchEnded) return;
     socket.current.emit("battle:shoot", { targetId });
   }, [joined, matchEnded, stats.alive]);
+  const reload = useCallback(() => socket.current?.emit("battle:reload"), []);
 
-  const reload = useCallback(() => {
-    socket.current?.emit("battle:reload");
-  }, []);
-
-  return { joined, players, stats, timeLeft, status, hitMarker, killFeed, spawn, matchEnded, join, leave, move, shoot, reload };
+  return { selfId, joined, players, stats, timeLeft, status, hitMarker, killFeed, spawn, matchEnded, join, leave, move, shoot, reload };
 }
