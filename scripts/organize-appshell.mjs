@@ -7,30 +7,19 @@ const file = path.join(repoRoot, "frontend", "src", "AppShellLegacy.tsx");
 let s = fs.readFileSync(file, "utf8");
 
 const ensure = (condition, message) => { if (!condition) throw new Error(message); };
-const replaceOnce = (pattern, replacement, message) => {
-  const next = s.replace(pattern, replacement);
-  ensure(next !== s, message);
-  s = next;
-};
+const replaceOnce = (pattern, replacement, message) => { const next = s.replace(pattern, replacement); ensure(next !== s, message); s = next; };
 
 if (!s.includes('"./components/AppShell/GameMenu"')) {
   s = s.replace('import { MiniMap } from "./components/Game/MiniMap";\n', 'import { MiniMap } from "./components/Game/MiniMap";\nimport { GameMenu } from "./components/AppShell/GameMenu";\nimport { GameHud } from "./components/AppShell/GameHud";\nimport { Leaderboard } from "./components/AppShell/Leaderboard";\nimport { AuthModal } from "./components/AppShell/AuthModal";\nimport { BillboardPanel } from "./components/AppShell/BillboardPanel";\n');
   const gameStart = s.indexOf('      <div className="game-topbar">');
   const nearbyStart = s.indexOf('      {nearby && !selected && (', gameStart);
   ensure(gameStart >= 0 && nearbyStart >= 0, "Could not locate AppShell HUD block");
-  const hud = `      <GameMenu open={gameMenuOpen} onClose={() => setGameMenuOpen(false)} />\n      <GameHud totalVisitors={totalVisitors} siteTotalVisitors={siteTotalVisitors} billboardCount={MAP_BILLBOARDS.length} user={user} timeMode={timeMode} onMenuOpen={() => setGameMenuOpen(true)} onLogin={() => setAuthOpen(true)} onLogout={logout} onTimeMode={setTimeMode} onLeaderboard={() => { setHistoryOpen(true); loadLeaderboard(); }} />\n`;
-  s = s.slice(0, gameStart) + hud + s.slice(nearbyStart);
-  const selectedStart = s.indexOf('      {selected && (');
-  const historyStart = s.indexOf('      {historyOpen && (');
-  ensure(selectedStart >= 0 && historyStart >= 0, "Could not locate billboard modal block");
+  s = s.slice(0, gameStart) + `      <GameMenu open={gameMenuOpen} onClose={() => setGameMenuOpen(false)} />\n      <GameHud totalVisitors={totalVisitors} siteTotalVisitors={siteTotalVisitors} billboardCount={MAP_BILLBOARDS.length} user={user} timeMode={timeMode} onMenuOpen={() => setGameMenuOpen(true)} onLogin={() => setAuthOpen(true)} onLogout={logout} onTimeMode={setTimeMode} onLeaderboard={() => { setHistoryOpen(true); loadLeaderboard(); }} />\n` + s.slice(nearbyStart);
+  const selectedStart = s.indexOf('      {selected && ('); const historyStart = s.indexOf('      {historyOpen && ('); ensure(selectedStart >= 0 && historyStart >= 0, "Could not locate billboard modal block");
   s = s.slice(0, selectedStart) + `      {selected && (\n        <BillboardPanel selected={selected} active={active} isOwner={isOwner} companyName={companyName} siteUrl={siteUrl} description={description} footfall={footfallTotals[selected.id] || 0} pricing={pricing} pricingReady={pricingReady} bookingMinutes={bookingMinutes} bookingError={bookingError} bookingBusy={bookingBusy} uploadBusy={uploadBusy} editMode={editMode} editBusy={editBusy} removePhoto={removePhoto} bookingCompanyName={bookingCompanyName} adTitle={adTitle} adUrl={adUrl} adFile={adFile} user={user} onClose={() => setSelected(null)} onEdit={() => setEditMode(true)} onCancelEdit={() => setEditMode(false)} onSave={saveCreative} onBook={book} onMinutes={setBookingMinutes} onStepMinutes={(delta) => setBookingMinutes((m) => Math.min(2880, Math.max(30, m + delta)))} setBookingCompanyName={setBookingCompanyName} setAdTitle={setAdTitle} setAdUrl={setAdUrl} setAdFile={setAdFile} setRemovePhoto={setRemovePhoto} formatUsd={formatUsd} formatDuration={formatDuration} shortDate={shortDate} remaining={remaining} />\n      )}\n` + s.slice(historyStart);
-  const historyBlock = s.indexOf('      {historyOpen && (');
-  const authBlock = s.indexOf('      {authOpen && (', historyBlock);
-  ensure(historyBlock >= 0 && authBlock >= 0, "Could not locate leaderboard/auth blocks");
+  const historyBlock = s.indexOf('      {historyOpen && ('); const authBlock = s.indexOf('      {authOpen && (', historyBlock); ensure(historyBlock >= 0 && authBlock >= 0, "Could not locate leaderboard/auth blocks");
   s = s.slice(0, historyBlock) + `      <Leaderboard open={historyOpen} leaderboard={leaderboard} onClose={() => setHistoryOpen(false)} formatUsd={formatUsd} durationLabel={durationLabel} />\n` + s.slice(authBlock);
-  const authStart = s.indexOf('      {authOpen && (');
-  const appEnd = s.indexOf('    </div>\n  );', authStart);
-  ensure(authStart >= 0 && appEnd >= 0, "Could not locate auth UI block");
+  const authStart = s.indexOf('      {authOpen && ('); const appEnd = s.indexOf('    </div>\n  );', authStart); ensure(authStart >= 0 && appEnd >= 0, "Could not locate auth UI block");
   s = s.slice(0, authStart) + `      <AuthModal open={authOpen} mode={authMode} email={authEmail} password={authPassword} username={authUsername} website={authWebsite} error={authError} busy={authBusy} emailRef={authInputRef} registerRef={authInputRef} onClose={() => setAuthOpen(false)} onModeChange={() => { setAuthMode(authMode === "login" ? "register" : "login"); setAuthError(""); }} onSubmit={submitAuth} setEmail={setAuthEmail} setPassword={setAuthPassword} setUsername={setAuthUsername} setWebsite={setAuthWebsite} />\n` + s.slice(appEnd);
 }
 
@@ -65,6 +54,11 @@ if (!s.includes('"./hooks/useBooking"')) {
   const bookingHook = `  const bookingActions = useBooking({ api, selected, user, pricingReady, bookingMinutes, bookingCompanyName, adTitle, adUrl, adFile, removePhoto, setAuthOpen, setAuthError, setBookingError, setBookingBusy, setUploadBusy, setEditBusy, setActiveBookings, setBidders, setAdFile, setRemovePhoto, setEditMode, authHeaders, readApi, loadAllActiveBillboards, toAssetUrl });\n  const { book, saveCreative } = bookingActions;\n`;
   replaceOnce(/  usePaymentReturn\(api, authHeaders, readApi, setPaymentNotice, loadAllActiveBillboards\);\n/, `  usePaymentReturn(api, authHeaders, readApi, setPaymentNotice, loadAllActiveBillboards);\n${bookingHook}` , "Could not insert booking hook");
   s = s.replace(/  const uploadImageOnly = async \(\) => \{[\s\S]*?  const active = selected \? activeBookings\[selected\.id\] : undefined,/, '  const active = selected ? activeBookings[selected.id] : undefined,');
+}
+
+if (!s.includes('"./utils/formatters"')) {
+  s = s.replace('import type { TimeMode } from "./lib/timeTheme";\n', 'import type { TimeMode } from "./lib/timeTheme";\nimport { formatDuration, formatUsd, shortDate, durationLabel, remainingTime } from "./utils/formatters";\n');
+  s = s.replace(/  const remaining = \(end\?: string\) => \{[\s\S]*?  \};\n  const formatDuration = \(m: number\) =>[\s\S]*?  const durationLabel = \(m: number\) =>[\s\S]*?        : `\$\{m\} min`;\n/, '  const remaining = (end?: string) => remainingTime(end, clock);\n');
 }
 
 fs.writeFileSync(file, s);
